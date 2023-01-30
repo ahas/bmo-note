@@ -1,93 +1,61 @@
 import { LOCALES } from '@affine/i18n';
-import { TooltipProps } from '@mui/material';
 import { styled } from '@/styles';
-import { Tooltip } from '@mui/material';
-import { useState } from 'react';
 import { useTranslation } from '@affine/i18n';
 import { ArrowDownIcon } from '@blocksuite/icons';
 import { Button } from '@/ui/button';
+import { Menu, MenuItem } from '@/ui/menu';
 
-export const LanguageMenu = () => {
+const LanguageMenuContent = () => {
   const { i18n } = useTranslation();
   const changeLanguage = (event: string) => {
     i18n.changeLanguage(event);
   };
-  const [show, setShow] = useState(false);
-  const currentLanguage = LOCALES.find(item => item.tag === i18n.language);
-  const [languageName, setLanguageName] = useState(
-    currentLanguage?.originalName
-  );
   return (
-    <StyledTooltip
-      title={
-        <>
-          {LOCALES.map(option => {
-            return (
-              <ListItem
-                style={{ border: 'none' }}
-                key={option.name}
-                title={option.name}
-                onClick={() => {
-                  changeLanguage(option.tag);
-                  setShow(false);
-                  setLanguageName(option.originalName);
-                }}
-              >
-                {option.originalName}
-              </ListItem>
-            );
-          })}
-        </>
-      }
-      open={show}
+    <>
+      {LOCALES.map(option => {
+        return (
+          <ListItem
+            key={option.name}
+            title={option.name}
+            onClick={() => {
+              changeLanguage(option.tag);
+            }}
+          >
+            {option.originalName}
+          </ListItem>
+        );
+      })}
+    </>
+  );
+};
+export const LanguageMenu = () => {
+  const { i18n } = useTranslation();
+
+  const currentLanguage = LOCALES.find(item => item.tag === i18n.language);
+
+  return (
+    <Menu
+      content={<LanguageMenuContent />}
+      placement="bottom"
+      trigger="click"
+      disablePortal={true}
     >
-      <StyledTitleButton
-        style={{ border: 'none', padding: '0px' }}
-        onClick={() => {
-          setShow(!show);
-        }}
+      <Button
+        icon={<ArrowDownIcon />}
+        iconPosition="end"
+        noBorder={true}
+        style={{ textTransform: 'capitalize' }}
       >
-        <StyledContainer>
-          <StyledText>{languageName}</StyledText>
-          <ArrowDownIcon fontSize={18} />
-        </StyledContainer>
-      </StyledTitleButton>
-    </StyledTooltip>
+        {currentLanguage?.originalName}
+      </Button>
+    </Menu>
   );
 };
 
-const StyledContainer = styled('div')(() => ({
-  display: 'flex',
-  alignItems: 'center',
-}));
-
-const StyledText = styled('span')(({ theme }) => ({
-  marginRight: '4px',
-  marginLeft: '16px',
-  fontSize: theme.font.sm,
-  fontWeight: '500',
-  textTransform: 'capitalize',
-}));
-const StyledTooltip = styled(({ className, ...props }: TooltipProps) => (
-  <Tooltip {...props} classes={{ popper: className }} />
-))(({ theme }) => ({
-  zIndex: theme.zIndex.modal,
-  '& .MuiTooltip-tooltip': {
-    backgroundColor: theme.colors.popoverBackground,
-    boxShadow: theme.shadow.modal,
-    color: theme.colors.popoverColor,
-  },
-}));
-
-const ListItem = styled(Button)(({ theme }) => ({
-  display: 'block',
-  width: '100%',
+const ListItem = styled(MenuItem)(({ theme }) => ({
+  height: '38px',
   color: theme.colors.popoverColor,
   fontSize: theme.font.sm,
   textTransform: 'capitalize',
-}));
-
-const StyledTitleButton = styled(Button)(({ theme }) => ({
-  color: theme.colors.popoverColor,
-  fontSize: theme.font.sm,
+  padding: '0 24px',
 }));
