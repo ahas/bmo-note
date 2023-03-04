@@ -10,16 +10,11 @@ export function useBlockSuiteWorkspaceName(
   const [name, set] = useState(
     () => blockSuiteWorkspace?.meta.name ?? DEFAULT_WORKSPACE_NAME
   );
-  if (blockSuiteWorkspace) {
-    if (blockSuiteWorkspace.meta.name !== name) {
-      set(blockSuiteWorkspace.meta.name);
-    }
-  }
   useEffect(() => {
     if (blockSuiteWorkspace) {
-      set(blockSuiteWorkspace.meta.name);
+      set(blockSuiteWorkspace.meta.name ?? '');
       const dispose = blockSuiteWorkspace.meta.commonFieldsUpdated.on(() => {
-        set(blockSuiteWorkspace.meta.name);
+        set(blockSuiteWorkspace.meta.name ?? '');
       });
       return () => {
         dispose.dispose();
