@@ -21,9 +21,10 @@ export default defineConfig({
         globals: {
           idb: 'idb',
           yjs: 'yjs',
+          'y-provider': 'yProvider',
         },
       },
-      external: ['idb', 'yjs'],
+      external: ['idb', 'yjs', 'y-provider'],
     },
   },
   plugins: [
