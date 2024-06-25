@@ -3,13 +3,8 @@ import { Injectable } from '@nestjs/common';
 import { ChatPrompt, PromptService } from '../../prompt';
 import { CopilotProviderService } from '../../providers';
 import { CopilotChatOptions, CopilotTextProvider } from '../../types';
-import {
-  NodeData,
-  WorkflowNodeType,
-  WorkflowResult,
-  WorkflowResultType,
-} from '../types';
-import { WorkflowExecutorType } from './types';
+import { WorkflowNodeData, WorkflowNodeType } from '../types';
+import { NodeExecuteResult, NodeExecuteState, NodeExecutorType } from './types';
 import { AutoRegisteredWorkflowExecutor } from './utils';
 
 @Injectable()
@@ -22,10 +17,10 @@ export class CopilotChatTextExecutor extends AutoRegisteredWorkflowExecutor {
   }
 
   private async initExecutor(
-    data: NodeData
+    data: WorkflowNodeData
   ): Promise<
     [
-      NodeData & { nodeType: WorkflowNodeType.Basic },
+      WorkflowNodeData & { nodeType: WorkflowNodeType.Basic },
       ChatPrompt,
       CopilotTextProvider,
     ]
@@ -36,6 +31,11 @@ export class CopilotChatTextExecutor extends AutoRegisteredWorkflowExecutor {
       );
     }
 
+    if (!data.promptName) {
+      throw new Error(
+        `Prompt name not found when running workflow node ${data.name}`
+      );
+    }
     const prompt = await this.promptService.get(data.promptName);
     if (!prompt) {
       throw new Error(
@@ -55,21 +55,21 @@ export class CopilotChatTextExecutor extends AutoRegisteredWorkflowExecutor {
   }
 
   override get type() {
-    return WorkflowExecutorType.ChatText;
+    return NodeExecutorType.ChatText;
   }
 
   override async *next(
-    data: NodeData,
+    data: WorkflowNodeData,
     params: Record<string, string>,
     options?: CopilotChatOptions
-  ): AsyncIterable<WorkflowResult> {
+  ): AsyncIterable<NodeExecuteResult> {
     const [{ paramKey, id }, prompt, provider] = await this.initExecutor(data);
 
     const finalMessage = prompt.finish(params);
     if (paramKey) {
       // update params with custom key
       yield {
-        type: WorkflowResultType.Params,
+        type: NodeExecuteState.Params,
         params: {
           [paramKey]: await provider.generateText(
             finalMessage,
@@ -84,11 +84,7 @@ export class CopilotChatTextExecutor extends AutoRegisteredWorkflowExecutor {
         prompt.model,
         options
       )) {
-        yield {
-          type: WorkflowResultType.Content,
-          nodeId: id,
-          content,
-        };
+        yield { type: NodeExecuteState.Content, nodeId: id, content };
       }
     }
   }
