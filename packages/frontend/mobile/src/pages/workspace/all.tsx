@@ -1,3 +1,10 @@
+import { AppTabs } from '../../components';
+
 export const Component = () => {
-  return <div>/workspace/:workspaceId/all</div>;
+  return (
+    <>
+      `workspace/all.tsx`;
+      <AppTabs />
+    </>
+  );
 };
