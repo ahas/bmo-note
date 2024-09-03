@@ -1,4 +1,8 @@
+import { useLiveData, useService } from '@toeverything/infra';
+import { useEffect } from 'react';
 import { type LoaderFunction, redirect } from 'react-router-dom';
+
+import { AuthService } from '../modules/cloud';
 
 export const loader: LoaderFunction = async ({ request }) => {
   const url = new URL(request.url);
@@ -35,6 +39,17 @@ export const loader: LoaderFunction = async ({ request }) => {
 };
 
 export const Component = () => {
+  const service = useService(AuthService);
+  const user = useLiveData(service.session.account$);
+  useEffect(() => {
+    service.session.revalidate();
+  }, [service]);
+
+  // TODO(@pengx17): window.close() in electron hidden window will close main window as well
+  if (!environment.isDesktop && user) {
+    window.close();
+  }
+
   // TODO(@eyhn): loading ui
   return null;
 };
