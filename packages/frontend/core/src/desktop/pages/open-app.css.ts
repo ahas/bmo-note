@@ -33,7 +33,12 @@ export const topNavLink = style({
   textDecoration: 'none',
   padding: '4px 18px',
 });
-export const tryAgainLink = style({
+
+export const promptLinks = style({
+  display: 'flex',
+  columnGap: 16,
+});
+export const promptLink = style({
   color: cssVar('linkColor'),
   fontWeight: 500,
   textDecoration: 'none',
@@ -48,4 +53,12 @@ export const centerContent = style({
 export const prompt = style({
   marginTop: 20,
   marginBottom: 12,
+});
+export const editSettingsLink = style({
+  fontWeight: 500,
+  textDecoration: 'none',
+  color: cssVar('linkColor'),
+  fontSize: cssVar('fontSm'),
+  position: 'absolute',
+  bottom: 48,
 });
