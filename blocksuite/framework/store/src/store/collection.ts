@@ -70,10 +70,6 @@ const FLAGS_PRESET = {
   readonly: {},
 } satisfies BlockSuiteFlags;
 
-export interface StackItem {
-  meta: Map<'cursor-location' | 'selection-state', unknown>;
-}
-
 export class DocCollection implements Workspace {
   protected readonly _schema: Schema;
 
