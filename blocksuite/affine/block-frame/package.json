@@ -13,6 +13,7 @@
   "author": "toeverything",
   "license": "MIT",
   "dependencies": {
+    "@blocksuite/affine-block-surface": "workspace:*",
     "@blocksuite/affine-components": "workspace:*",
     "@blocksuite/affine-model": "workspace:*",
     "@blocksuite/affine-shared": "workspace:*",
@@ -27,6 +28,7 @@
     "@types/mdast": "^4.0.4",
     "lit": "^3.2.0",
     "minimatch": "^10.0.1",
+    "yjs": "^13.6.21",
     "zod": "^3.23.8"
   },
   "exports": {
