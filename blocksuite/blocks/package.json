@@ -28,6 +28,7 @@
     "@blocksuite/affine-block-list": "workspace:*",
     "@blocksuite/affine-block-note": "workspace:*",
     "@blocksuite/affine-block-paragraph": "workspace:*",
+    "@blocksuite/affine-block-root": "workspace:*",
     "@blocksuite/affine-block-surface": "workspace:*",
     "@blocksuite/affine-block-surface-ref": "workspace:*",
     "@blocksuite/affine-block-table": "workspace:*",
