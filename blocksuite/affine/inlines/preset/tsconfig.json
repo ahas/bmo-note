@@ -8,6 +8,7 @@
   "include": ["./src"],
   "references": [
     { "path": "../../components" },
+    { "path": "../footnote" },
     { "path": "../link" },
     { "path": "../reference" },
     { "path": "../../model" },
