@@ -9,6 +9,8 @@ query getCopilotSessions(
         id
         parentSessionId
         promptName
+        model
+        optionalModels
       }
     }
   }
