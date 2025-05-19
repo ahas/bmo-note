@@ -29,7 +29,3 @@ export const viewToggleItem = style({
     },
   },
 });
-export const viewToggleIndicator = style({
-  backgroundColor: cssVarV2.layer.background.hoverOverlay,
-  boxShadow: 'none',
-});
