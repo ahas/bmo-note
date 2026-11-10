@@ -6,16 +6,13 @@ use axum::http::StatusCode;
 use futures_util::StreamExt;
 use serde_json::json;
 
-use crate::support::{Ran, Scratch, answered, base64, doc_bytes, note_body, settings};
+use crate::support::{Ran, Scratch, answered, base64, doc_bytes, held_port, note_body, settings};
 
 async fn running(name: &str) -> (Scratch, Ran) {
   let scratch = Scratch::make(name);
-  let listen = std::net::SocketAddr::from(([127, 0, 0, 1], {
-    let probe = std::net::TcpListener::bind("127.0.0.1:0").expect("a port is free");
-    probe.local_addr().expect("the probe names its address").port()
-  }));
+  let (listener, listen) = held_port().await;
   let own = settings(&scratch, listen);
-  (scratch, Ran::start(own).await)
+  (scratch, Ran::start(own, listener).await)
 }
 
 /// Every event a reader's page answers, newest held last.

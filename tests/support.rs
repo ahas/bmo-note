@@ -85,9 +85,10 @@ impl Drop for Ran {
 }
 
 impl Ran {
-  /// Starts the service over `settings`, answering at its listen address until the `Ran` is dropped.
-  pub async fn start(settings: Settings) -> Self {
-    let listener = TcpListener::bind(settings.server.listen).await.expect("the port is bound");
+  /// Starts the service over `settings` on the `listener` the test holds open for it, answering at the
+  /// settings' listen address until the `Ran` is dropped. The port is held, not probed: a test that let
+  /// go of a port it only borrowed can be refused it at the real bind by another test's service.
+  pub async fn start(settings: Settings, listener: TcpListener) -> Self {
     let address = settings.base_address();
     let (stop, ended) = oneshot::channel::<()>();
     let task = tokio::spawn(async move {
@@ -148,6 +149,15 @@ pub fn doc_bytes(mark: u8) -> Vec<u8> {
 pub fn base64(bytes: &[u8]) -> String {
   use base64::Engine;
   base64::engine::general_purpose::STANDARD.encode(bytes)
+}
+
+/// A port held for a test service: the open listener and the address it answers at. A test hands the
+/// listener to `Ran::start_on` without letting go of it, so no other test can be given the same port
+/// between the probe and the bind.
+pub async fn held_port() -> (TcpListener, SocketAddr) {
+  let listener = TcpListener::bind("127.0.0.1:0").await.expect("a port is free");
+  let address = listener.local_addr().expect("the listener names its address");
+  (listener, address)
 }
 
 /// The status and the JSON answer of a call, the JSON read where the answer carries any.

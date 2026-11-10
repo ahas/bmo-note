@@ -5,18 +5,13 @@
 use axum::http::StatusCode;
 use serde_json::Value;
 
-use crate::support::{Ran, Scratch, answered, settings};
+use crate::support::{Ran, Scratch, answered, held_port, settings};
 
 async fn running(name: &str) -> (Scratch, Ran) {
   let scratch = Scratch::make(name);
-  let listen = std::net::SocketAddr::from(([127, 0, 0, 1], probe_port()));
+  let (listener, listen) = held_port().await;
   let own = settings(&scratch, listen);
-  (scratch, Ran::start(own).await)
-}
-
-fn probe_port() -> u16 {
-  let probe = std::net::TcpListener::bind("127.0.0.1:0").expect("a port is free");
-  probe.local_addr().expect("the probe names its address").port()
+  (scratch, Ran::start(own, listener).await)
 }
 
 #[tokio::test]
@@ -136,7 +131,7 @@ async fn a_service_without_a_built_bundle_answers_the_four_as_absent() {
   let scratch = Scratch::make("no-bundle");
   let folder = scratch.join("conf");
   std::fs::create_dir_all(&folder).expect("the settings folder is made");
-  let listen = std::net::SocketAddr::from(([127, 0, 0, 1], probe_port()));
+  let (listener, listen) = held_port().await;
   std::fs::write(
     folder.join("settings.local.toml"),
     format!(
@@ -150,7 +145,7 @@ async fn a_service_without_a_built_bundle_answers_the_four_as_absent() {
   .expect("the settings are written");
   let settings = bmo_note::settings::Settings::read(&folder, Some(std::collections::HashMap::new()))
     .expect("the settings read");
-  let ran = Ran::start(settings).await;
+  let ran = Ran::start(settings, listener).await;
 
   for path in ["/console-manifest", "/console/words", "/console/bundle-x.js"] {
     let (status, refusal) = answered(ran.as_console("GET", path)).await;

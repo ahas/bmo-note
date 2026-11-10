@@ -6,20 +6,14 @@ use std::collections::BTreeSet;
 use axum::http::StatusCode;
 use serde_json::json;
 
-use crate::support::{Ran, Scratch, answered, base64, doc_bytes, note_body, settings};
+use crate::support::{Ran, Scratch, answered, base64, doc_bytes, held_port, note_body, settings};
 
 /// The service every notes test runs against, with the store it keeps.
 async fn running(name: &str) -> (Scratch, Ran) {
   let scratch = Scratch::make(name);
-  let ran =
-    Ran::start(settings(&scratch, std::net::SocketAddr::from(([127, 0, 0, 1], probe_port())))).await;
+  let (listener, listen) = held_port().await;
+  let ran = Ran::start(settings(&scratch, listen), listener).await;
   (scratch, ran)
-}
-
-/// A port to answer on: bound and let go, as `Ran` binds it again.
-fn probe_port() -> u16 {
-  let probe = std::net::TcpListener::bind("127.0.0.1:0").expect("a port is free");
-  probe.local_addr().expect("the probe names its address").port()
 }
 
 #[tokio::test]
@@ -328,15 +322,15 @@ async fn health_answers_the_ready_service_to_its_credential() {
 #[tokio::test]
 async fn the_store_keeps_its_notes_across_a_restart() {
   let scratch = Scratch::make("restart");
-  let listen = std::net::SocketAddr::from(([127, 0, 0, 1], probe_port()));
-  let ran = Ran::start(settings(&scratch, listen)).await;
+  let (listener, listen) = held_port().await;
+  let ran = Ran::start(settings(&scratch, listen), listener).await;
   let doc = doc_bytes(1);
   answered(ran.as_reader("POST", "/notes", "1", "member").json(&note_body("a1", "Kept", &doc))).await;
   drop(ran);
 
   // The same settings over the same file, on a port of its own: the note stands where it was left.
-  let ran =
-    Ran::start(settings(&scratch, std::net::SocketAddr::from(([127, 0, 0, 1], probe_port())))).await;
+  let (listener, listen) = held_port().await;
+  let ran = Ran::start(settings(&scratch, listen), listener).await;
   let (_, note) = answered(ran.as_reader("GET", "/notes/a1", "1", "member")).await;
   assert_eq!(note["title"], "Kept");
   assert_eq!(note["doc"], base64(&doc));
