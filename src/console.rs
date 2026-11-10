@@ -115,7 +115,9 @@ impl Bundle {
       events: true,
       websocket: false,
       push_kinds: Vec::new(),
-      calls: Vec::new(),
+      // The AI talk panel speaks to the supervisor through the receiver's one-turn road (`docs/design.md`,
+      // 「The AI talk panel」); the console relays it on the receiver's own terms.
+      calls: vec!["receiver".into()],
       relays: Vec::new(),
       share_reads: Vec::new(),
     }

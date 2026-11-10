@@ -29,7 +29,7 @@ async fn the_manifest_names_the_bundle_by_the_contract() {
   assert_eq!(manifest["events"], true);
   assert_eq!(manifest["websocket"], false);
   assert_eq!(manifest["pushKinds"].as_array().expect("a list").len(), 0);
-  assert_eq!(manifest["calls"].as_array().expect("a list").len(), 0);
+  assert_eq!(manifest["calls"].as_array().expect("a list"), &vec![serde_json::json!("receiver")]);
   assert_eq!(manifest["relays"].as_array().expect("a list").len(), 0);
   assert_eq!(manifest["shareReads"].as_array().expect("a list").len(), 0);
   assert_eq!(manifest["words"], "/console/words");

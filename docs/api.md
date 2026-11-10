@@ -25,7 +25,8 @@ acts for with an `owner` query (or path-side query of the same name on the list)
 |---|---|---|
 | GET | `/health` | `ready`, `reason` (null when ready), `version` |
 
-The service is ready once its store is open. It calls no other unit.
+The service is ready once its store is open. It calls no other unit; its screens speak to the receiver
+directly through the console's relay, on the manifest's `calls` (below).
 
 ## Notes
 
@@ -64,7 +65,7 @@ A service-token call on these routes answers for the `owner` it names; one namin
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/console-manifest` | The bundle manifest (bmo-ui `docs/console-bundles.md`): `name` `note`, `title` `note.title`, `icon` `i-material-symbols-edit-note-outline`, `screenPath` `/note`, `serviceName` `note`, `apiPrefix` `/`, `role` `member`, `ownerKey` true, `events` true (the stream below), `websocket` false, and `pushKinds`, `calls`, `relays`, `shareReads` empty |
+| GET | `/console-manifest` | The bundle manifest (bmo-ui `docs/console-bundles.md`): `name` `note`, `title` `note.title`, `icon` `i-material-symbols-edit-note-outline`, `screenPath` `/note`, `serviceName` `note`, `apiPrefix` `/`, `role` `member`, `ownerKey` true, `events` true (the stream below), `websocket` false, `calls` naming the receiver alone (the AI talk panel's `POST /talks`, under the receiver's own terms), and `pushKinds`, `relays`, `shareReads` empty |
 | GET | `/console/words` | The bundle's words, every locale |
 | GET | `/console/{*file}` | The bundle's module and stylesheet, and every other file its build left |
 

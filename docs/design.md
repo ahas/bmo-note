@@ -73,11 +73,42 @@ studied of AFFiNE and under which licence.
   over the common stream route. The console bundle subscribes through the console and refreshes the
   open list. A restart loses the ring, as every unit's does.
 
+## The AI talk panel
+
+- An open note offers a panel in which the reader talks with the supervisor of his account about that
+  one note. The panel is the note screen's own; the talk rides the receiver's one-turn road
+  (`POST /talks`), which the console relays because the bundle's manifest names the receiver under
+  `calls`. The receiver keeps no turns of such a talk, so the panel holds the conversation and hands
+  each turn with the turns before it, as the console's own talk panels do.
+- The talk is scoped to the open note: the topic names the note by id and title and carries the note's
+  whole current text as a line list. The supervisor answers with that same line list edited — one
+  fenced block holding the whole new text, in the protocol the panel's own heading states. The note
+  never stands rewritten by a partial answer: where the fenced text is missing the panel shows the
+  answer as words and changes nothing.
+- The unit's service sees no AI route. The service keeps the document opaque (its standing rule), and
+  the supervisor never touches its bytes: a returned text reaches the note through the open editor's
+  own save, at the same versioned door every edit goes through. This is the chosen shape of "the
+  supervisor edits the note through the unit's API": the supervisor's words enter the note through the
+  unit's save route, and the one party that can write BlockSuite bytes stands on the client.
+- A change lands as a patch, never a dump: the panel diffs the returned lines against the base lines
+  the talk was asked over and applies the changed ranges to the current document, each range anchored
+  by the untouched lines around it. An owner's edit elsewhere stands untouched through it; a range the
+  anchoring cannot find, or one that would swallow a table or an image, fails the whole patch, and
+  the panel says so in one line. The reader may then retry, or apply the text outright from the
+  panel's own replace action, which says plainly that it moves what is under it.
+- The panel stands as a side drawer over the screen — at the right on a wide viewport, from the
+  bottom on a narrow one — so the note column keeps the console's content width; its key rides the
+  screen's actions where the console offers its bar and the screen's own head where it does not. The
+  talk is kept in the screen's memory alone: leaving the note drops it, the record of the talk is the
+  note's own saved states.
+
 ## The console surface
 
 - The bundle follows bmo-ui's console plugin contract: a manifest at `/console-manifest`, a built
   module and stylesheet at digested paths, and words at `/console/words`, guarded by the console's
-  credential and the member role, with an owner key on every call the screens make.
+  credential and the member role, with an owner key on every call the screens make. The manifest
+  names one other service under `calls` — the receiver, which the AI talk panel speaks through — and
+  the bundle calls nothing else beside its own service.
 - Two screens stand under `/note`: the list (title, moment, newest first, a new-note key, a trash
   view with restore and purge) and the editor (`/note/<id>`: the BlockSuite document, its title at
   the top, the autosave mark). The console's title bar names the editor and carries its actions.
