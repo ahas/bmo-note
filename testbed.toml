@@ -1,0 +1,69 @@
+# How the testbed tests, checks, builds and deploys this repository, in the testbed's declaration format.
+
+testbed = 0
+name = "bmo-note"
+
+[test]
+# The service crate at the root, and the console bundle under client/, whose check script vendors the
+# editor, installs the bundle's locked packages and typechecks the bundle.
+languages = ["cargo", "bun"]
+
+# The console bundle under client/ is a project of its own. Discovery is off: the fork's upstream folders
+# hold many package manifests for tools this unit never runs, and only client/ is a project here.
+[projects]
+discover = false
+paths = ["client"]
+
+[check]
+# This fork carries upstream manifests by design, so the sweeps that read every manifest in the tree
+# (`dependencies`, `shared-versions`) and the one that rewrites the root Cargo profiles upstream owns
+# (`cargo-profile`) do not run; the unit's own folders stand under the checks the steps below and the
+# test suite run, and `docs/affine.md` states the licence line the fork holds to.
+quick = []
+
+[[check.step]]
+id = "check"
+command = "cargo check --workspace --all-targets"
+lane = "wide"
+
+[[check.step]]
+id = "clippy"
+command = "cargo clippy --workspace --all-targets -- -D warnings"
+lane = "wide"
+
+[[check.step]]
+id = "fmt"
+command = "cargo fmt --all --check"
+
+[build]
+# The service's binary.
+binaries = ["bmo-note"]
+
+# The note service's own deploy tree, and the data root its settings stand under: the data root's
+# env/note.toml, which each release links to as settings.local.toml, the file the service reads beside
+# settings.toml (docs/api.md, 「Settings」).
+[deploy]
+root = "~/.local/share/bmo-note"
+link = "deploy"
+data_root = "~/.local/share/bmo/data"
+env_links = [{ link = "settings.local.toml", target = "env/note.toml" }]
+# The service's user unit, marked bot: the repository's one service, whose health the deployment waits on.
+units = ["deploy/*.service"]
+# Answers 0 once the service the deployed settings name answers ready (docs/api.md, 「Health」).
+health = "~/.local/share/bmo-note/deploy/bin/bmo-note health"
+
+# The console bundle the service serves from the release (docs/api.md, 「Console」): the vendored editor
+# copied from this repository's own tree, its locked packages installed, its decorated sources
+# transpiled by the compiler the fork declares them to, and its folder built inside client/, where the
+# settings' console.folder reads it.
+[[deploy.step]]
+id = "console-bundle"
+phase = "before-flip"
+command = '''
+set -eu
+cd client
+bun run vendor
+bun install --frozen-lockfile
+bun run decorators
+bun run bundle
+'''

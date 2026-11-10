@@ -1,0 +1,52 @@
+{
+  "note": {
+    "title": "노트",
+    "view": {
+      "live": "노트",
+      "trash": "휴지통"
+    },
+    "action": {
+      "apply": "적용",
+      "back": "목록으로",
+      "cancel": "취소",
+      "delete": "삭제",
+      "leave": "나가기",
+      "more": "더 보기",
+      "new": "새 노트",
+      "purge": "완전히 삭제",
+      "reload": "새로고침",
+      "restore": "복원",
+      "retry": "다시 시도"
+    },
+    "label": {
+      "saved": "저장됨",
+      "saving": "저장 중…",
+      "untitled": "제목 없음"
+    },
+    "empty": {
+      "live": "아직 노트가 없습니다. 새 노트를 만들어 보세요.",
+      "trash": "휴지통은 비어 있습니다."
+    },
+    "status": {
+      "conflict": "이 노트를 다른 곳에서 저장했습니다.",
+      "loading": "불러오는 중",
+      "missing": "노트를 찾을 수 없습니다.",
+      "offline": "연결되지 않아 저장하지 못했습니다.",
+      "refused": "저장하지 못했습니다."
+    },
+    "question": {
+      "delete": "이 노트를 삭제할까요?",
+      "leave": "변경 사항을 저장하지 못했습니다. 이 화면을 떠날까요?",
+      "leave_effect": "저장하지 않은 내용은 사라집니다.",
+      "purge": "이 노트를 완전히 삭제할까요?",
+      "purge_effect": "되돌릴 수 없습니다."
+    },
+    "error": {
+      "bad-doc": "노트 내용을 다시 읽을 수 없어 저장하지 못했습니다.",
+      "create_failed": "노트를 만들지 못했습니다.",
+      "list_failed": "노트를 불러오지 못했습니다.",
+      "read_failed": "이 노트를 불러오지 못했습니다.",
+      "too-large": "이 노트가 저장 한도를 넘었습니다."
+    }
+  }
+}

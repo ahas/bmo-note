@@ -1,0 +1,10 @@
+{
+  "name": "note",
+  "title": "note.title",
+  "icon": "i-material-symbols-edit-note-outline",
+  "screenPath": "/note",
+  "serviceName": "note",
+  "languagePack": "i18n",
+  "events": true,
+  "websocket": false
+}

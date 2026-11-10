@@ -1,0 +1,27 @@
+# The note service's settings (docs/api.md, 「Settings」). A deployment's settings.local.toml overrides any
+# key here, and BMO_NOTE_<TABLE>__<KEY> in the environment overrides both.
+
+[server]
+# Where the service answers, as host:port.
+listen = "127.0.0.1:13129"
+# The service token every caller but the console presents. A deployment names its own; empty lets no one in.
+token = ""
+# The data root under which the store's folder stands where the store path is relative; the deployment's
+# conventional one under the home where empty.
+data_root = ""
+
+# The console bundle the service serves (docs/api.md, 「Console」).
+[console]
+# The console's credential; empty, the console reaches nothing.
+token = ""
+# The bundle's built folder, which `bun run bundle` writes inside client/; a relative one is read from where
+# the process starts, a deployment's release.
+folder = "client/dist"
+
+[store]
+# The SQLite file of the notes; a relative one is read under the data root's note/ folder.
+path = "note.db"
+
+[notes]
+# The cap on one stored document, in bytes.
+max_doc_bytes = 8388608

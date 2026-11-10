@@ -101,3 +101,22 @@ storageState.json
 /.playwright-browsers/
 **/.vitest-attachments/
 /blocksuite/framework/std/src/__tests__/gfx/__screenshots__/
+
+# The note unit: the Rust build, the console bundle and its vendor copy, the dev host's build, and
+# the code graph areas. The fork ignores root markdown, which would hide the unit's own rulebook.
+!/CLAUDE.md
+!/PERSONAL-DATA.md
+/target
+/settings.local.toml
+/client/blocksuite
+/client/dist
+/client/.output
+/client/.nuxt
+/client/tsconfig.tsbuildinfo
+/client/console/tsconfig.tsbuildinfo
+/client/dev-app/.output
+/client/dev-app/.nuxt
+/client/dev-app/dist
+/client/dev-app/tsconfig.tsbuildinfo
+.graph/*
+!.graph/settings.toml

@@ -1,140 +1,99 @@
+# The workspace: the note service's own package at the root, which also holds the checks that span the
+# repository in `tests/`. The console bundle under `client/` is a project of its own. The fork's Rust
+# folders stand excluded: they are Enterprise-licensed paths this unit never builds (docs/affine.md).
 [workspace]
-members = [
-  "./packages/backend/native",
-  "./packages/common/native",
-  "./packages/frontend/mobile-native",
-  "./packages/frontend/native",
-  "./packages/frontend/native/nbstore",
-  "./packages/frontend/native/schema",
-  "./packages/frontend/native/sqlite_v1",
+members = []
+exclude = [
+  "packages/backend/native",
+  "packages/common/native",
+  "packages/frontend/mobile-native",
+  "packages/frontend/native",
 ]
 resolver = "3"
 
-  [workspace.package]
-  edition = "2024"
+[workspace.package]
+version = "0.1.0-rev.1"
+edition = "2024"
+license = "MIT"
 
-  [workspace.dependencies]
-  aes-gcm = "0.10"
-  affine_common = { path = "./packages/common/native" }
-  affine_doc_loader = "0.1.11"
-  affine_importer = "0.1.4"
-  affine_nbstore = { path = "./packages/frontend/native/nbstore" }
-  affine_preview = { version = "0.1.0", default-features = false }
-  anyhow = "1"
-  assert-json-diff = "2.0"
-  base64 = "0.22.1"
-  base64-simd = "0.8"
-  block2 = "0.6"
-  bytes = "1"
-  chrono = "0.4"
-  core-foundation = "0.10"
-  coreaudio-rs = "0.12"
-  cpal = "0.15"
-  criterion = { version = "0.5", features = ["html_reports"] }
-  criterion2 = { version = "3", default-features = false }
-  crossbeam-channel = "0.5"
-  dispatch2 = "0.3"
-  doc_extractor = "0.1.1"
-  dotenvy = "0.15"
-  file-format = { version = "0.28", features = ["reader"] }
-  futures-util = "0.3"
-  hex = "0.4"
-  hkdf = "0.13"
-  homedir = "0.3"
-  image = { version = "0.25.9", default-features = false, features = [
-    "bmp",
-    "gif",
-    "jpeg",
-    "png",
-    "webp",
-  ] }
-  infer = { version = "0.19.0" }
-  libc = "0.2"
-  little_exif = "0.6.23"
-  llm_adapter = { version = "0.4", default-features = false }
-  llm_runtime = { version = "0.4", default-features = false }
-  lru = "0.16"
-  matroska = "0.30"
-  memory-indexer = "0.4.0"
-  mimalloc = "0.1"
-  mp4parse = "0.17"
-  napi = { version = "3.7.0", features = [
-    "async",
-    "chrono_date",
-    "error_anyhow",
-    "napi9",
-    "serde",
-  ] }
-  napi-build = { version = "2" }
-  napi-derive = { version = "3.4" }
-  objc2 = "0.6"
-  objc2-foundation = "0.3"
-  ogg = "0.9"
-  once_cell = "1"
-  p256 = { version = "0.13", features = ["ecdsa", "pem"] }
-  rand = "0.9"
-  rayon = "1.10"
-  redis = { version = "1.6", features = ["tokio-comp", "tokio-rustls-comp"] }
-  rubato = "0.16"
-  safefetch = "0.1.0"
-  schemars = "1.2"
-  screencapturekit = "0.3"
-  serde = "1"
-  serde_json = "1"
-  sha2 = "0.11"
-  sha3 = "0.12"
-  sqlx = { version = "0.8", default-features = false, features = [
-    "chrono",
-    "macros",
-    "migrate",
-    "runtime-tokio",
-    "sqlite",
-  ] }
-  symphonia = { version = "0.5", features = ["all", "opt-simd"] }
-  thiserror = "2"
-  tiktoken-rs = "0.7"
-  tokio = "1.45"
-  uniffi = "0.29"
-  url = { version = "2.5" }
-  uuid = "1.8"
-  v_htmlescape = "0.15"
-  windows = { version = "0.62", features = [
-    "Win32_Devices_FunctionDiscovery",
-    "Win32_Foundation",
-    "Win32_Media_Audio",
-    "Win32_System_Com",
-    "Win32_System_Com_StructuredStorage",
-    "Win32_System_Diagnostics_ToolHelp",
-    "Win32_System_ProcessStatus",
-    "Win32_System_Threading",
-    "Win32_System_Variant",
-    "Win32_UI_Shell_PropertiesSystem",
-  ] }
-  windows-core = { version = "0.62" }
-  y-octo = "0.1.1"
-  zeroize = "1.9"
-  zip = "9.0.5"
+[workspace.dependencies]
+axum = { version = "0.8.9", features = ["macros", "multipart", "ws"] }
+base64 = "0.22.1"
+clap = { version = "4.6.7", features = ["derive", "env"] }
+config = { version = "0.15", default-features = false, features = ["toml"] }
+futures-util = "0.3.34"
+regex = "1.13.1"
+reqwest = { version = "0.13.5", features = ["json", "query", "stream"] }
+rusqlite = { version = "0.32.1", features = ["bundled"] }
+rust-ini = "0.21"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.10.9"
+tokio = { version = "1.53.3", features = ["fs", "io-std", "io-util", "macros", "net", "process", "rt", "rt-multi-thread", "signal", "sync", "test-util", "time"] }
+toml = { version = "0.8.23", default-features = false, features = ["parse"] }
 
-[profile.dev.package.sqlx-macros]
-opt-level = 3
+[package]
+name = "bmo-note"
+description = "The note service: editable BlockSuite notes kept as binary documents, shown in the console."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+# One test target, the harness at tests/main.rs (bmo-chat's docs/conventions.md, 「Rust builds」).
+autotests = false
 
-# hashcash minting runs a PoW hash loop that is infeasible at opt-level 0
-[profile.dev.package.keccak]
-opt-level = 3
+[lib]
+test = false
 
-[profile.dev.package.sha3]
-opt-level = 3
+[[bin]]
+name = "bmo-note"
+path = "src/main.rs"
+test = false
+
+[dependencies]
+# The routes the service answers on.
+axum.workspace = true
+# The note documents, base64 on the wire.
+base64.workspace = true
+# The binary's command line.
+clap.workspace = true
+# The settings: the built-in defaults, the deployment's files and the environment, layered in that order.
+config.workspace = true
+# The event stream, read as it comes.
+futures-util.workspace = true
+# The health verb's call to the service.
+reqwest.workspace = true
+# The notes, one SQLite file.
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# The names the console bundle's module and stylesheet are answered under, which follow their bytes.
+sha2.workspace = true
+tokio.workspace = true
+# The deployment's settings file.
+toml.workspace = true
+
+[dev-dependencies]
+# The names the routes refuse and the checks match.
+regex.workspace = true
+# The service's unit file, read in its INI shape by the repository's checks.
+rust-ini.workspace = true
+
+[[test]]
+name = "main"
+path = "tests/main.rs"
+
+# Build output kept small: line tables alone for a backtrace, split out, and no incremental cache.
+[profile.dev]
+debug = "line-tables-only"
+split-debuginfo = "unpacked"
+incremental = false
+
+[profile.test]
+debug = "line-tables-only"
+strip = "debuginfo"
+incremental = false
 
 [profile.release]
-codegen-units = 1
-lto           = "fat"
-opt-level     = 3
-strip         = "symbols"
-
-  # android uniffi bindgen requires symbols
-  [profile.release.package.affine_mobile_native]
-  strip = "none"
-
-  # [patch.crates-io]
-  # llm_adapter = { path = "../llm_adapter/crates/llm_adapter" }
-  # llm_runtime = { path = "../llm_adapter/crates/llm_runtime" }
+debug = false
+strip = "debuginfo"
