@@ -189,4 +189,13 @@ defineExpose({
 .note-editor-host {
   background: var(--affine-background-primary-color, var(--ui-bg));
 }
+
+/* On a touch screen the editor's floating format menu stands down: the bar does its work, and the phone lays its
+   own selection menu over the words (`docs/design.md`, 「The console surface」). The editor lays its styles
+   unlayered, so the rule holds by importance. */
+@media (pointer: coarse) {
+  .note-editor-host :deep(affine-toolbar-widget) {
+    display: none !important;
+  }
+}
 </style>

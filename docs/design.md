@@ -165,7 +165,9 @@ studied of AFFiNE and under which licence.
   trailing edge, since it acts on the whole note rather than the selection. Slash commands stay a shortcut, never
   the way in. The image key opens a file input of the bundle's own: it carries the native hidden
   attribute, and the bundle's stylesheet holds it hidden with an `!important` rule. The selection toolbar,
-  the drag handle and the floating format menu are the fork's own and stand as it drew them.
+  the drag handle and the floating format menu are the fork's own and stand as it drew them, but for one
+  thing: on a touch screen the floating format menu stands down. It is wider than a phone, it doubles the
+  bar, and the phone lays its own selection menu over the words; the bar does its work there.
 - **The editor's styles stay in the editor.** The vendored editor lays its stylesheets on the page as plain
   style elements, unlayered, which beat every layered rule of the console; and a few of its rules name nothing
   of the editor's own — a bare `input`, a `.truncate` — so once a note is opened they would reach every screen
