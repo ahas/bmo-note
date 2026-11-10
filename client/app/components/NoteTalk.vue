@@ -70,8 +70,81 @@ function onEscape(event: KeyboardEvent): void {
   }
 }
 
-onMounted(() => addEventListener("keydown", onEscape));
+onMounted(() => {
+  addEventListener("keydown", onEscape);
+  width.value = keptWidth();
+});
 onBeforeUnmount(() => removeEventListener("keydown", onEscape));
+
+// The docked panel's width: dragged at its leading edge or stepped by the arrow keys, held between its
+// bounds, and kept in this browser for the next note. A browser that keeps nothing opens at the default.
+const WIDTH_MIN = 260;
+const WIDTH_MAX = 640;
+const WIDTH_DEFAULT = 320;
+const WIDTH_STEP = 16;
+const WIDTH_KEY = "bmo-note-talk-width";
+
+const width = ref(WIDTH_DEFAULT);
+const dragging = ref(false);
+
+function clampWidth(value: number): number {
+  return Math.min(WIDTH_MAX, Math.max(WIDTH_MIN, Math.round(value)));
+}
+
+function keptWidth(): number {
+  try {
+    const kept = Number(localStorage.getItem(WIDTH_KEY));
+
+    return Number.isFinite(kept) && kept > 0 ? clampWidth(kept) : WIDTH_DEFAULT;
+  } catch {
+    return WIDTH_DEFAULT;
+  }
+}
+
+function setWidth(value: number): void {
+  width.value = clampWidth(value);
+
+  try {
+    localStorage.setItem(WIDTH_KEY, String(width.value));
+  } catch {
+    // A browser that keeps nothing still resizes for this visit.
+  }
+}
+
+// Leftward widens: the panel stands at the trailing edge, so its width grows as the edge moves left.
+function onDragStart(event: PointerEvent): void {
+  if (event.button !== 0) return;
+
+  event.preventDefault();
+
+  const handle = event.currentTarget as HTMLElement;
+  const startX = event.clientX;
+  const startWidth = width.value;
+
+  dragging.value = true;
+
+  try {
+    handle.setPointerCapture(event.pointerId);
+  } catch {
+    // A pointer the browser will not let us hold is still one we can follow while it is down.
+  }
+
+  const onMove = (moved: PointerEvent): void => {
+    width.value = clampWidth(startWidth + (startX - moved.clientX));
+  };
+
+  const onUp = (): void => {
+    dragging.value = false;
+    setWidth(width.value);
+    handle.removeEventListener("pointermove", onMove);
+    handle.removeEventListener("pointerup", onUp);
+    handle.removeEventListener("pointercancel", onUp);
+  };
+
+  handle.addEventListener("pointermove", onMove);
+  handle.addEventListener("pointerup", onUp);
+  handle.addEventListener("pointercancel", onUp);
+}
 
 function reasonOf(error: unknown): string {
   const code = (error as { data?: { code?: unknown } } | null)?.data?.code;
@@ -160,14 +233,31 @@ async function applyWhole(): Promise<void> {
        line, so the editor keeps its width and the reader may go on writing while the answer comes. -->
   <aside
     v-if="docked && open"
-    class="flex w-80 shrink-0 flex-col border-s border-default bg-default"
+    class="relative flex shrink-0 flex-col border-s border-default bg-default"
+    :style="{ width: `${width}px` }"
     :aria-label="$t('note.talk.title')"
   >
-    <div class="flex min-h-12 shrink-0 items-center gap-2 border-b border-default px-4">
-      <div class="flex min-w-0 flex-1 flex-col">
-        <p class="truncate text-sm font-medium text-highlighted">{{ $t("note.talk.title") }}</p>
-        <p class="truncate text-sm text-muted">{{ props.title }}</p>
-      </div>
+    <!-- The leading edge is the handle, as on the console's own side panel: dragging it sets the width,
+         the arrow keys step it, and the width is kept for the next note. The line inside lights the
+         panel's own border while a drag runs rather than standing a second line beside it. -->
+    <div
+      class="absolute inset-y-0 -start-1 z-10 w-2 cursor-col-resize focus-visible:bg-primary/40 focus-visible:outline-none"
+      role="separator"
+      aria-orientation="vertical"
+      :aria-label="$t('note.talk.width')"
+      :aria-valuenow="width"
+      :aria-valuemin="WIDTH_MIN"
+      :aria-valuemax="WIDTH_MAX"
+      tabindex="0"
+      @pointerdown="onDragStart"
+      @keydown.left.prevent="setWidth(width + WIDTH_STEP)"
+      @keydown.right.prevent="setWidth(width - WIDTH_STEP)"
+    >
+      <div class="absolute inset-y-0 end-1/2 w-px transition-colors" :class="dragging ? 'bg-primary' : ''" />
+    </div>
+
+    <div class="flex h-12 shrink-0 items-center gap-2 border-b border-default px-4">
+      <p class="min-w-0 flex-1 truncate text-sm font-medium text-highlighted">{{ $t("note.talk.title") }}</p>
       <HintTip :text="$t('note.action.close')" press>
         <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-close" :aria-label="$t('note.action.close')" @click="open = false" />
       </HintTip>
@@ -195,7 +285,6 @@ async function applyWhole(): Promise<void> {
     v-model:open="open"
     :ui="{ content: 'h-[85svh]', container: 'min-h-0 flex-1 overflow-hidden', body: 'flex min-h-0 flex-1 flex-col' }"
     :title="$t('note.talk.title')"
-    :description="props.title"
   >
     <template #body>
       <div class="flex h-full min-h-0 flex-col">

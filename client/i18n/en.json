@@ -58,7 +58,7 @@
     "talk": {
       "answering": "The supervisor is answering",
       "apply_failed": "The note could not be changed.",
-      "empty": "Send the supervisor what to change.",
+      "empty": "Write what to change.",
       "no_answer": "The supervisor said nothing.",
       "patch_anchor": "The part to change was not found in the note.",
       "patch_big": "There is too much to change.",
@@ -68,7 +68,8 @@
       "replace_blocked": "An image or a table stands in the note, so the whole note cannot be replaced.",
       "replace_effect": "It overwrites all the text now in the note. It cannot be brought back.",
       "replace_question": "Replace the whole note with what the supervisor sent?",
-      "title": "Talk with the supervisor",
+      "title": "Talk",
+      "width": "Talk panel width",
       "unanswered": "No answer came. Try again in a moment.",
       "unanswered_limit": "The answer limit was reached. Try again in a moment.",
       "unanswered_outage": "The supervisor's model could not be reached.",

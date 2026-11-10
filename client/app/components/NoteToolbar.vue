@@ -242,5 +242,10 @@ function addTable(): void {
            stylesheets carry a plain `input` rule that would win over a utility class. -->
       <input ref="picked" type="file" accept="image/*" multiple hidden data-bar="file" @change="standChosen" />
     </div>
+
+    <!-- What acts on the whole note rather than the selection stands apart at the bar's trailing edge. -->
+    <div v-if="$slots.end" class="flex shrink-0 items-center">
+      <slot name="end" />
+    </div>
   </ToolBar>
 </template>

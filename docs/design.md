@@ -80,6 +80,10 @@ studied of AFFiNE and under which licence.
   (`POST /talks`), which the console relays because the bundle's manifest names the receiver under
   `calls`. The receiver keeps no turns of such a talk, so the panel holds the conversation and hands
   each turn with the turns before it, as the console's own talk panels do.
+- The panel is named for the talk alone, with no subtitle under its name. Docked beside the note on a
+  wide screen, it stands at a width the reader drags at its leading edge or steps with the arrow keys,
+  between its bounds, and the width is kept in that browser; below that width it rises from the bottom
+  edge. The reader writes in the console's chat prompt.
 - The talk is scoped to the open note: the topic names the note by id and title and carries the note's
   whole current body as a line list; the title stands in the topic beside it and no line changes it.
   The supervisor answers with that same line list edited — one fenced block holding the whole new
@@ -124,8 +128,8 @@ studied of AFFiNE and under which licence.
     view), with its actions at the trailing edge. The first fetch reserves the rows with a skeleton
     of their shape; an empty view and a read that failed stand as their own states, in one line with
     the key each offers; a re-read that failed keeps the rows that stand and says so above them.
-  - The open note's head carries the way back to the list, the note's title where the bar has room
-    for it, the save state and the talk key. It rides the console's title bar where the console
+  - The open note's head carries the way back to the list and the note's title where the bar has
+    room for it, nothing else. It rides the console's title bar where the console
     offers one — its actions laid in the bar's own place — and stands as the screen's own head
     where it does not. The title is the document's own, as the editor holds it, cut to the bar with
     its whole value in a tooltip; a phone's narrow bar leaves it to the document's own title.
@@ -137,11 +141,14 @@ studied of AFFiNE and under which licence.
   and code, an image upload and a table insert, each driving the vendored editor's own command chain,
   so the bar, the hotkeys and the slash menu all ride one mechanism. The bar and the editor stand as
   one column filling the page; the bar spans that column, but its controls stand in one gathered,
-  centred row of their own width, never spread edge to edge. Slash commands stay a shortcut, never
+  centred row of their own width, never spread edge to edge. The talk key stands apart at the bar's
+  trailing edge, since it acts on the whole note rather than the selection. Slash commands stay a shortcut, never
   the way in. The selection toolbar, the drag handle and the floating format menu are the fork's own
   and stand as it drew them.
 - The status line at the screen's foot tells what the document holds — its word count and its size —
-  beside the save state, drawn with that state's own icon and tone. Where a reader must act (a
+  beside the save state, drawn with that state's own icon and tone; it is the one place the save state
+  stands. The note saves itself a moment after each edit, and Ctrl+S (⌘S) saves at once, in place of the
+  browser's own save, wherever the focus stands on the open note's screen. Where a reader must act (a
   refused save, a conflict) the banner above the document says so, with the key that acts on it.
 - An image an editor inserts is held on the service before its block stands: the editor's blob store
   is the note's own blob routes, so uploads and read-backs cross the console's relay like every other

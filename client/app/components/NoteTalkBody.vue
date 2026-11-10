@@ -41,14 +41,6 @@ onMounted(() => void scrollDown());
 
 watch(() => props.turns.length, () => void scrollDown());
 
-/** On a phone Enter breaks the line; a wider screen sends with it, and Shift+Enter always breaks. */
-function onKey(event: KeyboardEvent): void {
-  if (props.phone || event.key !== "Enter" || event.shiftKey || event.isComposing) return;
-
-  event.preventDefault();
-  emit("send");
-}
-
 function onSend(): void {
   if (!props.canSend) return;
 
@@ -76,20 +68,22 @@ function onSend(): void {
       <span v-if="!canFallback" class="text-sm text-muted">{{ i18n.t("note.talk.replace_blocked") }}</span>
     </div>
 
-    <div class="flex shrink-0 flex-col gap-2">
-      <UTextarea
-        v-model="said"
-        :rows="2"
-        :maxrows="phone ? undefined : 8"
-        autoresize
-        :disabled="busy"
-        :placeholder="i18n.t('note.talk.placeholder')"
-        :aria-label="i18n.t('note.talk.placeholder')"
-        @keydown="onKey"
-      />
-      <div class="flex justify-end">
-        <UButton size="sm" :loading="busy" :disabled="!canSend" icon="i-material-symbols-send" :label="i18n.t('note.action.send')" @click="onSend" />
-      </div>
-    </div>
+    <!-- The console's chat prompt: Enter sends on a wide screen and Shift+Enter breaks the line; on a
+         phone Enter breaks the line and the send key sends. -->
+    <UChatPrompt
+      v-model="said"
+      class="shrink-0"
+      variant="subtle"
+      :rows="2"
+      :maxrows="phone ? undefined : 8"
+      :autofocus="!phone"
+      :submit-on-enter="!phone"
+      :disabled="busy"
+      :placeholder="i18n.t('note.talk.placeholder')"
+      :aria-label="i18n.t('note.talk.placeholder')"
+      @submit="onSend"
+    >
+      <UChatPromptSubmit :loading="busy" :disabled="!canSend" :aria-label="i18n.t('note.action.send')" />
+    </UChatPrompt>
   </div>
 </template>

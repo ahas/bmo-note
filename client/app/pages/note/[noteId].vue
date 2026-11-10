@@ -2,9 +2,10 @@
 // One note open: the note's own head, the format bar and the BlockSuite page editor in one column,
 // autosaved with a short debounce, its state and holding told in the status line at the screen's
 // foot, and what must be acted on said in a banner above the document (`docs/design.md`, 「Editing
-// and saving」, 「The console surface」). The head carries the way back, the note's title, the save
-// state and the talk key; it rides the console's title bar where the console offers one, and stands
-// as the screen's own where it does not. The talk panel is docked beside the document.
+// and saving」, 「The console surface」). The head carries the way back and the note's title; it rides
+// the console's title bar where the console offers one, and stands as the screen's own where it does
+// not. The talk key stands at the format bar's trailing edge, and its panel is docked beside the
+// document.
 
 import { computed, inject, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 import { onBeforeRouteLeave, useRouter } from "vue-router";
@@ -77,10 +78,29 @@ onMounted(() => {
   };
 
   addEventListener("beforeunload", unloadGuard);
+  addEventListener("keydown", saveKey, true);
 });
+
+// Ctrl+S (⌘S) saves at once in place of the browser's own save. It is caught on the way down, before the
+// editor sees the key, so it holds wherever the focus stands on the screen.
+function saveKey(event: KeyboardEvent): void {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "s") return;
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (debounce !== null) {
+    clearTimeout(debounce);
+    debounce = null;
+  }
+
+  void flush();
+}
 
 onBeforeUnmount(() => {
   if (unloadGuard !== null) removeEventListener("beforeunload", unloadGuard);
+
+  removeEventListener("keydown", saveKey, true);
 
   if (debounce !== null) clearTimeout(debounce);
 });
@@ -288,23 +308,14 @@ async function goBack(): Promise<void> {
 
 <template>
   <div class="flex h-full min-h-0 flex-col">
-    <!-- The head, riding the console's title bar where it offers one: the note's title, the save state,
-         the way back, and the talk key. Where it does not, the screen stands the same row itself. -->
+    <!-- The head, riding the console's title bar where it offers one: the note's title and the way back.
+         Where it does not, the screen stands the same row itself. -->
     <Teleport v-if="barOffer !== null && note !== null && stand === 'ready'" defer :to="barOffer.screenActions">
       <div class="flex min-w-0 items-center gap-2">
         <HintTip class="hidden max-w-64 min-w-0 truncate text-sm font-medium text-highlighted sm:block" style="align-self: center" :text="titleLine" cut>{{ titleLine }}</HintTip>
 
-        <span role="status" aria-live="polite" class="inline-flex items-center gap-1.5 text-sm" :class="saveTone">
-          <UIcon :name="saveIcon" class="size-4 shrink-0" :class="saveSpin ? 'animate-spin' : ''" />
-          <span class="hidden sm:inline">{{ saveLabel }}</span>
-          <span class="sr-only sm:hidden">{{ saveLabel }}</span>
-        </span>
-
         <HintTip :text="$t('note.action.back')" press>
           <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-arrow-back" :aria-label="$t('note.action.back')" @click="goBack" />
-        </HintTip>
-        <HintTip :text="$t('note.action.talk')" press>
-          <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-forum-outline" :aria-label="$t('note.action.talk')" @click="talkOpen = true" />
         </HintTip>
       </div>
     </Teleport>
@@ -315,14 +326,6 @@ async function goBack(): Promise<void> {
       </HintTip>
       <HintTip class="block min-w-0 truncate text-sm font-medium text-highlighted" style="align-self: center" :text="headTitle" cut>{{ headTitle }}</HintTip>
 
-      <span v-if="stand === 'ready'" role="status" aria-live="polite" class="ms-auto inline-flex shrink-0 items-center gap-1.5 text-sm" :class="saveTone">
-        <UIcon :name="saveIcon" class="size-4 shrink-0" :class="saveSpin ? 'animate-spin' : ''" />
-        <span class="hidden sm:inline">{{ saveLabel }}</span>
-        <span class="sr-only sm:hidden">{{ saveLabel }}</span>
-      </span>
-      <HintTip v-if="stand === 'ready'" :text="$t('note.action.talk')" press>
-        <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-forum-outline" :aria-label="$t('note.action.talk')" @click="talkOpen = true" />
-      </HintTip>
     </div>
 
     <div class="flex min-h-0 flex-1" data-screen-fill>
@@ -369,7 +372,13 @@ async function goBack(): Promise<void> {
             @change="onEdit"
             @title="liveTitle = $event"
             @ready="() => { count(); readTitle(); }"
-          />
+          >
+            <template #barEnd>
+              <HintTip :text="$t('note.action.talk')" press>
+                <UButton size="lg" color="neutral" variant="ghost" icon="i-material-symbols-forum-outline" class="pointer-coarse:h-10" :label="$t('note.action.talk')" @click="talkOpen = true" />
+              </HintTip>
+            </template>
+          </NoteEditor>
 
           <div class="flex h-10 shrink-0 items-center justify-between gap-3 border-t border-default px-4 text-sm tabular-nums sm:px-6" data-screen-foot>
             <span class="flex min-w-0 items-center gap-1.5 text-muted">
@@ -378,7 +387,7 @@ async function goBack(): Promise<void> {
               <span class="text-dimmed">·</span>
               <span class="truncate">{{ sizeLine }}</span>
             </span>
-            <span class="inline-flex min-w-0 items-center gap-1.5" :class="saveTone">
+            <span role="status" aria-live="polite" class="inline-flex min-w-0 items-center gap-1.5" :class="saveTone">
               <UIcon :name="saveIcon" class="size-4 shrink-0" :class="saveSpin ? 'animate-spin' : ''" />
               <span class="truncate">{{ footState }}</span>
             </span>
