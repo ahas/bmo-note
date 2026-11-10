@@ -70,7 +70,7 @@ impl ApiError {
   }
 
   pub fn too_large(max: usize) -> Self {
-    Self::of("too-large", format!("The document is over the {max} bytes the store keeps."))
+    Self::of("too-large", format!("The body is over the {max} bytes the store keeps."))
   }
 
   pub fn version_conflict(error: impl Into<String>) -> Self {

@@ -35,7 +35,9 @@ The service is ready once its store is open. It calls no other unit.
 | POST | `/notes` | Makes a note: `id?`, `title`, `doc` (base64) — 201, or 200 with the note as it stands where the id is already held (idempotent by id; stored bytes unchanged) |
 | GET | `/notes/{noteId}` | One note with its document |
 | PATCH | `/notes/{noteId}` | Saves: `version` (required), `title?`, `doc?`, `restore?` — 200, or 409 `version-conflict` answering the current metadata |
-| DELETE | `/notes/{noteId}?purge=` | Moves the note to the trash, or, with `purge=true`, deletes it for good where it stands trashed — 204 |
+| DELETE | `/notes/{noteId}?purge=` | Moves the note to the trash, or, with `purge=true`, deletes it for good where it stands trashed, its stored images with it — 204 |
+| PUT | `/notes/{noteId}/blobs/{blobId}` | Stores one image with the live note: the body is its bytes, `content-type` its image type — 204; an id already held keeps the bytes it was first given (a re-upload answers the same 204 whatever it carries) |
+| GET | `/notes/{noteId}/blobs/{blobId}` | One stored image: its bytes with the type it was stored under, `cache-control: private, max-age=31536000, immutable`; 404 where none stands |
 
 A note metadata is `id`, `title` (may be empty; the screen names an empty one by its own word),
 `version` (a whole number from 1, held up on each save), `createdAt`, `changedAt`, `size` (stored doc
@@ -48,6 +50,12 @@ on a trashed note is 422 `trashed`; a `purge` of a live note is 422 `not-trashed
 `version` is below the stored one answers 409 `version-conflict`; one at or above it saves (a writer
 who read ahead of the service loses nothing it did not already hold). `restore=true` with no `doc`
 moves a trashed note back to life and writes nothing else; on a live note it changes nothing.
+
+The blob routes stand under the note: a `PUT` needs the note live (a trashed note is 422 `trashed`, no
+note 404), its `content-type` must name an image, its `blobId` must be a BlockSuite blob key (1 to
+128 letters, digits, `-`, `_` and `=`), and its bytes must not pass `[notes] max_blob_bytes` (413
+`too-large`). A
+`GET` answers wherever the note stands, live or trashed, to its owner alone; a purge has taken the blobs.
 
 A service-token call on these routes answers for the `owner` it names; one naming none is 422
 `no-owner`.
@@ -92,7 +100,7 @@ Beside the common codes of bmo-chat's `docs/conventions.md` (`bad-request`, `una
 
 | Code | When |
 |---|---|
-| `too-large` | a document past the stored byte cap (413) |
+| `too-large` | a document or an image past the stored byte cap (413) |
 | `version-conflict` | a save made from behind the stored version (409, answering the current metadata) |
 | `no-owner` | a service-token call naming no account (422) |
 | `bad-doc` | a `doc` that is not base64 bytes (422) |

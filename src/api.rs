@@ -8,7 +8,7 @@ use std::time::Duration as StdDuration;
 use axum::Router;
 use axum::body::Bytes;
 use axum::extract::rejection::QueryRejection;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, Query, Request, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::sse::{Event as Sent, KeepAlive, Sse};
 use axum::response::{IntoResponse, Json, Response};
@@ -20,7 +20,9 @@ use crate::app::App;
 use crate::console::{Bundle, KEPT_FOR_GOOD, MANIFEST_PATH, WORDS_PATH};
 use crate::error::ApiError;
 use crate::events::Record;
-use crate::model::{clean_title, decode_doc, encode_doc, fresh_id, now_ms, parse_cursor, valid_id};
+use crate::model::{
+  clean_title, decode_doc, encode_doc, fresh_id, now_ms, parse_cursor, valid_blob_id, valid_id,
+};
 use crate::store::Saved;
 use crate::wire::{
   DeleteQuery, EventsQuery, Health, NewNote, Note, NoteEvent, NoteMeta, NoteQuery, NoteSave, NotesQuery,
@@ -52,6 +54,7 @@ pub fn router(served: Served) -> Router {
     .route("/events", get(events))
     .route("/notes", get(list_notes).post(create_note))
     .route("/notes/{noteId}", get(read_note).patch(save_note).delete(delete_note))
+    .route("/notes/{noteId}/blobs/{blobId}", get(read_blob).put(put_blob))
     .fallback(|| async { ApiError::no_route() })
     .method_not_allowed_fallback(|| async { ApiError::no_route() })
     .with_state(served)
@@ -198,7 +201,7 @@ async fn create_note(
   let given: NewNote = body(&bytes)?;
   let id = match given.id.as_deref() {
     Some(id) if valid_id(id) => id.to_owned(),
-    Some(_) => return Err(ApiError::bad_request("The id is not 1 to 64 letters, digits, - and _.")),
+    Some(_) => return Err(ApiError::bad_request("The id is not 1 to 64 letters, digits, - and _..")),
     None => fresh_id(),
   };
   let title = clean_title(&given.title)?;
@@ -360,6 +363,75 @@ async fn delete_note(
     }
     None => Err(ApiError::not_found(format!("No note {id} stands."))),
   }
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// The images of a note
+
+async fn put_blob(
+  State(served): State<Served>,
+  Path((note, id)): Path<(String, String)>,
+  given: Result<Query<NoteQuery>, QueryRejection>,
+  request: Request,
+) -> Answer<Response> {
+  let headers = request.headers().clone();
+  let caller = caller(&served.app, &headers, query(given)?.owner)?;
+  if !valid_blob_id(&id) {
+    return Err(ApiError::bad_request("The blob id is not 1 to 128 letters, digits, -, _ and =."));
+  }
+  let mime = header_text(&headers, header::CONTENT_TYPE.as_str()).unwrap_or("");
+  if !mime.starts_with("image/") {
+    return Err(ApiError::bad_request("The body must name its type as an image."));
+  }
+  match served.app.store.meta(&caller.owner, &note, Some(false)).map_err(ApiError::failed)? {
+    Some(_) => {}
+    None
+      if served
+        .app
+        .store
+        .meta(&caller.owner, &note, Some(true))
+        .map_err(ApiError::failed)?
+        .is_some() =>
+    {
+      return Err(ApiError::trashed(&note));
+    }
+    None => return Err(ApiError::not_found(format!("No note {note} stands."))),
+  }
+  // The body is read here, at the cap, so a store of the note's own account sees no more than the
+  // cap's bytes and the refusal carries the store's code whatever the call declared.
+  let max = served.app.settings.notes.max_blob_bytes;
+  let bytes = axum::body::to_bytes(request.into_body(), max)
+    .await
+    .map_err(|_| ApiError::too_large(max))?;
+  served
+    .app
+    .store
+    .put_blob(&caller.owner, &note, &id, mime, &bytes, now_ms())
+    .map_err(ApiError::failed)?;
+  Ok(StatusCode::NO_CONTENT.into_response())
+}
+
+async fn read_blob(
+  State(served): State<Served>,
+  headers: HeaderMap,
+  Path((note, id)): Path<(String, String)>,
+  given: Result<Query<NoteQuery>, QueryRejection>,
+) -> Answer<Response> {
+  let caller = caller(&served.app, &headers, query(given)?.owner)?;
+  let (mime, bytes) = served
+    .app
+    .store
+    .blob(&caller.owner, &note, &id)
+    .map_err(ApiError::failed)?
+    .ok_or_else(|| ApiError::not_found(format!("No image {id} stands with note {note}.")))?;
+  Ok(
+    (
+      StatusCode::OK,
+      [(header::CONTENT_TYPE, mime), (header::CACHE_CONTROL, KEPT_FOR_GOOD.to_owned())],
+      bytes,
+    )
+      .into_response(),
+  )
 }
 
 fn json_answer(status: StatusCode, value: impl serde::Serialize) -> Response {

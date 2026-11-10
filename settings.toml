@@ -25,3 +25,5 @@ path = "note.db"
 [notes]
 # The cap on one stored document, in bytes.
 max_doc_bytes = 8388608
+# The cap on one stored image, in bytes.
+max_blob_bytes = 8388608

@@ -25,8 +25,9 @@ studied of AFFiNE and under which licence.
   client serialises it with `Y.encodeStateAsUpdate` and loads it back with `Y.applyUpdate`; the service
   never parses blocks, only stores the byte blob with its metadata.
 - Metadata the service does read: an id, a title, a version, creation and change moments, a deleted
-  mark, and the byte size. The title is written by the client from the document's title block on each
-  save, so the list answers titles without opening the bytes.
+  mark, and the byte size. The title is written by the client on each save: the document's own title
+  where it stands, else the first line of its content, so the list answers titles without opening the
+  bytes.
 - The document's own format belongs to BlockSuite. An upgrade of the editor may read documents the old
   one wrote (the schema carries its versions); the unit adds no format of its own.
 
@@ -52,9 +53,14 @@ studied of AFFiNE and under which licence.
 
 ## Storage
 
-- One SQLite file under the unit's data directory holds one table: each note's owner, id, title, doc
-  bytes, version, timestamps, and deleted mark. Attachments (images, files) are out of v1: pasting one
-  into the editor is disabled so no block stands on bytes no service holds. A blob store is a row.
+- One SQLite file under the unit's data directory holds two tables: each note's owner, id, title, doc
+  bytes, version, timestamps, and deleted mark, and each attachment's note, id, type and bytes. An
+  attachment is an image only: the editor uploads one to its note's blob route before an image block
+  stands, and reads it back through the same route, so no block ever stands on bytes the service does
+  not hold. The document itself never carries image bytes; the cap on one stored document leaves the
+  document's own text and structure.
+- A purge takes the note and its blobs together. A save that drops an image leaves its bytes standing
+  until the note goes: the store collects no garbage of its own.
 - A deletion moves the note to a trash list; a restore moves it back; a purge deletes the row and is
   open for a trashed note only. Nothing else deletes a note.
 - A stored document is capped at a setting (`[notes] max_doc_bytes`); a save past the cap is refused
@@ -75,6 +81,20 @@ studied of AFFiNE and under which licence.
 - Two screens stand under `/note`: the list (title, moment, newest first, a new-note key, a trash
   view with restore and purge) and the editor (`/note/<id>`: the BlockSuite document, its title at
   the top, the autosave mark). The console's title bar names the editor and carries its actions.
+- Both screens stand in the console's content width — at most its `--ui-container` across, centred —
+  as every console screen does.
+- The editor stands under a format bar of the bundle's own: inline marks, block types, lists, quote
+  and code, an image upload and a table insert, each driving the vendored editor's own command chain,
+  so the bar, the hotkeys and the slash menu all ride one mechanism. Slash commands stay a shortcut,
+  never the way in. The selection toolbar, the drag handle and the floating format menu are the fork's
+  own and stand as it drew them.
+- An open note carries the way back to the list in the console's title bar, beside the screen's name
+  where the console offers its bar and at the head of its own bar where it does not.
+- The foot line tells what the document holds — its word count and its size — beside the save state,
+  and says where a reader must act (a refused save, a conflict) in the banner above the document.
+- An image an editor inserts is held on the service before its block stands: the editor's blob store
+  is the note's own blob routes, so uploads and read-backs cross the console's relay like every other
+  call, and a note reads back its images wherever it is opened.
 - The editor's own words come from BlockSuite and AFFiNE, which ship English UI strings; the bundle
   supplies no translation of them. Everything the bundle itself writes follows the console's wording
   guide in its own two locales.

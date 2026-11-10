@@ -4,12 +4,23 @@
 
 import { getInternalViewExtensions } from "@blocksuite/affine/extensions/view";
 import { ViewExtensionManager } from "@blocksuite/affine/ext-loader";
-import { CommunityCanvasTextFonts, DocModeProvider, FontConfigExtension, NotificationProvider } from "@blocksuite/affine/shared/services";
+import {
+  CommunityCanvasTextFonts,
+  DocModeProvider,
+  FileSizeLimitProvider,
+  FontConfigExtension,
+  NotificationProvider
+} from "@blocksuite/affine/shared/services";
 import { Subscription } from "rxjs";
 
 import type { Container } from "@blocksuite/affine/global/di";
 import type { NotificationService } from "@blocksuite/affine/shared/services";
 import type { ExtensionType } from "@blocksuite/affine/store";
+
+/// The cap an image may carry, mirroring the store's own (`settings.toml`, `[notes] max_blob_bytes`).
+/// The service refuses past its line whoever named what; this one only keeps the editor from
+/// uploading a file it already knows the store will send back.
+const MAX_BLOB_BYTES = 8 * 1024 * 1024;
 
 /** What the editor can ask the screen to say: a line, and a question with an answer. */
 export interface EditorNotice {
@@ -44,6 +55,7 @@ export function pageExtensions(notice: EditorNotice): ExtensionType[] {
       setup: (di: Container) => {
         di.override(DocModeProvider, () => mode);
         di.override(NotificationProvider, () => messages);
+        di.override(FileSizeLimitProvider, () => ({ maxFileSize: MAX_BLOB_BYTES }));
       }
     }
   ];

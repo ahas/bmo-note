@@ -1,6 +1,6 @@
 // One note's document: the BlockSuite store the editor mounts on, made from the bytes the service
-// holds or empty for a new note, with the title and the serialised state the save writes back
-// (`docs/design.md`, 「What a note is」).
+// holds or empty for a new note, with the title `domain/title` derives from it and the serialised
+// state the save writes back (`docs/design.md`, 「What a note is」).
 
 import { getInternalStoreExtensions } from "@blocksuite/affine/extensions/store";
 import { StoreExtensionManager } from "@blocksuite/affine/ext-loader";
@@ -8,6 +8,10 @@ import { Text } from "@blocksuite/affine/store";
 import { TestWorkspace } from "@blocksuite/affine/store/test";
 import * as Y from "yjs";
 
+import { noteBlobSource } from "./blobs";
+import { noteTitle } from "./title";
+
+import type { Titlable } from "./title";
 import type { Doc, Store } from "@blocksuite/affine/store";
 
 /// The editor's container is a Lit custom element of the vendored preset; the effects module exports
@@ -26,7 +30,8 @@ export interface NoteDoc {
   readonly store: Store;
   /** The whole Yjs state, as the service stores it. */
   serialize: () => Uint8Array;
-  /** The text of the note's title, from the root block. */
+  /** The text of the note's title: the root block's own where it stands, else the first line of its
+   * content, so the list names the note the way the editor shows it. */
   title: () => string;
   /** Run `work` for every change to the document, remote ones included (there are none: the unit has
    * no live sync; one writer per note is the truth, `docs/design.md`, 「Editing and saving」). */
@@ -37,8 +42,10 @@ export interface NoteDoc {
 function collection(id: string): TestWorkspace {
   // Each block's store extension carries its own schema; the store needs none named outright. The
   // meta must be initialized before a doc is made, or the added doc meta lands nowhere and the
-  // document stands null — the order every use of this test workspace in the fork keeps.
-  const made = new TestWorkspace({ id });
+  // document stands null — the order every use of this test workspace in the fork keeps. The blob
+  // source is the note's own on the service, so an image block never stands on bytes no store holds
+  // (`docs/design.md`, 「Storage」).
+  const made = new TestWorkspace({ id, blobSources: { main: noteBlobSource(id) } });
 
   made.storeExtensions = new StoreExtensionManager(getInternalStoreExtensions()).get("store");
   made.meta.initialize();
@@ -89,11 +96,7 @@ function hold(workspace: TestWorkspace, doc: Doc): NoteDoc {
   return {
     store,
     serialize: () => Y.encodeStateAsUpdate(doc.spaceDoc),
-    title: () => {
-      const title = (store.root as { title?: { yText?: Y.Text } } | null)?.title;
-
-      return title?.yText?.toString() ?? "";
-    },
+    title: () => noteTitle(store.root as unknown as Titlable | null),
     onChange: (work) => {
       const listener = () => work();
 

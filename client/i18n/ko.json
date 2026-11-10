@@ -10,18 +10,41 @@
       "back": "목록으로",
       "cancel": "취소",
       "delete": "삭제",
+      "image": "이미지",
       "leave": "나가기",
       "more": "더 보기",
       "new": "새 노트",
       "purge": "완전히 삭제",
       "reload": "새로고침",
       "restore": "복원",
-      "retry": "다시 시도"
+      "retry": "다시 시도",
+      "table": "표",
+      "turn_into": "종류 변경"
     },
     "label": {
       "saved": "저장됨",
       "saving": "저장 중…",
-      "untitled": "제목 없음"
+      "toolbar": "형식",
+      "untitled": "제목 없음",
+      "words": "단어"
+    },
+    "mark": {
+      "bold": "굵게",
+      "code": "인라인 코드",
+      "italic": "기울임",
+      "strike": "취소선",
+      "underline": "밑줄"
+    },
+    "kind": {
+      "bulleted": "글머리 목록",
+      "code": "코드 블록",
+      "h1": "제목 1",
+      "h2": "제목 2",
+      "h3": "제목 3",
+      "numbered": "번호 목록",
+      "quote": "인용",
+      "text": "본문",
+      "todo": "할 일 목록"
     },
     "empty": {
       "live": "아직 노트가 없습니다. 새 노트를 만들어 보세요.",
@@ -44,6 +67,7 @@
     "error": {
       "bad-doc": "노트 내용을 다시 읽을 수 없어 저장하지 못했습니다.",
       "create_failed": "노트를 만들지 못했습니다.",
+      "image_failed": "이미지를 추가하지 못했습니다.",
       "list_failed": "노트를 불러오지 못했습니다.",
       "read_failed": "이 노트를 불러오지 못했습니다.",
       "too-large": "이 노트가 저장 한도를 넘었습니다."

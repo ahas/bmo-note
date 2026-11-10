@@ -1,5 +1,6 @@
-//! The unit's own store (`docs/design.md`, 「Storage」): one SQLite file, one table, every note of every
-//! account with its document bytes. The service's truth stands here; it rebuilds nothing.
+//! The unit's own store (`docs/design.md`, 「Storage」): one SQLite file, two tables — every note of every
+//! account with its document bytes, and every note's images with theirs. The service's truth stands here;
+//! it rebuilds nothing.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -21,6 +22,15 @@ CREATE TABLE IF NOT EXISTS notes (
   PRIMARY KEY (owner, id)
 );
 CREATE INDEX IF NOT EXISTS notes_changed ON notes (owner, deleted_at, changed_at DESC, id DESC);
+CREATE TABLE IF NOT EXISTS blobs (
+  owner TEXT NOT NULL,
+  note TEXT NOT NULL,
+  id TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  bytes BLOB NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (owner, note, id)
+);
 ";
 
 /// A note as the store reads one, with its document.
@@ -223,14 +233,47 @@ impl Store {
     })
   }
 
-  /// A trashed note deleted for good. Answers whether a trashed row stood and went.
+  /// A trashed note deleted for good, its images with it. Answers whether a trashed row stood and went.
   pub fn purge(&self, owner: &str, id: &str) -> Result<bool, String> {
     self.with(|connection| {
-      let changed = connection.execute(
+      let transaction = connection.unchecked_transaction()?;
+      let changed = transaction.execute(
         "DELETE FROM notes WHERE owner = ?1 AND id = ?2 AND deleted_at IS NOT NULL",
         params![owner, id],
       )?;
+      transaction.execute("DELETE FROM blobs WHERE owner = ?1 AND note = ?2", params![owner, id])?;
+      transaction.commit()?;
       Ok(changed == 1)
+    })
+  }
+
+  /// One image stored with a note. An id already held keeps the bytes it was first given.
+  pub fn put_blob(
+    &self,
+    owner: &str,
+    note: &str,
+    id: &str,
+    mime: &str,
+    bytes: &[u8],
+    at: i64,
+  ) -> Result<(), String> {
+    self.with(|connection| {
+      connection.execute(
+        "INSERT INTO blobs (owner, note, id, mime, bytes, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6) \
+         ON CONFLICT (owner, note, id) DO NOTHING",
+        params![owner, note, id, mime, bytes, at],
+      )?;
+      Ok(())
+    })
+  }
+
+  /// One account's image, by its note and id, wherever the note stands.
+  pub fn blob(&self, owner: &str, note: &str, id: &str) -> Result<Option<(String, Vec<u8>)>, String> {
+    self.with(|connection| {
+      connection
+        .prepare_cached("SELECT mime, bytes FROM blobs WHERE owner = ?1 AND note = ?2 AND id = ?3")?
+        .query_row(params![owner, note, id], |row| Ok((row.get(0)?, row.get(1)?)))
+        .optional()
     })
   }
 }

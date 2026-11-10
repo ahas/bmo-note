@@ -60,6 +60,8 @@ pub struct Store {
 pub struct Notes {
   /// The cap on one stored document, in bytes.
   pub max_doc_bytes: usize,
+  /// The cap on one stored image, in bytes.
+  pub max_blob_bytes: usize,
 }
 
 impl Settings {

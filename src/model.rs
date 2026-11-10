@@ -25,6 +25,15 @@ pub fn valid_id(id: &str) -> bool {
     && id.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
 }
 
+/// Whether an id is a BlockSuite blob key: the base64url of the bytes' digest — letters, digits, `-`,
+/// `_` and the `=` padding — 1 to 128 of them.
+pub fn valid_blob_id(id: &str) -> bool {
+  (1..=128).contains(&id.len())
+    && id
+      .bytes()
+      .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'='))
+}
+
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// An id the service made: the moment in seconds and a count, in lowercase hex.

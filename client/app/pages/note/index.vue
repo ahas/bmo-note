@@ -79,8 +79,10 @@ function titleText(note: NoteMeta): string {
 </script>
 
 <template>
+  <!-- The list stands in the console's content width, as every console screen does (docs/web.md,
+       「Layout fundamentals」); the page's ground fills the panel the width stands in. -->
   <div class="flex h-full min-h-0 flex-col">
-    <div class="flex h-12 shrink-0 items-center justify-between gap-2 px-4">
+    <div class="mx-auto flex h-12 w-full max-w-(--ui-container) shrink-0 items-center justify-between gap-2 px-4">
       <UTabs
         :items="[
           { label: $t('note.view.live'), value: 'live' },
@@ -102,7 +104,7 @@ function titleText(note: NoteMeta): string {
       />
     </div>
 
-    <main class="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+    <main class="mx-auto min-h-0 w-full max-w-(--ui-container) flex-1 overflow-y-auto px-4 pb-4">
       <div v-if="notes.stand.value === 'loading'" role="status" :aria-label="$t('note.status.loading')" class="flex flex-col gap-2 py-2">
         <USkeleton v-for="row in 5" :key="row" class="h-14 w-full rounded-lg" />
       </div>

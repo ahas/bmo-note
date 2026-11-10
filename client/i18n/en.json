@@ -10,18 +10,41 @@
       "back": "To the list",
       "cancel": "Cancel",
       "delete": "Delete",
+      "image": "Image",
       "leave": "Leave",
       "more": "More",
       "new": "New note",
       "purge": "Delete for good",
       "reload": "Reload",
       "restore": "Restore",
-      "retry": "Try again"
+      "retry": "Try again",
+      "table": "Table",
+      "turn_into": "Turn into"
     },
     "label": {
       "saved": "Saved",
       "saving": "Saving…",
-      "untitled": "Untitled"
+      "toolbar": "Format",
+      "untitled": "Untitled",
+      "words": "words"
+    },
+    "mark": {
+      "bold": "Bold",
+      "code": "Inline code",
+      "italic": "Italic",
+      "strike": "Strikethrough",
+      "underline": "Underline"
+    },
+    "kind": {
+      "bulleted": "Bulleted List",
+      "code": "Code Block",
+      "h1": "Heading 1",
+      "h2": "Heading 2",
+      "h3": "Heading 3",
+      "numbered": "Numbered List",
+      "quote": "Quote",
+      "text": "Text",
+      "todo": "To-do List"
     },
     "empty": {
       "live": "No notes yet. Make one.",
@@ -44,6 +67,7 @@
     "error": {
       "bad-doc": "The note could not be read back, so the save did not go.",
       "create_failed": "The note could not be created.",
+      "image_failed": "The image could not be added.",
       "list_failed": "The notes could not be read.",
       "read_failed": "This note could not be read.",
       "too-large": "This note is past the size the store keeps."

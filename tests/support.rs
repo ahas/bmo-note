@@ -16,6 +16,8 @@ use tokio::sync::oneshot;
 pub const TOKEN: &str = "service-token";
 /// The cap a test service holds, small enough to cross with one body.
 pub const TEST_DOC_MAX: usize = 1024;
+/// The image cap a test service holds, likewise.
+pub const TEST_BLOB_MAX: usize = 4096;
 /// The console's credential.
 pub const CONSOLE: &str = "console-token";
 
@@ -177,10 +179,11 @@ pub fn settings(scratch: &Scratch, listen: SocketAddr) -> Settings {
     "[server]\nlisten = \"{listen}\"\ntoken = \"{TOKEN}\"\n\
      [console]\ntoken = \"{CONSOLE}\"\nfolder = \"{}\"\n\
      [store]\npath = \"{}\"\n\
-     [notes]\nmax_doc_bytes = {}\n",
+     [notes]\nmax_doc_bytes = {}\nmax_blob_bytes = {}\n",
     scratch.bundle_folder().display(),
     scratch.join("note.db").display(),
-    TEST_DOC_MAX
+    TEST_DOC_MAX,
+    TEST_BLOB_MAX
   );
   fs::write(folder.join("settings.local.toml"), toml).expect("the settings are written");
   Settings::read(&folder, Some(std::collections::HashMap::new())).expect("the settings read")

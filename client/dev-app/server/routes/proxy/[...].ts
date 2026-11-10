@@ -29,6 +29,11 @@ export default defineEventHandler(async (event) => {
 
   const body = await response.arrayBuffer();
 
+  // A call the service ends without a body — a stored image's 204 — stands with its own content type.
+  if (body.byteLength === 0) {
+    return new Response(null, { status: response.status });
+  }
+
   return new Response(body, {
     status: response.status,
     headers: { "content-type": type }

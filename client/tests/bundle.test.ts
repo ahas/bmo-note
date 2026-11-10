@@ -45,7 +45,11 @@ describe("the words", () => {
   });
 
   test("every key the screens ask for is held", () => {
-    const asked = new Set(sources.flatMap((path) => [...readFileSync(path, "utf8").matchAll(/["'`](note\.(?:view|action|label|empty|status|question|error)\.[a-z_]+)["'`]/g)].map((match) => match[1]!)));
+    // The bar's own names: the marks and kinds reach the packs through template heads, written whole here.
+    const asked = new Set(sources.flatMap((path) => [...readFileSync(path, "utf8").matchAll(/["'`](note\.(?:view|action|label|mark|kind|empty|status|question|error)\.[a-z_0-9]+)["'`]/g)].map((match) => match[1]!)));
+
+    for (const mark of ["bold", "italic", "underline", "strike", "code"]) asked.add(`note.mark.${mark}`);
+    for (const kind of ["text", "h1", "h2", "h3", "bulleted", "numbered", "todo", "quote", "code"]) asked.add(`note.kind.${kind}`);
 
     expect(asked.size).toBeGreaterThan(20);
 
