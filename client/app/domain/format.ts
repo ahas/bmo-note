@@ -135,3 +135,25 @@ export function caretModel(std: BlockStdScope): BlockModel | undefined {
 
   return undefined;
 }
+
+/** The blocks a passage covers: every block the selection reaches, else the one under the caret. */
+export function passageModels(std: BlockStdScope): BlockModel[] {
+  const [ok, context] = std.command
+    .chain()
+    .pipe(getSelectedModelsCommand, { types: ["text", "block"], mode: "flat" })
+    .run();
+
+  if (ok && context.selectedModels.length > 0) return context.selectedModels;
+
+  const text = std.selection.find(TextSelection);
+  const model = text === undefined ? undefined : std.store.getBlock(text.from.blockId)?.model;
+
+  return model === undefined ? [] : [model];
+}
+
+/** The element a passage's last block is drawn as, which the result stands under. */
+export function passageElement(std: BlockStdScope, models: BlockModel[]): HTMLElement | null {
+  const last = models.at(-1);
+
+  return last === undefined ? null : (std.view.getBlock(last.id) as HTMLElement | null);
+}

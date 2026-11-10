@@ -20,7 +20,7 @@ import type { Subscription } from "rxjs";
 
 const props = defineProps<{ std: BlockStdScope | null }>();
 
-const emit = defineEmits<{ inserted: []; failed: [] }>();
+const emit = defineEmits<{ inserted: []; failed: []; ask: [] }>();
 
 const i18n = useI18n();
 
@@ -170,8 +170,25 @@ function addTable(): void {
        stays one row at a phone's width and scrolls its keys sideways, as the mobile rule asks. -->
   <ToolBar :label="$t('note.label.toolbar')" @mousedown.prevent>
     <!-- The bar spans the page; its keys gather in one row of their own width, centred, rather than
-         spreading across a wide screen. -->
+         spreading across a wide screen. Ask AI leads it, as it leads the selection toolbar, and stands
+         whenever the editor does: with nothing selected and no caret it asks over the whole note. -->
     <div class="mx-auto flex h-full w-max shrink-0 items-center gap-1" data-bar-row>
+      <HintTip :text="$t('note.ask.key')" press>
+        <UButton
+          size="lg"
+          color="primary"
+          variant="ghost"
+          class="pointer-coarse:h-10"
+          icon="i-material-symbols-auto-awesome-outline"
+          :label="$t('note.ask.key')"
+          :disabled="props.std === null"
+          data-bar="ask"
+          @click="emit('ask')"
+        />
+      </HintTip>
+
+      <div class="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden="true" />
+
       <HintTip :text="$t('note.action.turn_into')" press>
         <UDropdownMenu :items="[kindItems]" :disabled="!writable" :content="{ align: 'start' }">
           <UButton

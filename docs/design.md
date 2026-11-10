@@ -80,10 +80,9 @@ studied of AFFiNE and under which licence.
   (`POST /talks`), which the console relays because the bundle's manifest names the receiver under
   `calls`. The receiver keeps no turns of such a talk, so the panel holds the conversation and hands
   each turn with the turns before it, as the console's own talk panels do.
-- The panel is named for the talk alone, with no subtitle under its name. Docked beside the note on a
-  wide screen, it stands at a width the reader drags at its leading edge or steps with the arrow keys,
-  between its bounds, and the width is kept in that browser; below that width it rises from the bottom
-  edge. The reader writes in the console's chat prompt.
+- The panel is named for the talk alone, with no subtitle under its name. Docked, it stands at a
+  width the reader drags at its leading edge or steps with the arrow keys, between its bounds, and the
+  width is kept in that browser. The reader writes in the console's chat prompt.
 - The talk is scoped to the open note: the topic names the note by id and title and carries the note's
   whole current body as a line list; the title stands in the topic beside it and no line changes it.
   The supervisor answers with that same line list edited — one fenced block holding the whole new
@@ -107,11 +106,32 @@ studied of AFFiNE and under which licence.
   note holding an image or a table is not rewritten outright, since no line brings either back.
 - The panel is docked beside the note on a wide viewport — a column of its own, parted from the
   document by one line — so the note keeps its width and the reader may go on writing while the
-  answer comes; below that width it rises from the bottom edge as a drawer. Its key rides the
-  screen's actions where the console offers its bar and the screen's own head where it does not, and
-  the panel closes by its own close key. A turn whose panel is closed still stands, and its change
+  answer comes; below that width it rises from the bottom edge as a drawer. Its key stands at the
+  format bar's trailing edge, and the panel closes by its own close key. A turn whose panel is closed still stands, and its change
   lands in the note. The talk is kept in the screen's memory alone: leaving the note drops it, the
   record of the talk is the note's own saved states.
+
+## Ask AI
+
+- Ask AI acts on a passage: the blocks the selection covers, the block under the caret where nothing
+  is selected, or the whole note where the editor holds neither. It is reached from the selection toolbar the editor
+  floats over a selection and from the format bar's own AI key, both opening the one menu under the
+  passage.
+- The menu offers set actions in groups — edit (improve the writing, fix spelling, fix grammar, make
+  it longer, make it shorter, a plainer or a more formal tone), translate (Korean, English, Japanese),
+  and write from it (continue writing, summarize, explain, an outline, brainstorm ideas) — and a line
+  in which the reader asks in his own words. Each set action is a rule the bundle states in English;
+  the menu shows it in the reader's language.
+- The ask rides the same receiver road as the talk panel, as a one-turn talk whose topic carries the
+  note's id and title, the action's rule and the passage in the note's line grammar. The answer is
+  one fenced block in that grammar; an answer with none is shown as words and offers nothing to place.
+- The result stands under the passage before anything changes. The reader replaces the passage with
+  it, inserts it below the passage, asks again, asks a further change in his own words, or discards
+  it. A placed result enters the document through the same run writer the talk's patch uses, so the
+  editor's own autosave carries it. A passage holding an image or a table is never replaced, since no
+  line brings either back; its result can still be inserted below.
+- The ask's turns are held while the result stands and dropped when it is placed or discarded; the
+  service sees no AI route, as for the talk panel.
 
 ## The console surface
 

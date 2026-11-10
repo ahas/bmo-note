@@ -285,3 +285,21 @@ function propsOf(row: Row): Record<string, unknown> {
 function clamp(value: number, low: number, high: number): number {
   return Math.max(low, Math.min(high, value));
 }
+
+/** The run of the note's lines a passage covers: from the first to the last of the given blocks, and
+ * the deeper lines under the last of them, which stand with it. Null where none of them is a line. */
+export function runOf(store: Store, models: BlockModel[]): { at: number; count: number; rows: LiveRow[] } | null {
+  const rows = readRows(store);
+  const marked = new Set(models);
+  const places = rows.flatMap((row, at) => (marked.has(row.model) ? [at] : []));
+
+  if (places.length === 0) return null;
+
+  const at = Math.min(...places);
+  let until = Math.max(...places) + 1;
+  const depth = rows[until - 1]?.indent ?? 0;
+
+  while (until < rows.length && (rows[until]?.indent ?? 0) > depth) until += 1;
+
+  return { at, count: until - at, rows: rows.slice(at, until) };
+}

@@ -369,6 +369,7 @@ async function goBack(): Promise<void> {
             :ref="(mount) => { editor = mount as InstanceType<typeof NoteEditor> | null }"
             :note-id="note.id"
             :doc="note.doc"
+            :title="titleLine"
             @change="onEdit"
             @title="liveTitle = $event"
             @ready="() => { count(); readTitle(); }"

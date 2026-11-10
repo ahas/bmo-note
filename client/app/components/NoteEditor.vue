@@ -4,7 +4,7 @@
 // (docs/affine.md, 「What stands borrowed」); its standard scope reaches the bar once the container has
 // drawn, and reaches this file's caller for the foot line's count.
 
-import { onBeforeUnmount, onMounted, shallowRef } from "vue";
+import { onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useOverlay } from "@nuxt/ui/composables/useOverlay";
 import { useToast } from "@nuxt/ui/composables/useToast";
@@ -13,12 +13,14 @@ import QuestionDialog from "bmo-ui/app/components/QuestionDialog.vue";
 
 import "@toeverything/theme/style.css";
 
+import NoteAsk from "./NoteAsk.vue";
 import NoteToolbar from "./NoteToolbar.vue";
-import { applyOps, readRows, replaceBody } from "../domain/apply";
+import { applyOps, readRows, replaceBody, runOf } from "../domain/apply";
 import { ensureEditorRegistered, fromBase64, openNoteDoc, toBase64 } from "../domain/doc";
 import { pageExtensions } from "../domain/editor";
 import { countHolding } from "../domain/count";
-import { linesOf } from "../domain/text";
+import { passageElement, passageModels } from "../domain/format";
+import { linesOf, opaqueRow } from "../domain/text";
 import { followScreenMode } from "../domain/theme";
 
 import type { EditorNotice } from "../domain/editor";
@@ -27,7 +29,7 @@ import type { NoteDoc } from "../domain/doc";
 import type { Op } from "../domain/patch";
 import type { BlockStdScope } from "@blocksuite/affine/std";
 
-const props = defineProps<{ noteId: string; doc: string }>();
+const props = defineProps<{ noteId: string; doc: string; title: string }>();
 
 const emit = defineEmits<{ change: []; title: [title: string]; ready: [] }>();
 
@@ -49,8 +51,47 @@ const notice: EditorNotice = {
     // The editor's own failure lines; the save state carries what must reach the reader's attention.
   },
   confirm: async (title: string) =>
-    (await overlay.create(QuestionDialog, { props: { title, confirm: i18n.t("note.action.apply"), leaving: true }, destroyOnClose: true }).open()) === true
+    (await overlay.create(QuestionDialog, { props: { title, confirm: i18n.t("note.action.apply"), leaving: true }, destroyOnClose: true }).open()) === true,
+  ask: () => openAsk(),
+  askLabel: i18n.t("note.ask.key")
 };
+
+// Ask AI (`docs/design.md`, 「Ask AI」): the passage is taken as the key is pressed — the blocks the
+// selection covers, the one under the caret, or the whole note — and the result is placed over that run.
+const asking = ref(false);
+const passage = shallowRef<{ at: number; count: number; lines: string[]; opaque: boolean } | null>(null);
+const anchor = shallowRef<{ getBoundingClientRect: () => DOMRect } | undefined>(undefined);
+
+function openAsk(): void {
+  const std = scope.value;
+
+  if (std === null || held === null) return;
+
+  // Where the editor holds neither a selection nor a caret, the passage is the whole note.
+  const chosen = passageModels(std);
+  const models = chosen.length > 0 ? chosen : readRows(held.store).map((row) => row.model);
+  const run = runOf(held.store, models);
+
+  if (run === null) return;
+
+  const element = passageElement(std, models);
+
+  passage.value = { at: run.at, count: run.count, lines: linesOf(run.rows), opaque: run.rows.some(opaqueRow) };
+  anchor.value = element === null ? undefined : { getBoundingClientRect: () => element.getBoundingClientRect() };
+  asking.value = true;
+}
+
+function placeAsked(how: "replace" | "below", lines: string[]): void {
+  const taken = passage.value;
+
+  if (held === null || taken === null) return;
+
+  try {
+    applyOps(held.store, [how === "replace" ? { at: taken.at, del: taken.count, insert: lines } : { at: taken.at + taken.count, del: 0, insert: lines }]);
+  } catch {
+    toast.add({ title: i18n.t("note.talk.apply_failed"), color: "error" });
+  }
+}
 
 onMounted(async () => {
   await ensureEditorRegistered();
@@ -124,12 +165,22 @@ defineExpose({
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col">
-    <NoteToolbar :std="scope" @failed="toast.add({ title: $t('note.error.image_failed'), color: 'error' })">
+    <NoteToolbar :std="scope" @failed="toast.add({ title: $t('note.error.image_failed'), color: 'error' })" @ask="openAsk">
       <template v-if="$slots.barEnd" #end>
         <slot name="barEnd" />
       </template>
     </NoteToolbar>
     <div ref="host" class="note-editor-host min-h-0 flex-1 overflow-y-auto" />
+
+    <NoteAsk
+      v-model:open="asking"
+      :note-id="props.noteId"
+      :title="props.title"
+      :passage="passage?.lines ?? null"
+      :opaque="passage?.opaque ?? false"
+      :anchor="anchor"
+      @place="placeAsked"
+    />
   </div>
 </template>
 

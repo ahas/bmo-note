@@ -256,8 +256,10 @@ async function applyWhole(): Promise<void> {
       <div class="absolute inset-y-0 end-1/2 w-px transition-colors" :class="dragging ? 'bg-primary' : ''" />
     </div>
 
-    <div class="flex h-12 shrink-0 items-center gap-2 border-b border-default px-4">
-      <p class="min-w-0 flex-1 truncate text-sm font-medium text-highlighted">{{ $t("note.talk.title") }}</p>
+    <!-- The head stands at the format bar's height, so the two bottom edges are one line across. -->
+    <div class="flex h-9 shrink-0 items-center gap-2 border-b border-default ps-4 pe-1 pointer-coarse:h-10">
+      <!-- The editor's stylesheets stretch a bare span over any utility class, so its place is set on it. -->
+      <span class="min-w-0 flex-1 truncate text-sm font-medium text-highlighted" style="align-self: center">{{ $t("note.talk.title") }}</span>
       <HintTip :text="$t('note.action.close')" press>
         <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-close" :aria-label="$t('note.action.close')" @click="open = false" />
       </HintTip>
