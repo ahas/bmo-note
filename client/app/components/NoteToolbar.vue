@@ -9,6 +9,7 @@
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import HintTip from "bmo-ui/app/components/HintTip.vue";
+import ToolBar from "bmo-ui/app/components/ToolBar.vue";
 import { BlockSelection, TextSelection } from "@blocksuite/affine/std";
 
 import { activeConversion, activeMarks, barConversions, barMarks, convert, conversionsSupported, insertImages, insertTable } from "../domain/format";
@@ -167,69 +168,77 @@ function addTable(): void {
        commands run against the editor's own range, and a control that took focus would take the
        selection with it. Keys reachable by Tab still ring on focus, as every control does. The row
        stays one row at a phone's width and scrolls its keys sideways, as the mobile rule asks. -->
-  <div class="flex h-11 shrink-0 items-center gap-1 overflow-x-auto border-b border-default px-4 outline-none" role="toolbar" :aria-label="$t('note.label.toolbar')" @mousedown.prevent>
-    <HintTip :text="$t('note.action.turn_into')" press>
-      <UDropdownMenu :items="[kindItems]" :disabled="!writable" :content="{ align: 'start' }">
+  <ToolBar :label="$t('note.label.toolbar')" @mousedown.prevent>
+    <!-- The bar spans the page; its keys gather in one row of their own width, centred, rather than
+         spreading across a wide screen. -->
+    <div class="mx-auto flex h-full w-max shrink-0 items-center gap-1" data-bar-row>
+      <HintTip :text="$t('note.action.turn_into')" press>
+        <UDropdownMenu :items="[kindItems]" :disabled="!writable" :content="{ align: 'start' }">
+          <UButton
+            size="lg"
+            color="neutral"
+            variant="ghost"
+            class="pointer-coarse:h-10"
+            :icon="kindIcon"
+            trailing-icon="i-material-symbols-expand-more"
+            :disabled="!writable"
+            :aria-label="$t('note.action.turn_into')"
+            data-bar="kind"
+          />
+        </UDropdownMenu>
+      </HintTip>
+
+      <div class="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden="true" />
+
+      <HintTip v-for="(config, at) in barMarks" :key="config.id" :text="$t(`note.mark.${config.id}`)" press>
         <UButton
-          size="sm"
+          size="lg"
+          color="neutral"
+          :variant="marks[at] ? 'subtle' : 'ghost'"
+          square
+          class="pointer-coarse:size-10"
+          :icon="markIcons[config.id] ?? 'i-material-symbols-text-fields'"
+          :disabled="!writable"
+          :aria-label="$t(`note.mark.${config.id}`)"
+          :data-bar="config.id"
+          @click="toggle(config.id)"
+        />
+      </HintTip>
+
+      <div class="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden="true" />
+
+      <HintTip :text="$t('note.action.image')" press>
+        <UButton
+          size="lg"
           color="neutral"
           variant="ghost"
-          :icon="kindIcon"
-          trailing-icon="i-material-symbols-expand-more"
-          :disabled="!writable"
-          :aria-label="$t('note.action.turn_into')"
-          data-bar="kind"
+          square
+          class="pointer-coarse:size-10"
+          icon="i-material-symbols-add-photo"
+          :loading="working"
+          :disabled="!writable || working"
+          :aria-label="$t('note.action.image')"
+          data-bar="image"
+          @click="pickImage"
         />
-      </UDropdownMenu>
-    </HintTip>
+      </HintTip>
 
-    <div class="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden="true" />
+      <HintTip :text="$t('note.action.table')" press>
+        <UButton
+          size="lg"
+          color="neutral"
+          variant="ghost"
+          square
+          class="pointer-coarse:size-10"
+          icon="i-material-symbols-grid-view"
+          :disabled="!writable || working"
+          :aria-label="$t('note.action.table')"
+          data-bar="table"
+          @click="addTable"
+        />
+      </HintTip>
 
-    <HintTip v-for="(config, at) in barMarks" :key="config.id" :text="$t(`note.mark.${config.id}`)" press>
-      <UButton
-        size="sm"
-        color="neutral"
-        :variant="marks[at] ? 'subtle' : 'ghost'"
-        square
-        :icon="markIcons[config.id] ?? 'i-material-symbols-text-fields'"
-        :disabled="!writable"
-        :aria-label="$t(`note.mark.${config.id}`)"
-        :data-bar="config.id"
-        @click="toggle(config.id)"
-      />
-    </HintTip>
-
-    <div class="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden="true" />
-
-    <HintTip :text="$t('note.action.image')" press>
-      <UButton
-        size="sm"
-        color="neutral"
-        variant="ghost"
-        square
-        icon="i-material-symbols-add-photo"
-        :loading="working"
-        :disabled="!writable || working"
-        :aria-label="$t('note.action.image')"
-        data-bar="image"
-        @click="pickImage"
-      />
-    </HintTip>
-
-    <HintTip :text="$t('note.action.table')" press>
-      <UButton
-        size="sm"
-        color="neutral"
-        variant="ghost"
-        square
-        icon="i-material-symbols-grid-view"
-        :disabled="!writable || working"
-        :aria-label="$t('note.action.table')"
-        data-bar="table"
-        @click="addTable"
-      />
-    </HintTip>
-
-    <input ref="picked" type="file" accept="image/*" multiple class="hidden" data-bar="file" @change="standChosen" />
-  </div>
+      <input ref="picked" type="file" accept="image/*" multiple class="hidden" data-bar="file" @change="standChosen" />
+    </div>
+  </ToolBar>
 </template>

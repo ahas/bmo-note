@@ -250,7 +250,7 @@ async function goBack(): Promise<void> {
       </HintTip>
     </div>
 
-    <div class="mx-auto flex min-h-0 w-full max-w-(--ui-container) flex-1 flex-col">
+    <div class="flex min-h-0 w-full flex-1 flex-col" data-screen-fill>
       <div v-if="stand === 'loading'" role="status" :aria-label="$t('note.status.loading')" class="flex w-full flex-col gap-3 p-4">
         <USkeleton class="h-8 w-64 rounded-md" />
         <USkeleton class="h-4 w-full max-w-2xl rounded-sm" />

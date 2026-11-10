@@ -102,12 +102,12 @@ studied of AFFiNE and under which licence.
   says plainly that it overwrites what stands under it. That fallback writes plain lines alone: a
   note holding an image or a table is not rewritten outright, since no line brings either back.
 - The panel stands as a side drawer over the screen — at the right on a wide viewport, from the
-  bottom on a narrow one — so the note column keeps the console's content width; its key rides the
-  screen's actions where the console offers its bar and the screen's own head where it does not. On a
-  wide viewport it carries no veil and a press outside puts it away, so the owner may go on writing
-  in the note while the answer is on its way; the turn stands, and its change lands in the note
-  behind the closed panel. The talk is kept in the screen's memory alone: leaving the note drops it,
-  the record of the talk is the note's own saved states.
+  bottom on a narrow one — so the note page keeps its width and the panel stands over its edge; its
+  key rides the screen's actions where the console offers its bar and the screen's own head where it
+  does not. On a wide viewport it carries no veil and a press outside puts it away, so the owner may
+  go on writing in the note while the answer is on its way; the turn stands, and its change lands in
+  the note behind the closed panel. The talk is kept in the screen's memory alone: leaving the note
+  drops it, the record of the talk is the note's own saved states.
 
 ## The console surface
 
@@ -119,13 +119,15 @@ studied of AFFiNE and under which licence.
 - Two screens stand under `/note`: the list (title, moment, newest first, a new-note key, a trash
   view with restore and purge) and the editor (`/note/<id>`: the BlockSuite document, its title at
   the top, the autosave mark). The console's title bar names the editor and carries its actions.
-- Both screens stand in the console's content width — at most its `--ui-container` across, centred —
-  as every console screen does.
+- The list stands in the console's content width — at most its `--ui-container` across, centred — as
+  every console screen does. The open note is the screen that releases that width in its own panel:
+  its page fills the console's content area, with no cap of its own.
 - The editor stands under a format bar of the bundle's own: inline marks, block types, lists, quote
   and code, an image upload and a table insert, each driving the vendored editor's own command chain,
-  so the bar, the hotkeys and the slash menu all ride one mechanism. Slash commands stay a shortcut,
-  never the way in. The selection toolbar, the drag handle and the floating format menu are the fork's
-  own and stand as it drew them.
+  so the bar, the hotkeys and the slash menu all ride one mechanism. The bar spans the page, but its
+  controls stand in one gathered, centred row of their own width, never spread edge to edge. Slash
+  commands stay a shortcut, never the way in. The selection toolbar, the drag handle and the floating
+  format menu are the fork's own and stand as it drew them.
 - An open note carries the way back to the list in the console's title bar, beside the screen's name
   where the console offers its bar and at the head of its own bar where it does not.
 - The foot line tells what the document holds — its word count and its size — beside the save state,
