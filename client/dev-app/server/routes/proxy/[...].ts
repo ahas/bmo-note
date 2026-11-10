@@ -1,16 +1,28 @@
-// The dev relay: /proxy/<service>/<path...> forwarded to the note service on its loopback port with
-// the development credential and a fixed reader, the headers the console would set on every call.
-// Nothing of a deployment's tokens stands here; the values come from the environment the host runs with.
+// The dev relay: /proxy/<service>/<path...> forwarded to the service on its loopback port with the
+// development credential and a fixed reader, the headers the console would set on every call. The
+// bundle's manifest names the receiver under `calls` for the note's talk panel, so the relay carries
+// both roads the console relays. Nothing of a deployment's tokens stands here; the values come from
+// the environment the host runs with.
 
-const ADDRESS = process.env.BMO_DEV_NOTE_ADDRESS ?? "http://127.0.0.1:13199";
-const TOKEN = process.env.BMO_DEV_NOTE_TOKEN ?? "";
+const SERVICES: Record<string, { address: string; token: string }> = {
+  note: {
+    address: process.env.BMO_DEV_NOTE_ADDRESS ?? "http://127.0.0.1:13199",
+    token: process.env.BMO_DEV_NOTE_TOKEN ?? ""
+  },
+  receiver: {
+    address: process.env.BMO_DEV_RECEIVER_ADDRESS ?? "http://127.0.0.1:13105",
+    token: process.env.BMO_DEV_RECEIVER_TOKEN ?? ""
+  }
+};
 
 export default defineEventHandler(async (event) => {
+  const asked = /^\/proxy\/([^/]+)/.exec(event.path)?.[1] ?? "note";
+  const service = SERVICES[asked] ?? SERVICES.note!;
   const rest = event.path.replace(/^\/proxy\/[^/]+/, "");
-  const response = await fetch(`${ADDRESS}${rest}`, {
+  const response = await fetch(`${service.address}${rest}`, {
     method: event.method,
     headers: {
-      authorization: `Bearer ${TOKEN}`,
+      authorization: `Bearer ${service.token}`,
       "owner-key": process.env.BMO_DEV_OWNER_KEY ?? "1",
       "owner-role": process.env.BMO_DEV_OWNER_ROLE ?? "member",
       ...(event.headers.get("content-type") ? { "content-type": String(event.headers.get("content-type")) } : {})

@@ -14,14 +14,17 @@ import QuestionDialog from "bmo-ui/app/components/QuestionDialog.vue";
 import "@toeverything/theme/style.css";
 
 import NoteToolbar from "./NoteToolbar.vue";
+import { applyOps, readRows, replaceBody } from "../domain/apply";
 import { ensureEditorRegistered, fromBase64, openNoteDoc, toBase64 } from "../domain/doc";
 import { pageExtensions } from "../domain/editor";
 import { countHolding } from "../domain/count";
+import { linesOf } from "../domain/text";
 import { followScreenMode } from "../domain/theme";
 
 import type { EditorNotice } from "../domain/editor";
 import type { Holding } from "../domain/count";
 import type { NoteDoc } from "../domain/doc";
+import type { Op } from "../domain/patch";
 import type { BlockStdScope } from "@blocksuite/affine/std";
 
 const props = defineProps<{ noteId: string; doc: string }>();
@@ -91,7 +94,31 @@ defineExpose({
     title: held?.title() ?? ""
   }),
   /** What the note holds now, for the foot line. */
-  holding: (): Holding => (held === null ? { words: 0 } : countHolding(held.store))
+  holding: (): Holding => (held === null ? { words: 0 } : countHolding(held.store)),
+  /** The note's body as the talk asks over it: one line per block (`domain/text`). */
+  lines: (): string[] => (held === null ? [] : linesOf(readRows(held.store))),
+  /** Writes the talk's anchored patch into the open document; the editor's own change makes it save. */
+  apply: (ops: Op[]): boolean => {
+    if (held === null) return false;
+
+    try {
+      applyOps(held.store, ops);
+
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  /** Writes the whole body from the answer, where the anchored patch could not land. */
+  replace: (lines: string[]): boolean => {
+    if (held === null) return false;
+
+    try {
+      return replaceBody(held.store, lines);
+    } catch {
+      return false;
+    }
+  }
 });
 </script>
 

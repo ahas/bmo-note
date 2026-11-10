@@ -7,6 +7,7 @@
     },
     "action": {
       "apply": "Apply",
+      "apply_all": "Apply all",
       "back": "To the list",
       "cancel": "Cancel",
       "delete": "Delete",
@@ -18,15 +19,19 @@
       "reload": "Reload",
       "restore": "Restore",
       "retry": "Try again",
+      "send": "Send",
       "table": "Table",
+      "talk": "Talk",
       "turn_into": "Turn into"
     },
     "label": {
       "saved": "Saved",
       "saving": "Saving…",
+      "supervisor": "Supervisor",
       "toolbar": "Format",
       "untitled": "Untitled",
-      "words": "words"
+      "words": "words",
+      "you": "You"
     },
     "mark": {
       "bold": "Bold",
@@ -45,6 +50,25 @@
       "quote": "Quote",
       "text": "Text",
       "todo": "To-do List"
+    },
+    "talk": {
+      "answering": "The supervisor is answering",
+      "apply_failed": "The note could not be changed.",
+      "empty": "Send the supervisor what to change.",
+      "no_answer": "The supervisor said nothing.",
+      "patch_anchor": "The part to change was not found in the note.",
+      "patch_big": "There is too much to change.",
+      "patch_opaque": "A part holding an image or a table was left alone.",
+      "patch_owner": "That part changed meanwhile, so nothing was applied.",
+      "placeholder": "Say what to change",
+      "replace_blocked": "An image or a table stands in the note, so the whole note cannot be replaced.",
+      "replace_effect": "It overwrites all the text now in the note. It cannot be brought back.",
+      "replace_question": "Replace the whole note with what the supervisor sent?",
+      "title": "Talk with the supervisor",
+      "unanswered": "No answer came. Try again in a moment.",
+      "unanswered_limit": "The answer limit was reached. Try again in a moment.",
+      "unanswered_outage": "The supervisor's model could not be reached.",
+      "unanswered_ready": "The supervisor is not ready yet."
     },
     "empty": {
       "live": "No notes yet. Make one.",

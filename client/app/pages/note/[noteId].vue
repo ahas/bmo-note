@@ -13,6 +13,7 @@ import { askQuestion } from "bmo-ui/app/domain/question";
 import { relayCall } from "bmo-ui/app/domain/relay";
 
 import NoteEditor from "../../components/NoteEditor.vue";
+import NoteTalk from "../../components/NoteTalk.vue";
 import { createNoteApi, Refusal, Unreachable } from "../../domain/api";
 import { clockOf, sizeOf } from "../../domain/count";
 import { holdsChange, initialSaveState, nextSaveState, versionOf } from "../../domain/save";
@@ -21,6 +22,7 @@ import type { RelayOptions } from "bmo-ui/app/domain/relay";
 import type { Call } from "../../domain/api";
 import type { Holding } from "../../domain/count";
 import type { Note } from "../../../shared/types";
+import type { Op } from "../../domain/patch";
 import type { SaveState } from "../../domain/save";
 
 const SERVICE = "note";
@@ -39,6 +41,7 @@ const readCount = ref(0);
 const saveState = ref<SaveState>(initialSaveState({ id: noteId, title: "", version: 1, createdAt: 0, changedAt: 0, size: 0, deletedAt: null }));
 const editor = shallowRef<InstanceType<typeof NoteEditor> | null>(null);
 const holding = ref<Holding>({ words: 0 });
+const talkOpen = ref(false);
 
 let debounce: ReturnType<typeof setTimeout> | null = null;
 let unloadGuard: ((event: BeforeUnloadEvent) => void) | null = null;
@@ -99,6 +102,25 @@ function snapshot(): { doc: string; title: string } | null {
   const exposed = editor.value as { snapshot?: () => { doc: string; title: string } } | null;
 
   return exposed?.snapshot?.() ?? null;
+}
+
+/** The title the talk opens on, as the list and the service name it. */
+const talkTitle = computed(() => {
+  const title = note.value?.title ?? "";
+
+  return title === "" ? i18n.t("note.label.untitled") : title;
+});
+
+function talkLines(): string[] {
+  return editor.value?.lines() ?? [];
+}
+
+function talkApply(ops: Op[]): boolean {
+  return editor.value?.apply(ops) ?? false;
+}
+
+function talkReplace(lines: string[]): boolean {
+  return editor.value?.replace(lines) ?? false;
 }
 
 /** Sends what the editor holds, naming the version it was made from (`docs/api.md`, 「Notes」). */
@@ -211,12 +233,18 @@ async function goBack(): Promise<void> {
     <!-- The way back to the list: beside the console's name where the console offers its bar, at this
          screen's own head where it does not. The browser's and the gesture's back stand untouched. -->
     <Teleport v-if="barOffer !== null && note !== null" defer :to="barOffer.screenActions">
+      <HintTip class="flex" :text="$t('note.action.talk')" press>
+        <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-forum-outline" :aria-label="$t('note.action.talk')" @click="talkOpen = true" />
+      </HintTip>
       <HintTip class="flex" :text="$t('note.action.back')" press>
         <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-arrow-back" :aria-label="$t('note.action.back')" @click="goBack" />
       </HintTip>
     </Teleport>
 
     <div v-if="barOffer === null && note !== null && stand === 'ready'" class="flex h-11 shrink-0 items-center gap-2 px-4">
+      <HintTip :text="$t('note.action.talk')" press>
+        <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-forum-outline" :aria-label="$t('note.action.talk')" @click="talkOpen = true" />
+      </HintTip>
       <HintTip :text="$t('note.action.back')" press>
         <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-arrow-back" :aria-label="$t('note.action.back')" data-back @click="goBack" />
       </HintTip>
@@ -258,6 +286,8 @@ async function goBack(): Promise<void> {
           <span>{{ wordsLine }} · {{ sizeLine }}</span>
           <span v-if="savedLine !== null">{{ savedLine }}</span>
         </div>
+
+        <NoteTalk v-model:open="talkOpen" :note-id="note.id" :title="talkTitle" :lines="talkLines" :apply="talkApply" :replace="talkReplace" />
       </template>
     </div>
   </div>

@@ -81,10 +81,10 @@ studied of AFFiNE and under which licence.
   `calls`. The receiver keeps no turns of such a talk, so the panel holds the conversation and hands
   each turn with the turns before it, as the console's own talk panels do.
 - The talk is scoped to the open note: the topic names the note by id and title and carries the note's
-  whole current text as a line list. The supervisor answers with that same line list edited — one
-  fenced block holding the whole new text, in the protocol the panel's own heading states. The note
-  never stands rewritten by a partial answer: where the fenced text is missing the panel shows the
-  answer as words and changes nothing.
+  whole current body as a line list; the title stands in the topic beside it and no line changes it.
+  The supervisor answers with that same line list edited — one fenced block holding the whole new
+  text, in the protocol the panel's own heading states. The note never stands rewritten by a partial
+  answer: where the fenced text is missing the panel shows the answer as words and changes nothing.
 - The unit's service sees no AI route. The service keeps the document opaque (its standing rule), and
   the supervisor never touches its bytes: a returned text reaches the note through the open editor's
   own save, at the same versioned door every edit goes through. This is the chosen shape of "the
@@ -92,15 +92,22 @@ studied of AFFiNE and under which licence.
   unit's save route, and the one party that can write BlockSuite bytes stands on the client.
 - A change lands as a patch, never a dump: the panel diffs the returned lines against the base lines
   the talk was asked over and applies the changed ranges to the current document, each range anchored
-  by the untouched lines around it. An owner's edit elsewhere stands untouched through it; a range the
-  anchoring cannot find, or one that would swallow a table or an image, fails the whole patch, and
-  the panel says so in one line. The reader may then retry, or apply the text outright from the
-  panel's own replace action, which says plainly that it moves what is under it.
+  by the untouched lines around it. The runs are written into the open editor's document as they come,
+  so the screen shows them without a reload and the editor's own autosave carries them through the
+  versioned save. The path to the screen is the editor's own document, not the event stream, since
+  the client is the one party that writes BlockSuite bytes.
+- An owner's edit elsewhere stands untouched through it; a range the anchoring cannot find, or one
+  that would swallow a table or an image, fails the whole patch, and the panel says so in one line.
+  The reader may then retry, or apply the text outright from the panel's own replace action, which
+  says plainly that it overwrites what stands under it. That fallback writes plain lines alone: a
+  note holding an image or a table is not rewritten outright, since no line brings either back.
 - The panel stands as a side drawer over the screen — at the right on a wide viewport, from the
   bottom on a narrow one — so the note column keeps the console's content width; its key rides the
-  screen's actions where the console offers its bar and the screen's own head where it does not. The
-  talk is kept in the screen's memory alone: leaving the note drops it, the record of the talk is the
-  note's own saved states.
+  screen's actions where the console offers its bar and the screen's own head where it does not. On a
+  wide viewport it carries no veil and a press outside puts it away, so the owner may go on writing
+  in the note while the answer is on its way; the turn stands, and its change lands in the note
+  behind the closed panel. The talk is kept in the screen's memory alone: leaving the note drops it,
+  the record of the talk is the note's own saved states.
 
 ## The console surface
 
