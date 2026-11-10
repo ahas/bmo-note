@@ -149,9 +149,10 @@ studied of AFFiNE and under which licence.
     of their shape; an empty view and a read that failed stand as their own states, in one line with
     the key each offers; a re-read that failed keeps the rows that stand and says so above them.
   - The open note's head carries the way back to the list and the note's title where the bar has
-    room for it, nothing else. It rides the console's title bar where the console
-    offers one — its actions laid in the bar's own place — and stands as the screen's own head
-    where it does not. The title is the document's own, as the editor holds it, cut to the bar with
+    room for it, nothing else, the way back leading. It rides the console's title bar where the console
+    offers one — the way back in the bar's place before the screen's name, the title in its place after
+    it, or both after it, the way back first, where the console offers no place before — and stands as
+    the screen's own head where it does not. The title is the document's own, as the editor holds it, cut to the bar with
     its whole value in a tooltip; a phone's narrow bar leaves it to the document's own title.
 - The list stands in the console's content width — at most its `--ui-container` across, centred — as
   every console screen does, its rows reaching that width with only their own inner room. The open

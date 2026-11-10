@@ -33,8 +33,9 @@ const i18n = useI18n();
 const router = useRouter();
 const api = createNoteApi(<T>(path: string, options?: Parameters<Call>[1]) => relayCall<T>(SERVICE, path, options as RelayOptions));
 
-// The console's bar, where it offers one: the place its name line takes the screen's own actions.
-const barOffer = inject<{ screenActions: string } | null>("bmo-console-title-bar", null);
+// The console's bar, where it offers one: the place after its name the screen's own actions take, and the place
+// before it the way back takes where the console names one.
+const barOffer = inject<{ screenActions: string; screenLead?: string } | null>("bmo-console-title-bar", null);
 
 const noteId = String(router.currentRoute.value.params.noteId ?? "");
 const note = shallowRef<Note | null>(null);
@@ -308,15 +309,22 @@ async function goBack(): Promise<void> {
 
 <template>
   <div class="flex h-full min-h-0 flex-col">
-    <!-- The head, riding the console's title bar where it offers one: the note's title and the way back.
-         Where it does not, the screen stands the same row itself. -->
+    <!-- The head, riding the console's title bar where it offers one: the way back before the screen's name, the
+         note's title after it — or both after it, the way back first, where the bar offers no place before.
+         Where it offers no bar, the screen stands the same row itself. -->
+    <Teleport v-if="barOffer?.screenLead && note !== null && stand === 'ready'" defer :to="barOffer.screenLead">
+      <HintTip :text="$t('note.action.back')" press>
+        <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-arrow-back" :aria-label="$t('note.action.back')" @click="goBack" />
+      </HintTip>
+    </Teleport>
+
     <Teleport v-if="barOffer !== null && note !== null && stand === 'ready'" defer :to="barOffer.screenActions">
       <div class="flex min-w-0 items-center gap-2">
-        <HintTip class="hidden max-w-64 min-w-0 truncate text-sm font-medium text-highlighted sm:block" style="align-self: center" :text="titleLine" cut>{{ titleLine }}</HintTip>
-
-        <HintTip :text="$t('note.action.back')" press>
+        <HintTip v-if="!barOffer.screenLead" :text="$t('note.action.back')" press>
           <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-arrow-back" :aria-label="$t('note.action.back')" @click="goBack" />
         </HintTip>
+
+        <HintTip class="hidden max-w-64 min-w-0 truncate text-sm font-medium text-highlighted sm:block" style="align-self: center" :text="titleLine" cut>{{ titleLine }}</HintTip>
       </div>
     </Teleport>
 
