@@ -62,6 +62,19 @@ describe("the words", () => {
   });
 });
 
+describe("the inputs", () => {
+  test("every input a note screen draws is hidden by the native attribute", () => {
+    // The editor's own stylesheets carry a plain `input` rule, which a utility class loses to.
+    const drawn = sources
+      .filter((path) => path.endsWith(".vue"))
+      .flatMap((path) => [...readFileSync(path, "utf8").matchAll(/<input\b[^>]*>/g)].map((match) => ({ path, tag: match[0] })));
+
+    expect(drawn.length).toBeGreaterThan(0);
+
+    for (const { path, tag } of drawn) expect(tag, path).toContain("hidden");
+  });
+});
+
 describe("the code", () => {
   test("holds no Korean outside the words", () => {
     const hangul = /[\p{Script=Hangul}]/u;

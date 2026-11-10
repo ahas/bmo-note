@@ -31,7 +31,9 @@ export default defineNuxtConfig({
     oxc: { target: "chrome120" },
     build: { target: "chrome120" },
     optimizeDeps: {
-      exclude: [/^@blocksuite[\/-]/]
+      // Vite reads this list as package names, not patterns: the bare scope keeps every package under
+      // it out of the optimizer, where a regular expression breaks the dev server's scan.
+      exclude: ["@blocksuite"]
     },
     ssr: { noExternal: [/@blocksuite/] }
   },

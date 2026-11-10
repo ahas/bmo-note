@@ -101,13 +101,13 @@ studied of AFFiNE and under which licence.
   The reader may then retry, or apply the text outright from the panel's own replace action, which
   says plainly that it overwrites what stands under it. That fallback writes plain lines alone: a
   note holding an image or a table is not rewritten outright, since no line brings either back.
-- The panel stands as a side drawer over the screen — at the right on a wide viewport, from the
-  bottom on a narrow one — so the note page keeps its width and the panel stands over its edge; its
-  key rides the screen's actions where the console offers its bar and the screen's own head where it
-  does not. On a wide viewport it carries no veil and a press outside puts it away, so the owner may
-  go on writing in the note while the answer is on its way; the turn stands, and its change lands in
-  the note behind the closed panel. The talk is kept in the screen's memory alone: leaving the note
-  drops it, the record of the talk is the note's own saved states.
+- The panel is docked beside the note on a wide viewport — a column of its own, parted from the
+  document by one line — so the note keeps its width and the reader may go on writing while the
+  answer comes; below that width it rises from the bottom edge as a drawer. Its key rides the
+  screen's actions where the console offers its bar and the screen's own head where it does not, and
+  the panel closes by its own close key. A turn whose panel is closed still stands, and its change
+  lands in the note. The talk is kept in the screen's memory alone: leaving the note drops it, the
+  record of the talk is the note's own saved states.
 
 ## The console surface
 
@@ -116,22 +116,33 @@ studied of AFFiNE and under which licence.
   credential and the member role, with an owner key on every call the screens make. The manifest
   names one other service under `calls` — the receiver, which the AI talk panel speaks through — and
   the bundle calls nothing else beside its own service.
-- Two screens stand under `/note`: the list (title, moment, newest first, a new-note key, a trash
-  view with restore and purge) and the editor (`/note/<id>`: the BlockSuite document, its title at
-  the top, the autosave mark). The console's title bar names the editor and carries its actions.
+- Two screens stand under `/note`: the list and the editor (`/note/<id>`).
+  - The list's head names the screen where the console draws no bar, and carries the view switch
+    between the live notes and the trash and the key that makes a new note. Its rows stand newest
+    changed first, each with the note's title on its own line and, under it, what the note holds —
+    its stored size — and the moment it changed (the moment it went to the trash, in the trash
+    view), with its actions at the trailing edge. The first fetch reserves the rows with a skeleton
+    of their shape; an empty view and a read that failed stand as their own states, in one line with
+    the key each offers; a re-read that failed keeps the rows that stand and says so above them.
+  - The open note's head carries the way back to the list, the note's title where the bar has room
+    for it, the save state and the talk key. It rides the console's title bar where the console
+    offers one — its actions laid in the bar's own place — and stands as the screen's own head
+    where it does not. The title is the document's own, as the editor holds it, cut to the bar with
+    its whole value in a tooltip; a phone's narrow bar leaves it to the document's own title.
 - The list stands in the console's content width — at most its `--ui-container` across, centred — as
-  every console screen does. The open note is the screen that releases that width in its own panel:
-  its page fills the console's content area, with no cap of its own.
+  every console screen does, its rows reaching that width with only their own inner room. The open
+  note is the screen that releases that width in its own panel: its page fills the console's content
+  area, with no cap of its own.
 - The editor stands under a format bar of the bundle's own: inline marks, block types, lists, quote
   and code, an image upload and a table insert, each driving the vendored editor's own command chain,
-  so the bar, the hotkeys and the slash menu all ride one mechanism. The bar spans the page, but its
-  controls stand in one gathered, centred row of their own width, never spread edge to edge. Slash
-  commands stay a shortcut, never the way in. The selection toolbar, the drag handle and the floating
-  format menu are the fork's own and stand as it drew them.
-- An open note carries the way back to the list in the console's title bar, beside the screen's name
-  where the console offers its bar and at the head of its own bar where it does not.
-- The foot line tells what the document holds — its word count and its size — beside the save state,
-  and says where a reader must act (a refused save, a conflict) in the banner above the document.
+  so the bar, the hotkeys and the slash menu all ride one mechanism. The bar and the editor stand as
+  one column filling the page; the bar spans that column, but its controls stand in one gathered,
+  centred row of their own width, never spread edge to edge. Slash commands stay a shortcut, never
+  the way in. The selection toolbar, the drag handle and the floating format menu are the fork's own
+  and stand as it drew them.
+- The status line at the screen's foot tells what the document holds — its word count and its size —
+  beside the save state, drawn with that state's own icon and tone. Where a reader must act (a
+  refused save, a conflict) the banner above the document says so, with the key that acts on it.
 - An image an editor inserts is held on the service before its block stands: the editor's blob store
   is the note's own blob routes, so uploads and read-backs cross the console's relay like every other
   call, and a note reads back its images wherever it is opened.

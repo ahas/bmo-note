@@ -48,7 +48,7 @@ const kindIcon = computed(() => (conversion.value < 0 ? "i-material-symbols-text
 const markIcons: Record<string, string> = {
   bold: "i-material-symbols-format-bold",
   italic: "i-material-symbols-format-italic",
-  underline: "i-material-symbols-format-underline",
+  underline: "i-material-symbols-format-underlined",
   strike: "i-material-symbols-format-strikethrough",
   code: "i-material-symbols-code"
 };
@@ -214,7 +214,7 @@ function addTable(): void {
           variant="ghost"
           square
           class="pointer-coarse:size-10"
-          icon="i-material-symbols-add-photo"
+          icon="i-material-symbols-add-photo-alternate"
           :loading="working"
           :disabled="!writable || working"
           :aria-label="$t('note.action.image')"
@@ -238,7 +238,9 @@ function addTable(): void {
         />
       </HintTip>
 
-      <input ref="picked" type="file" accept="image/*" multiple class="hidden" data-bar="file" @change="standChosen" />
+      <!-- The input the image action opens, never drawn: the native attribute, because the editor's
+           stylesheets carry a plain `input` rule that would win over a utility class. -->
+      <input ref="picked" type="file" accept="image/*" multiple hidden data-bar="file" @change="standChosen" />
     </div>
   </ToolBar>
 </template>

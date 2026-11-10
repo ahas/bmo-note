@@ -10,6 +10,7 @@
       "apply_all": "Apply all",
       "back": "To the list",
       "cancel": "Cancel",
+      "close": "Close",
       "delete": "Delete",
       "image": "Image",
       "leave": "Leave",
@@ -25,10 +26,13 @@
       "turn_into": "Turn into"
     },
     "label": {
+      "conflict": "Conflict",
+      "save_failed": "Not saved",
       "saved": "Saved",
       "saving": "Saving…",
       "supervisor": "Supervisor",
       "toolbar": "Format",
+      "trashed": "Deleted",
       "untitled": "Untitled",
       "words": "words",
       "you": "You"
@@ -89,6 +93,7 @@
       "purge_effect": "It cannot be brought back."
     },
     "error": {
+      "action_failed": "The note could not be changed.",
       "bad-doc": "The note could not be read back, so the save did not go.",
       "create_failed": "The note could not be created.",
       "image_failed": "The image could not be added.",

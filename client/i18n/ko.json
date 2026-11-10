@@ -10,6 +10,7 @@
       "apply_all": "전체 적용",
       "back": "목록으로",
       "cancel": "취소",
+      "close": "닫기",
       "delete": "삭제",
       "image": "이미지",
       "leave": "나가기",
@@ -25,10 +26,13 @@
       "turn_into": "종류 변경"
     },
     "label": {
+      "conflict": "충돌",
+      "save_failed": "저장 안 됨",
       "saved": "저장됨",
       "saving": "저장 중…",
       "supervisor": "감독관",
       "toolbar": "형식",
+      "trashed": "삭제됨",
       "untitled": "제목 없음",
       "words": "단어",
       "you": "나"
@@ -89,6 +93,7 @@
       "purge_effect": "되돌릴 수 없습니다."
     },
     "error": {
+      "action_failed": "노트를 바꾸지 못했습니다.",
       "bad-doc": "노트 내용을 다시 읽을 수 없어 저장하지 못했습니다.",
       "create_failed": "노트를 만들지 못했습니다.",
       "image_failed": "이미지를 추가하지 못했습니다.",

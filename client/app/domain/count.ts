@@ -9,8 +9,10 @@ export interface Holding {
   words: number;
 }
 
-/** A node of the walked tree, read only for what the count needs. */
-interface Walkable {
+/** A node of the walked tree, read only for what the count needs. The root's title and a text
+ * block's text ride the block's own `props`, whichever shape the fork hands them in. */
+export interface Walkable {
+  props?: { title?: unknown; text?: unknown };
   title?: unknown;
   text?: unknown;
   children?: Walkable[];
@@ -18,6 +20,11 @@ interface Walkable {
 
 /** The words of the open note, from its root down. */
 export function countHolding(store: Store): Holding {
+  return { words: countWords(store.root as unknown as Walkable | null) };
+}
+
+/** The words of one walked tree, its title and every text block counted as a reader counts them. */
+export function countWords(root: Walkable | null): number {
   let words = 0;
 
   const text = (value: unknown): string => {
@@ -27,16 +34,14 @@ export function countHolding(store: Store): Holding {
   };
 
   const walk = (node: Walkable): void => {
-    words += countText(text(node.title)) + countText(text(node.text));
+    words += countText(text(node.props?.title ?? node.title)) + countText(text(node.props?.text ?? node.text));
 
     for (const child of node.children ?? []) walk(child);
   };
 
-  const root = store.root as unknown as Walkable | null;
-
   if (root !== null) walk(root);
 
-  return { words };
+  return words;
 }
 
 /** Words in one run of text: runs of non-space, as a reader counts them. */

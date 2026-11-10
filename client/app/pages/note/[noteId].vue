@@ -1,9 +1,10 @@
 <script setup lang="ts">
-// One note open: the format bar and the BlockSuite page editor on the document the service holds,
-// autosaved with a short debounce, its state and holding told in the line at the screen's foot, and
-// what must be acted on said in a banner above the document (`docs/design.md`, 「Editing and saving」,
-// 「The console surface」). The way back to the list rides the console's title bar where the console
-// offers one, and stands at the screen's own head where it does not.
+// One note open: the note's own head, the format bar and the BlockSuite page editor in one column,
+// autosaved with a short debounce, its state and holding told in the status line at the screen's
+// foot, and what must be acted on said in a banner above the document (`docs/design.md`, 「Editing
+// and saving」, 「The console surface」). The head carries the way back, the note's title, the save
+// state and the talk key; it rides the console's title bar where the console offers one, and stands
+// as the screen's own where it does not. The talk panel is docked beside the document.
 
 import { computed, inject, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 import { onBeforeRouteLeave, useRouter } from "vue-router";
@@ -42,6 +43,9 @@ const saveState = ref<SaveState>(initialSaveState({ id: noteId, title: "", versi
 const editor = shallowRef<InstanceType<typeof NoteEditor> | null>(null);
 const holding = ref<Holding>({ words: 0 });
 const talkOpen = ref(false);
+const liveTitle = ref("");
+const retrying = ref(false);
+const reloading = ref(false);
 
 let debounce: ReturnType<typeof setTimeout> | null = null;
 let unloadGuard: ((event: BeforeUnloadEvent) => void) | null = null;
@@ -56,6 +60,8 @@ async function read(): Promise<void> {
 
     note.value = found;
     saveState.value = initialSaveState(found);
+    liveTitle.value = found.title;
+    holding.value = { words: 0 };
     readCount.value += 1;
     stand.value = "ready";
   } catch (error) {
@@ -104,12 +110,19 @@ function snapshot(): { doc: string; title: string } | null {
   return exposed?.snapshot?.() ?? null;
 }
 
-/** The title the talk opens on, as the list and the service name it. */
-const talkTitle = computed(() => {
-  const title = note.value?.title ?? "";
+/** The note's title as the open document holds it, which the head and the talk name it by. */
+function readTitle(): void {
+  liveTitle.value = snapshot()?.title ?? note.value?.title ?? "";
+}
+
+const titleLine = computed(() => {
+  const title = liveTitle.value.trim();
 
   return title === "" ? i18n.t("note.label.untitled") : title;
 });
+
+// Before the document is read there is no note title to name, so the head names the screen.
+const headTitle = computed(() => (stand.value === "ready" ? titleLine.value : i18n.t("note.title")));
 
 function talkLines(): string[] {
   return editor.value?.lines() ?? [];
@@ -160,16 +173,30 @@ async function flush(): Promise<void> {
 }
 
 async function retrySave(): Promise<void> {
-  if (saveState.value.kind === "conflict") return;
+  if (saveState.value.kind === "conflict" || retrying.value) return;
 
+  retrying.value = true;
   saveState.value = nextSaveState(saveState.value, { type: "edited" });
-  await flush();
+
+  try {
+    await flush();
+  } finally {
+    retrying.value = false;
+  }
 }
 
 async function reloadNote(): Promise<void> {
+  if (reloading.value) return;
+
+  reloading.value = true;
+
   if (debounce !== null) clearTimeout(debounce);
 
-  await read();
+  try {
+    await read();
+  } finally {
+    reloading.value = false;
+  }
 }
 
 // Leaving with a change unsent: the save goes first; where it cannot land, the reader is asked.
@@ -188,16 +215,60 @@ onBeforeRouteLeave(async () => {
   });
 });
 
-const stateLine = computed(() => {
+// The save state as the head and the status line say it: the state's own icon, tone and word.
+const saveLabel = computed(() => {
   switch (saveState.value.kind) {
     case "queued":
     case "saving":
       return i18n.t("note.label.saving");
     case "saved":
       return i18n.t("note.label.saved");
+    case "conflict":
+      return i18n.t("note.label.conflict");
     default:
-      return null;
+      return i18n.t("note.label.save_failed");
   }
+});
+
+const saveIcon = computed(() => {
+  switch (saveState.value.kind) {
+    case "queued":
+    case "saving":
+      return "i-material-symbols-progress-activity";
+    case "saved":
+      return "i-material-symbols-check-circle-outline";
+    case "conflict":
+      return "i-material-symbols-warning-outline";
+    case "offline":
+      return "i-material-symbols-cloud-off-outline";
+    default:
+      return "i-material-symbols-error-outline";
+  }
+});
+
+const saveTone = computed(() => {
+  switch (saveState.value.kind) {
+    case "conflict":
+      return "text-warning";
+    case "offline":
+    case "refused":
+      return "text-error";
+    default:
+      return "text-muted";
+  }
+});
+
+const saveSpin = computed(() => saveState.value.kind === "queued" || saveState.value.kind === "saving");
+
+// The status line: what the note holds, and the save state with the moment the last save landed.
+const wordsLine = computed(() => `${new Intl.NumberFormat(i18n.locale.value).format(holding.value.words)} ${i18n.t("note.label.words")}`);
+
+const sizeLine = computed(() => sizeOf(note.value?.size ?? 0, i18n.locale.value));
+
+const footState = computed(() => {
+  if (saveState.value.kind !== "saved") return saveLabel.value;
+
+  return `${i18n.t("note.label.saved")} ${clockOf(note.value?.changedAt ?? Date.now(), i18n.locale.value)}`;
 });
 
 // The refused save's line names its code where the pack has one: the document too large is told
@@ -210,19 +281,6 @@ const refusedLine = computed(() => {
   return i18n.te(key) ? i18n.t(key) : i18n.t("note.status.refused");
 });
 
-// The foot line: what the note holds, beside the save state and the moment the last save landed.
-const wordsLine = computed(() => `${new Intl.NumberFormat(i18n.locale.value).format(holding.value.words)} ${i18n.t("note.label.words")}`);
-
-const sizeLine = computed(() => sizeOf(note.value?.size ?? 0, i18n.locale.value));
-
-// Once the last save landed, the standing line says when; while one is out or held back, the plain
-// state word stands.
-const savedLine = computed(() => {
-  if (saveState.value.kind !== "saved") return stateLine.value;
-
-  return `${i18n.t("note.label.saved")} ${clockOf(note.value?.changedAt ?? Date.now(), i18n.locale.value)}`;
-});
-
 async function goBack(): Promise<void> {
   await router.push("/note");
 }
@@ -230,65 +288,113 @@ async function goBack(): Promise<void> {
 
 <template>
   <div class="flex h-full min-h-0 flex-col">
-    <!-- The way back to the list: beside the console's name where the console offers its bar, at this
-         screen's own head where it does not. The browser's and the gesture's back stand untouched. -->
-    <Teleport v-if="barOffer !== null && note !== null" defer :to="barOffer.screenActions">
-      <HintTip class="flex" :text="$t('note.action.talk')" press>
-        <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-forum-outline" :aria-label="$t('note.action.talk')" @click="talkOpen = true" />
-      </HintTip>
-      <HintTip class="flex" :text="$t('note.action.back')" press>
-        <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-arrow-back" :aria-label="$t('note.action.back')" @click="goBack" />
-      </HintTip>
+    <!-- The head, riding the console's title bar where it offers one: the note's title, the save state,
+         the way back, and the talk key. Where it does not, the screen stands the same row itself. -->
+    <Teleport v-if="barOffer !== null && note !== null && stand === 'ready'" defer :to="barOffer.screenActions">
+      <div class="flex min-w-0 items-center gap-2">
+        <HintTip class="hidden max-w-64 min-w-0 truncate text-sm font-medium text-highlighted sm:block" style="align-self: center" :text="titleLine" cut>{{ titleLine }}</HintTip>
+
+        <span role="status" aria-live="polite" class="inline-flex items-center gap-1.5 text-sm" :class="saveTone">
+          <UIcon :name="saveIcon" class="size-4 shrink-0" :class="saveSpin ? 'animate-spin' : ''" />
+          <span class="hidden sm:inline">{{ saveLabel }}</span>
+          <span class="sr-only sm:hidden">{{ saveLabel }}</span>
+        </span>
+
+        <HintTip :text="$t('note.action.back')" press>
+          <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-arrow-back" :aria-label="$t('note.action.back')" @click="goBack" />
+        </HintTip>
+        <HintTip :text="$t('note.action.talk')" press>
+          <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-forum-outline" :aria-label="$t('note.action.talk')" @click="talkOpen = true" />
+        </HintTip>
+      </div>
     </Teleport>
 
-    <div v-if="barOffer === null && note !== null && stand === 'ready'" class="flex h-11 shrink-0 items-center gap-2 px-4">
-      <HintTip :text="$t('note.action.talk')" press>
-        <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-forum-outline" :aria-label="$t('note.action.talk')" @click="talkOpen = true" />
-      </HintTip>
+    <div v-if="barOffer === null" class="flex h-12 shrink-0 items-center gap-2 border-b border-default px-4 sm:px-6">
       <HintTip :text="$t('note.action.back')" press>
-        <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-arrow-back" :aria-label="$t('note.action.back')" data-back @click="goBack" />
+        <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-arrow-back" :aria-label="$t('note.action.back')" @click="goBack" />
+      </HintTip>
+      <HintTip class="block min-w-0 truncate text-sm font-medium text-highlighted" style="align-self: center" :text="headTitle" cut>{{ headTitle }}</HintTip>
+
+      <span v-if="stand === 'ready'" role="status" aria-live="polite" class="ms-auto inline-flex shrink-0 items-center gap-1.5 text-sm" :class="saveTone">
+        <UIcon :name="saveIcon" class="size-4 shrink-0" :class="saveSpin ? 'animate-spin' : ''" />
+        <span class="hidden sm:inline">{{ saveLabel }}</span>
+        <span class="sr-only sm:hidden">{{ saveLabel }}</span>
+      </span>
+      <HintTip v-if="stand === 'ready'" :text="$t('note.action.talk')" press>
+        <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-forum-outline" :aria-label="$t('note.action.talk')" @click="talkOpen = true" />
       </HintTip>
     </div>
 
-    <div class="flex min-h-0 w-full flex-1 flex-col" data-screen-fill>
-      <div v-if="stand === 'loading'" role="status" :aria-label="$t('note.status.loading')" class="flex w-full flex-col gap-3 p-4">
-        <USkeleton class="h-8 w-64 rounded-md" />
-        <USkeleton class="h-4 w-full max-w-2xl rounded-sm" />
-        <USkeleton class="h-4 w-3/4 max-w-xl rounded-sm" />
-        <USkeleton class="h-4 w-full max-w-2xl rounded-sm" />
-      </div>
-
-      <div v-else-if="stand === 'missing'" class="flex flex-col items-center gap-3 py-16 text-center">
-        <UIcon name="i-material-symbols-search-off-outline" class="size-10 text-dimmed" />
-        <p class="text-sm text-muted">{{ $t("note.status.missing") }}</p>
-        <UButton color="neutral" variant="soft" icon="i-material-symbols-arrow-back" :label="$t('note.action.back')" @click="goBack" />
-      </div>
-
-      <div v-else-if="stand === 'failed'" class="flex flex-col items-center gap-3 py-16 text-center" role="alert">
-        <p class="text-sm text-error">{{ $t("note.error.read_failed") }}</p>
-        <UButton color="neutral" variant="soft" icon="i-material-symbols-refresh" :label="$t('note.action.retry')" @click="read" />
-      </div>
-
-      <template v-else-if="note !== null">
-        <!-- What the reader must act on stands in a line of its own, above the document. -->
-        <div v-if="saveState.kind === 'conflict'" class="flex min-h-11 shrink-0 items-center gap-3 border-b border-default bg-warning/10 px-4 text-sm" role="alert">
-          <span class="min-w-0 flex-1 truncate">{{ $t("note.status.conflict") }}</span>
-          <UButton size="xs" color="neutral" variant="subtle" icon="i-material-symbols-refresh" @click="reloadNote">{{ $t("note.action.reload") }}</UButton>
-        </div>
-        <div v-else-if="saveState.kind === 'offline' || saveState.kind === 'refused'" class="flex min-h-11 shrink-0 items-center gap-3 border-b border-default bg-error/10 px-4 text-sm text-error" role="alert">
-          <span class="min-w-0 flex-1 truncate">{{ refusedLine }}</span>
-          <UButton size="xs" color="neutral" variant="subtle" icon="i-material-symbols-refresh" @click="retrySave">{{ $t("note.action.retry") }}</UButton>
+    <div class="flex min-h-0 flex-1" data-screen-fill>
+      <div class="flex min-w-0 flex-1 flex-col">
+        <div v-if="stand === 'loading'" role="status" :aria-label="$t('note.status.loading')" class="flex w-full flex-col gap-4 px-4 py-6 sm:px-6">
+          <USkeleton class="h-9 w-2/5 rounded-md" />
+          <div class="flex flex-col gap-2">
+            <USkeleton class="h-4 w-full rounded-sm" />
+            <USkeleton class="h-4 w-3/4 rounded-sm" />
+            <USkeleton class="h-4 w-full rounded-sm" />
+          </div>
         </div>
 
-        <NoteEditor :key="`${note.id}-${readCount}`" :ref="(mount) => { editor = mount as InstanceType<typeof NoteEditor> | null }" :note-id="note.id" :doc="note.doc" @change="onEdit" @ready="count" />
-
-        <div class="flex h-8 shrink-0 items-center justify-between gap-3 px-4 text-sm tabular-nums text-dimmed" data-screen-foot>
-          <span>{{ wordsLine }} · {{ sizeLine }}</span>
-          <span v-if="savedLine !== null">{{ savedLine }}</span>
+        <div v-else-if="stand === 'missing'" class="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-16 text-center">
+          <UIcon name="i-material-symbols-search-off" class="size-10 text-dimmed" />
+          <p class="text-sm text-muted">{{ $t("note.status.missing") }}</p>
+          <UButton color="neutral" variant="soft" icon="i-material-symbols-arrow-back" :label="$t('note.action.back')" @click="goBack" />
         </div>
 
-        <NoteTalk v-model:open="talkOpen" :note-id="note.id" :title="talkTitle" :lines="talkLines" :apply="talkApply" :replace="talkReplace" />
-      </template>
+        <div v-else-if="stand === 'failed'" role="alert" class="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-16 text-center">
+          <UIcon name="i-material-symbols-error-outline" class="size-10 text-error" />
+          <p class="text-sm text-error">{{ $t("note.error.read_failed") }}</p>
+          <UButton color="neutral" variant="soft" icon="i-material-symbols-refresh" :label="$t('note.action.retry')" @click="read" />
+        </div>
+
+        <template v-else-if="note !== null">
+          <!-- What the reader must act on stands in a line of its own, above the document. -->
+          <div v-if="saveState.kind === 'conflict'" class="flex min-h-11 shrink-0 items-center gap-3 border-b border-default bg-warning/10 px-4 text-sm sm:px-6" role="alert">
+            <UIcon name="i-material-symbols-warning-outline" class="size-5 shrink-0 text-warning" />
+            <span class="min-w-0 flex-1">{{ $t("note.status.conflict") }}</span>
+            <UButton size="xs" color="neutral" variant="subtle" icon="i-material-symbols-refresh" :loading="reloading" @click="reloadNote">{{ $t("note.action.reload") }}</UButton>
+          </div>
+          <div v-else-if="saveState.kind === 'offline' || saveState.kind === 'refused'" class="flex min-h-11 shrink-0 items-center gap-3 border-b border-default bg-error/10 px-4 text-sm text-error sm:px-6" role="alert">
+            <UIcon :name="saveState.kind === 'offline' ? 'i-material-symbols-cloud-off-outline' : 'i-material-symbols-error-outline'" class="size-5 shrink-0" />
+            <span class="min-w-0 flex-1">{{ refusedLine }}</span>
+            <UButton size="xs" color="neutral" variant="subtle" icon="i-material-symbols-refresh" :loading="retrying" @click="retrySave">{{ $t("note.action.retry") }}</UButton>
+          </div>
+
+          <NoteEditor
+            :key="`${note.id}-${readCount}`"
+            :ref="(mount) => { editor = mount as InstanceType<typeof NoteEditor> | null }"
+            :note-id="note.id"
+            :doc="note.doc"
+            @change="onEdit"
+            @title="liveTitle = $event"
+            @ready="() => { count(); readTitle(); }"
+          />
+
+          <div class="flex h-10 shrink-0 items-center justify-between gap-3 border-t border-default px-4 text-sm tabular-nums sm:px-6" data-screen-foot>
+            <span class="flex min-w-0 items-center gap-1.5 text-muted">
+              <UIcon name="i-material-symbols-notes" class="size-4 shrink-0" />
+              <span class="truncate">{{ wordsLine }}</span>
+              <span class="text-dimmed">·</span>
+              <span class="truncate">{{ sizeLine }}</span>
+            </span>
+            <span class="inline-flex min-w-0 items-center gap-1.5" :class="saveTone">
+              <UIcon :name="saveIcon" class="size-4 shrink-0" :class="saveSpin ? 'animate-spin' : ''" />
+              <span class="truncate">{{ footState }}</span>
+            </span>
+          </div>
+        </template>
+      </div>
+
+      <NoteTalk
+        v-if="stand === 'ready' && note !== null"
+        v-model:open="talkOpen"
+        :note-id="note.id"
+        :title="titleLine"
+        :lines="talkLines"
+        :apply="talkApply"
+        :replace="talkReplace"
+      />
     </div>
   </div>
 </template>
