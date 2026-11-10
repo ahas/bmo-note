@@ -1,7 +1,6 @@
 import NoteIndex from "../app/pages/note/index.vue";
 import NotePage from "../app/pages/note/[noteId].vue";
 
-import "@toeverything/theme/style.css";
 import "./screens.css";
 
 import type { ConsoleBundleModule } from "bmo-ui/shared/console-manifest";

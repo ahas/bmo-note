@@ -8,8 +8,11 @@ import { useOverlay } from "@nuxt/ui/composables/useOverlay";
 
 import QuestionDialog from "bmo-ui/app/components/QuestionDialog.vue";
 
+import "@toeverything/theme/style.css";
+
 import { ensureEditorRegistered, fromBase64, openNoteDoc, toBase64 } from "../domain/doc";
 import { pageExtensions } from "../domain/editor";
+import { followScreenMode } from "../domain/theme";
 
 import type { EditorNotice } from "../domain/editor";
 import type { NoteDoc } from "../domain/doc";
@@ -21,6 +24,10 @@ const emit = defineEmits<{ change: []; title: [title: string] }>();
 const host = shallowRef<HTMLElement | null>(null);
 const i18n = useI18n();
 const overlay = useOverlay();
+
+// The editor reads its colours off the document element, so the console's mode stands there before
+// the container is mounted.
+followScreenMode();
 
 let held: NoteDoc | null = null;
 let stopChange: (() => void) | null = null;

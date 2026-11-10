@@ -78,6 +78,12 @@ studied of AFFiNE and under which licence.
 - The editor's own words come from BlockSuite and AFFiNE, which ship English UI strings; the bundle
   supplies no translation of them. Everything the bundle itself writes follows the console's wording
   guide in its own two locales.
+- The screen is read in the console's screen mode and keeps none of its own. The bundle's chrome is
+  drawn from the console's tokens, so it stands in the mode the console stands in as it is written;
+  the vendored editor colours itself by a `data-theme` attribute of the document element instead —
+  its theme service watches that attribute and its stylesheet states both modes under it — so the
+  bundle mirrors the console's mode onto it and the document switches as the console's own screens
+  do. Light is as the fork drew it.
 
 ## Deployment shape
 

@@ -123,7 +123,7 @@ function titleText(note: NoteMeta): string {
       <ul v-else class="flex flex-col gap-1">
         <li v-for="note in notes.rows.value" :key="note.id">
           <!-- The row: title takes the room, the moment and the actions keep their own. -->
-          <div v-if="confirming !== note.id" class="flex min-h-12 items-center gap-2 rounded-lg px-3 transition-colors hover:bg-elevated">
+          <div v-if="confirming !== note.id" class="flex min-h-12 items-center gap-2 rounded-lg px-3 transition-colors hover:bg-elevated active:bg-accented">
             <component
               :is="notes.view.value === 'live' ? 'button' : 'div'"
               type="button"
