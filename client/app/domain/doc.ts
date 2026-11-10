@@ -13,6 +13,7 @@ import { noteTitle } from "./title";
 
 import type { Titlable } from "./title";
 import type { Doc, Store } from "@blocksuite/affine/store";
+import { containEditorStyles } from "./contain";
 
 /// The editor's container is a Lit custom element of the vendored preset; the effects module exports
 /// the call that defines it (importing the module alone brings the preset's own elements and nothing
@@ -21,6 +22,8 @@ let containerRegistered: Promise<void> | null = null;
 
 /** Define the editor container element once per document (the bundle's own lifetime). */
 export function ensureEditorRegistered(): Promise<void> {
+  // The editor's stylesheets are held to its host from before its first one is laid.
+  containEditorStyles();
   containerRegistered ??= import("@blocksuite/integration-test/effects").then((effects) => effects.effects());
 
   return containerRegistered;

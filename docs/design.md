@@ -164,9 +164,16 @@ studied of AFFiNE and under which licence.
   centred row of their own width, never spread edge to edge. The talk key stands apart at the bar's
   trailing edge, since it acts on the whole note rather than the selection. Slash commands stay a shortcut, never
   the way in. The image key opens a file input of the bundle's own: it carries the native hidden
-  attribute, and the bundle's stylesheet holds it hidden with an `!important` rule the editor's
-  injected `input` element rule cannot override. The selection toolbar, the drag handle and the
-  floating format menu are the fork's own and stand as it drew them.
+  attribute, and the bundle's stylesheet holds it hidden with an `!important` rule. The selection toolbar,
+  the drag handle and the floating format menu are the fork's own and stand as it drew them.
+- **The editor's styles stay in the editor.** The vendored editor lays its stylesheets on the page as plain
+  style elements, unlayered, which beat every layered rule of the console; and a few of its rules name nothing
+  of the editor's own — a bare `input`, a `.truncate` — so once a note is opened they would reach every screen
+  of the console for the life of the tab: inputs losing their room so an icon stands over the words, a cut line
+  lifted off its row. So from the moment the editor is first set up, the bundle reads each stylesheet the
+  editor lays and holds every rule whose selector names no element, class or attribute of the editor's own to
+  the editor's host. Rules that name the editor's own, and the page-wide ones (`:root`, `html`, `body`), which
+  carry the editor's variables, stand as laid.
 - The status line at the screen's foot tells what the document holds — its word count and its size —
   beside the save state, drawn with that state's own icon and tone; it is the one place the save state
   stands. The note saves itself a moment after each edit, and Ctrl+S (⌘S) saves at once, in place of the

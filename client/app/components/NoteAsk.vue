@@ -164,7 +164,7 @@ const placeable = computed(() => answer.value?.lines !== null && answer.value?.l
         icon="i-material-symbols-auto-awesome-outline"
         :placeholder="$t('note.ask.placeholder')"
         :close="false"
-        class="note-ask-menu max-h-96"
+        class="max-h-96"
       />
 
       <div v-else-if="stage === 'asking'" role="status" class="flex flex-col gap-3 p-4">
@@ -222,17 +222,3 @@ const placeable = computed(() => answer.value?.lines !== null && answer.value?.l
     </template>
   </UPopover>
 </template>
-
-<style>
-/* The editor's stylesheets carry plain, unlayered `input` rules that zero an input's padding and shrink its
-   type over any utility class, which would set the menu's words small and under its icon; the room and the
-   console's own size are given back here. The menu
-   is drawn in the overlay layer, outside this component's scope, so the rule names it by its own class. */
-.note-ask-menu input {
-  padding-inline-start: 2.25rem;
-  padding-inline-end: 0.625rem;
-  font-size: var(--text-sm);
-  font-weight: 400;
-  line-height: var(--text-sm--line-height);
-}
-</style>

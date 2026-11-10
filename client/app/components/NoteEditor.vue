@@ -170,7 +170,7 @@ defineExpose({
         <slot name="barEnd" />
       </template>
     </NoteToolbar>
-    <div ref="host" class="note-editor-host min-h-0 flex-1 overflow-y-auto" />
+    <div ref="host" data-note-editor class="note-editor-host min-h-0 flex-1 overflow-y-auto" />
 
     <NoteAsk
       v-model:open="asking"
