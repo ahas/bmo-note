@@ -64,7 +64,6 @@ describe("the words", () => {
 
 describe("the inputs", () => {
   test("every input a note screen draws is hidden by the native attribute", () => {
-    // The editor's own stylesheets carry a plain `input` rule, which a utility class loses to.
     const drawn = sources
       .filter((path) => path.endsWith(".vue"))
       .flatMap((path) => [...readFileSync(path, "utf8").matchAll(/<input\b[^>]*>/g)].map((match) => ({ path, tag: match[0] })));
@@ -72,6 +71,14 @@ describe("the inputs", () => {
     expect(drawn.length).toBeGreaterThan(0);
 
     for (const { path, tag } of drawn) expect(tag, path).toContain("hidden");
+  });
+
+  test("the bundle's stylesheet holds a hidden file input against the editor's element rule", () => {
+    // The editor lays an unlayered `input { display: flex }` rule when its module runs, which the
+    // attribute alone loses to; only the bundle's own `!important` rule keeps the input out of the page.
+    const css = readFileSync(join(root, "console/screens.css"), "utf8");
+
+    expect(css).toMatch(/input\[type="file"\]\[hidden\]\s*\{\s*display:\s*none\s*!important;?\s*\}/);
   });
 });
 

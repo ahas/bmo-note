@@ -163,8 +163,10 @@ studied of AFFiNE and under which licence.
   one column filling the page; the bar spans that column, but its controls stand in one gathered,
   centred row of their own width, never spread edge to edge. The talk key stands apart at the bar's
   trailing edge, since it acts on the whole note rather than the selection. Slash commands stay a shortcut, never
-  the way in. The selection toolbar, the drag handle and the floating format menu are the fork's own
-  and stand as it drew them.
+  the way in. The image key opens a file input of the bundle's own: it carries the native hidden
+  attribute, and the bundle's stylesheet holds it hidden with an `!important` rule the editor's
+  injected `input` element rule cannot override. The selection toolbar, the drag handle and the
+  floating format menu are the fork's own and stand as it drew them.
 - The status line at the screen's foot tells what the document holds — its word count and its size —
   beside the save state, drawn with that state's own icon and tone; it is the one place the save state
   stands. The note saves itself a moment after each edit, and Ctrl+S (⌘S) saves at once, in place of the

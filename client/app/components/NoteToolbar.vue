@@ -255,8 +255,8 @@ function addTable(): void {
         />
       </HintTip>
 
-      <!-- The input the image action opens, never drawn: the native attribute, because the editor's
-           stylesheets carry a plain `input` rule that would win over a utility class. -->
+      <!-- The input the image action opens, never drawn: the native attribute, which the bundle's own
+           stylesheet holds hidden against the editor's injected `input` rule. -->
       <input ref="picked" type="file" accept="image/*" multiple hidden data-bar="file" @change="standChosen" />
     </div>
 

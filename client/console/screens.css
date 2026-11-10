@@ -8,3 +8,12 @@
 @source "../app";
 @source not "../node_modules";
 @source not "../.nuxt";
+
+/* A file input the bundle hides stays hidden (`docs/design.md`, 「The console surface」). The editor
+   lays an unlayered `input { display: flex }` rule on the page when its module runs, and an unlayered
+   rule beats every layered rule, so the native hidden attribute alone hands the input back to the
+   page with the browser's own file-picker text. This rule reads that attribute and stands `!important`,
+   above the editor's element rule. */
+input[type="file"][hidden] {
+  display: none !important;
+}
