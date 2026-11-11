@@ -8,6 +8,7 @@
 
 import { Text } from "@blocksuite/affine/store";
 
+import { asOneStep } from "./history";
 import { planWhole } from "./patch";
 import { linesOf, rowOf } from "./text";
 
@@ -32,11 +33,15 @@ export function readRows(store: Store): LiveRow[] {
   return rows;
 }
 
-/** Writes the plan's runs into the document, at the place each run was anchored. */
+/** Writes the plan's runs into the document, at the place each run was anchored. The whole patch
+ * lands as one transaction, so one undo takes the change the talk applied back whole
+ * (`docs/design.md`, 「Editing and saving」). */
 export function applyOps(store: Store, ops: Op[]): void {
-  for (const op of [...ops].sort((left, right) => right.at - left.at)) applyOne(store, op);
+  asOneStep(store.spaceDoc, () => {
+    for (const op of [...ops].sort((left, right) => right.at - left.at)) applyOne(store, op);
 
-  ensureBody(store);
+    ensureBody(store);
+  });
 }
 
 /** The opaque kinds a whole-apply failure could not place, as the panel names them. */
@@ -79,51 +84,54 @@ export function replaceBody(store: Store, lines: string[]): ReplaceResult {
     run.push(row.model);
   }
 
-  // Descendants go before their parent, as in `applyOne`; the opaque blocks stand aside through it.
-  for (const row of [...current].reverse()) {
-    if (row.kind === "image" || row.kind === "table") continue;
+  // The whole rewrite lands as one undo step: descendants go before their parent, as in `applyOne`,
+  // and the opaque blocks stand aside through it.
+  asOneStep(store.spaceDoc, () => {
+    for (const row of [...current].reverse()) {
+      if (row.kind === "image" || row.kind === "table") continue;
 
-    const parent = store.getParent(row.model);
+      const parent = store.getParent(row.model);
 
-    if (parent === null) store.deleteBlock(row.model);
-    else store.deleteBlock(row.model, { bringChildrenTo: parent, deleteChildren: false });
-  }
+      if (parent === null) store.deleteBlock(row.model);
+      else store.deleteBlock(row.model, { bringChildrenTo: parent, deleteChildren: false });
+    }
 
-  const taken = new Map<"image" | "table", number>([["image", 0], ["table", 0]]);
+    const taken = new Map<"image" | "table", number>([["image", 0], ["table", 0]]);
 
-  // The answer read in order: the plain lines it draws are written at the foot of the body a group at
-  // a time, and each opaque block is moved to the foot the moment its line comes, so the body ends in
-  // exactly the order the answer drew.
-  let group: Row[] = [];
+    // The answer read in order: the plain lines it draws are written at the foot of the body a group at
+    // a time, and each opaque block is moved to the foot the moment its line comes, so the body ends in
+    // exactly the order the answer drew.
+    let group: Row[] = [];
 
-  const write = (): void => {
-    if (group.length === 0) return;
+    const write = (): void => {
+      if (group.length === 0) return;
 
-    insertRows(store, note, note.children.length, group);
-    group = [];
-  };
+      insertRows(store, note, note.children.length, group);
+      group = [];
+    };
 
-  for (const line of lines) {
-    const row = rowOf(line);
+    for (const line of lines) {
+      const row = rowOf(line);
 
-    if (row.kind !== "image" && row.kind !== "table") {
-      group.push(row);
-      continue;
+      if (row.kind !== "image" && row.kind !== "table") {
+        group.push(row);
+        continue;
+      }
+
+      write();
+
+      const at = taken.get(row.kind) ?? 0;
+      const model = held.get(row.kind)?.[at];
+
+      if (model !== undefined) {
+        store.moveBlocks([model], note, null, false);
+        taken.set(row.kind, at + 1);
+      }
     }
 
     write();
-
-    const at = taken.get(row.kind) ?? 0;
-    const model = held.get(row.kind)?.[at];
-
-    if (model !== undefined) {
-      store.moveBlocks([model], note, null, false);
-      taken.set(row.kind, at + 1);
-    }
-  }
-
-  write();
-  ensureBody(store);
+    ensureBody(store);
+  });
 
   return { ok: true, moved: plan.places.length };
 }

@@ -50,6 +50,21 @@ studied of AFFiNE and under which licence.
 - The full current state is stored on each save, replacing the previous bytes. Incremental
   update logs, the shape AFFiNE's server keeps, are not copied: a note this small does not earn them,
   and whole-state saves keep the service's one table and one version number honest.
+- The note's history is the fork's own: the document's store is put through its load lifecycle when
+  the note opens, which is the only thing that readies the history extension — a store standing
+  unloaded answers `canUndo` false forever, and the editor's own `Mod-z` binding guards on that and
+  does nothing.
+- The screen answers the history keys, wherever on it the focus stands: `Ctrl+Z` (`⌘Z`) undoes and
+  `Ctrl+Shift+Z` (`⌘⇧Z`) or `Ctrl+Y` redoes. The fork binds the same keys too, but only while its
+  own event flow is active, which misses the change the reader most wants back — a talk apply, a
+  bar action — while focus rests off the editor body; the screen's route answers everywhere, catches
+  the key on the way down before the editor sees it, yields it to a plain text field the reader is
+  typing into (the talk's and the ask's own inputs keep their undo), and stands down while the
+  keyboard is composing.
+- What the undo takes back is the change as the reader made it: one keystroke run, one bar action,
+  one insert, and each change the talk applies — an anchored patch, a whole-body rewrite, a rename —
+  land as one transaction, so one press undoes one change. An undone change rides the document's
+  update events like any other, so autosave, the head's title and the list all follow it.
 
 ## Storage
 

@@ -96,6 +96,12 @@ export function openNoteDoc(id: string, bytes: Uint8Array): NoteDoc {
 function hold(workspace: TestWorkspace, doc: Doc): NoteDoc {
   const store = doc.getStore();
 
+  // The store's own load arms its extensions, the history extension among them: the fork readies
+  // undo and redo only from an extension's `loaded` hook, which the store's load dispatches and the
+  // test workspace's doc load does not touch, so an unloaded store answers `canUndo` false forever
+  // and the editor's undo keys stand dead (`docs/design.md`, 「Editing and saving」).
+  store.load();
+
   return {
     store,
     serialize: () => Y.encodeStateAsUpdate(doc.spaceDoc),

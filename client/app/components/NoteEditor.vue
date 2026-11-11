@@ -20,6 +20,7 @@ import { ensureEditorRegistered, fromBase64, openNoteDoc, toBase64 } from "../do
 import { pageExtensions } from "../domain/editor";
 import { countHolding } from "../domain/count";
 import { passageElement, passageModels } from "../domain/format";
+import { asOneStep, historyDirectionOf, stepHistory } from "../domain/history";
 import { linesOf, opaqueRow } from "../domain/text";
 import { followScreenMode } from "../domain/theme";
 import { writeNoteTitle } from "../domain/title";
@@ -105,6 +106,8 @@ onMounted(async () => {
     emit("title", held?.title() ?? "");
   });
 
+  addEventListener("keydown", answerHistoryKey, true);
+
   const container = document.createElement("affine-editor-container") as HTMLElement & {
     autofocus: boolean;
     doc: unknown;
@@ -124,7 +127,31 @@ onMounted(async () => {
   emit("ready");
 });
 
+// The history keys, caught on the way down before the editor sees them: they answer wherever on the
+// screen the focus stands, not only while the fork's own event flow is active. A plain text field —
+// the talk's and the ask's own inputs — keeps the key for its own undo (`docs/design.md`, 「Editing
+// and saving」).
+function standsInTextField(target: EventTarget | null): boolean {
+  const tag = (target as { tagName?: string } | null)?.tagName;
+
+  return tag === "INPUT" || tag === "TEXTAREA";
+}
+
+function answerHistoryKey(event: KeyboardEvent): void {
+  const direction = historyDirectionOf(event);
+
+  if (direction === null || standsInTextField(event.target)) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const store = held?.store ?? null;
+
+  if (store !== null) stepHistory(store, direction);
+}
+
 onBeforeUnmount(() => {
+  removeEventListener("keydown", answerHistoryKey, true);
   stopChange?.();
   held?.dispose();
   held = null;
@@ -163,8 +190,15 @@ defineExpose({
       return { ok: false, kinds: [] };
     }
   },
-  /** Writes the title the talk's answer renamed the note to into the document's own title field. */
-  rename: (title: string): boolean => (held === null ? false : writeNoteTitle(held.store.root, title))
+  /** Writes the title the talk's answer renamed the note to into the document's own title field,
+   * as one transaction: the rename stands and goes as one undo step. */
+  rename: (title: string): boolean => {
+    const note = held;
+
+    if (note === null) return false;
+
+    return asOneStep(note.store.spaceDoc, () => writeNoteTitle(note.store.root, title));
+  }
 });
 </script>
 
