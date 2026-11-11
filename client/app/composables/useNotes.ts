@@ -18,6 +18,26 @@ const call: Call = <T>(path: string, options?: Parameters<Call>[1]) => relayCall
 
 const api = createNoteApi(call);
 
+// The way back to a note the reader was just reading: the row that was opened and the scroll the list
+// stood at when it was. The list screen is torn down on the way into a note and built again on the way
+// back, so the visit stands at module level rather than in the screen.
+let visit: { id: string; top: number } | null = null;
+
+/** The list notes that `id` is being opened at scroll `top`, for the way back to find its place. */
+export function rememberVisit(id: string, top: number): void {
+  visit = { id, top };
+}
+
+/** The visit to return from, once: reading it takes it, so only the first return after a note was
+ * opened puts the place back, and a list kept open across no visit at all stands where it is. */
+export function takeVisit(): { id: string; top: number } | null {
+  const left = visit;
+
+  visit = null;
+
+  return left;
+}
+
 /** The list board: the rows it holds, where it stands, and the writes the screen makes on it. */
 export function useNotes() {
   const view = ref<NotesView>("live");

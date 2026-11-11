@@ -2,18 +2,23 @@
 // The notes list: the account's own, newest changed first, with the trash kept a view away. The head
 // names the screen where the console offers no bar and carries the view switch and the new-note
 // action; a row reads title first, then what the note holds and when it changed. A row opens its
-// note; its actions stand at its right (`docs/design.md`, 「The console surface」).
+// note; its actions stand at its right. The list is built again on the way back from a note and finds
+// its place: the scroll stands where it was, and the row just read is kept in sight and marked for a
+// breath (`docs/design.md`, 「The console surface」).
 
-import { computed, inject, onMounted, ref } from "vue";
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useToast } from "@nuxt/ui/composables/useToast";
 import HintTip from "bmo-ui/app/components/HintTip.vue";
 
-import { useNotes } from "../../composables/useNotes";
+import { rememberVisit, takeVisit, useNotes } from "../../composables/useNotes";
 import { sizeOf } from "../../domain/count";
 
 import type { NoteMeta } from "../../../shared/types";
+
+/// How long the row the reader came back from wears its mark: a breath to find it in, not a state.
+const FLASH_MS = 1_600;
 
 const i18n = useI18n();
 const router = useRouter();
@@ -29,10 +34,57 @@ const retrying = ref(false);
 
 const live = computed(() => notes.view.value === "live");
 
-onMounted(() => void notes.load());
+// The list is built again on the way back from a note: the scroll left where it was, and the row just
+// read is found, kept in sight, and marked for a breath. Where the row is gone — trashed meanwhile, or
+// past what the first page holds — the saved scroll stands on its own.
+const list = useTemplateRef<HTMLElement>("list");
+const justRead = ref<string | null>(null);
+
+let flashTimer: ReturnType<typeof setTimeout> | null = null;
+
+onMounted(() => {
+  void notes.load().then(() => void returnToVisit());
+});
+
+onBeforeUnmount(() => {
+  if (flashTimer !== null) clearTimeout(flashTimer);
+});
+
+async function returnToVisit(): Promise<void> {
+  const left = takeVisit();
+
+  if (left === null) return;
+
+  await nextTick();
+
+  const box = list.value;
+
+  if (box === null) return;
+
+  box.scrollTop = left.top;
+
+  const row = box.querySelector(`li[data-note="${CSS.escape(left.id)}"]`);
+
+  // The scroll stands as it was. Where the row the reader came back from no longer falls in it —
+  // moved by a save, or not held by the first page — the row is brought into sight instead.
+  if (row !== null) {
+    const held = row.getBoundingClientRect();
+    const view = box.getBoundingClientRect();
+
+    if (held.top < view.top || held.bottom > view.bottom) row.scrollIntoView({ block: "nearest" });
+
+    justRead.value = left.id;
+    flashTimer = setTimeout(() => {
+      flashTimer = null;
+      justRead.value = null;
+    }, FLASH_MS);
+  }
+}
 
 function open(note: NoteMeta): void {
   if (!live.value) return;
+
+  rememberVisit(note.id, list.value?.scrollTop ?? 0);
 
   void router.push(`/note/${encodeURIComponent(note.id)}`);
 }
@@ -167,7 +219,7 @@ function detailText(note: NoteMeta): string {
       </div>
     </header>
 
-    <main class="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6">
+    <main ref="list" class="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6">
       <div class="mx-auto flex w-full max-w-(--ui-container) flex-col py-2">
         <!-- A first fetch reserves the row it will replace: an icon and the two lines of the row. -->
         <div v-if="notes.stand.value === 'loading' && notes.rows.value.length === 0" role="status" :aria-label="$t('note.status.loading')" class="flex flex-col gap-1">
@@ -201,9 +253,14 @@ function detailText(note: NoteMeta): string {
           </p>
 
           <ul class="flex flex-col gap-1">
-            <li v-for="note in notes.rows.value" :key="note.id">
-              <!-- The row: the title takes the room; what it holds and when it changed stand under it. -->
-              <div v-if="confirming !== note.id" class="flex items-center gap-2 rounded-lg px-3 py-2.5 transition-colors hover:bg-elevated active:bg-accented">
+            <li v-for="note in notes.rows.value" :key="note.id" :data-note="note.id">
+              <!-- The row: the title takes the room; what it holds and when it changed stand under it.
+                   A row the reader has just come back from wears the chosen tone for a breath. -->
+              <div
+                v-if="confirming !== note.id"
+                class="flex items-center gap-2 rounded-lg px-3 py-2.5 transition-colors hover:bg-elevated active:bg-accented"
+                :class="justRead === note.id ? 'bg-elevated' : ''"
+              >
                 <component
                   :is="live ? 'button' : 'div'"
                   :type="live ? 'button' : undefined"
