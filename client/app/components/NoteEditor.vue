@@ -22,10 +22,12 @@ import { countHolding } from "../domain/count";
 import { passageElement, passageModels } from "../domain/format";
 import { linesOf, opaqueRow } from "../domain/text";
 import { followScreenMode } from "../domain/theme";
+import { writeNoteTitle } from "../domain/title";
 
 import type { EditorNotice } from "../domain/editor";
 import type { Holding } from "../domain/count";
 import type { NoteDoc } from "../domain/doc";
+import type { ReplaceResult } from "../domain/apply";
 import type { Op } from "../domain/patch";
 import type { BlockStdScope } from "@blocksuite/affine/std";
 
@@ -150,16 +152,19 @@ defineExpose({
       return false;
     }
   },
-  /** Writes the whole body from the answer, where the anchored patch could not land. */
-  replace: (lines: string[]): boolean => {
-    if (held === null) return false;
+  /** Writes the whole body from the answer, where the anchored patch could not land, keeping the
+   * note's images and tables: the result names what stands in the way where nothing was written. */
+  replace: (lines: string[]): ReplaceResult => {
+    if (held === null) return { ok: false, kinds: [] };
 
     try {
       return replaceBody(held.store, lines);
     } catch {
-      return false;
+      return { ok: false, kinds: [] };
     }
-  }
+  },
+  /** Writes the title the talk's answer renamed the note to into the document's own title field. */
+  rename: (title: string): boolean => (held === null ? false : writeNoteTitle(held.store.root, title))
 });
 </script>
 

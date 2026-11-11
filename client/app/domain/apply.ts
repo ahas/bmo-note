@@ -1,12 +1,15 @@
 // The patch's hand on the open editor (`docs/design.md`, 「The AI talk panel」): the note read as the
-// lines the talk asks over, and the changed runs written back as blocks. A run is replaced whole, so
+// lines the talk asks over, the changed runs written back as blocks, the whole body rewritten from an
+// answer, and the note's own title written when the answer renames it. A run is replaced whole, so
 // nothing outside it is rebuilt: another line's inline marks, an image and a table all stand where
-// the owner left them. The note container is the one the editor seeds; the blocks under it are the
-// note's body.
+// the owner left them. The whole rewrite takes the blocks the note holds and lands them in the body the
+// answer draws, so the answer may reword around an image or a table and the note loses neither. The
+// note container is the one the editor seeds; the blocks under it are the note's body.
 
 import { Text } from "@blocksuite/affine/store";
 
-import { opaqueRow, rowOf } from "./text";
+import { planWhole } from "./patch";
+import { linesOf, rowOf } from "./text";
 
 import type { BlockModel, Store } from "@blocksuite/affine/store";
 import type { Op } from "./patch";
@@ -36,19 +39,111 @@ export function applyOps(store: Store, ops: Op[]): void {
   ensureBody(store);
 }
 
+/** The opaque kinds a whole-apply failure could not place, as the panel names them. */
+export type OpaqueKind = "image" | "table";
+
+/** The result of a whole-body rewrite: how many blocks it moved into the new body, or the kinds it
+ * could not place, which it names so the panel can say what stands in the way. */
+export type ReplaceResult = { ok: true; moved: number } | { ok: false; kinds: OpaqueKind[] };
+
 /**
  * Writes the whole body from the answer outright, the panel's fallback when the anchored patch cannot
- * land. An image or a table is not recreated from a line, so a note holding one keeps its text rather
- * than lose it: the screen offers the fallback only where the body is plain lines.
+ * land. The note's images and tables are kept, never recreated from a line: `planWhole` pairs each
+ * marker line of the answer with the block of the same kind the note holds at the same depth, by their
+ * order of standing, and every paired block is moved whole into the place its line draws. An answer
+ * that dropped a marker, drew one the note does not hold, or moved one to a deeper place than the note
+ * holds it is not applied at all: the kinds it could not place are named and nothing changed.
  */
-export function replaceBody(store: Store, lines: string[]): boolean {
-  const rows = readRows(store);
+export function replaceBody(store: Store, lines: string[]): ReplaceResult {
+  const note = noteOf(store);
 
-  if (rows.some(opaqueRow)) return false;
+  if (note === null) throw new Error("the note holds no note container");
 
-  applyOps(store, [{ at: 0, del: rows.length, insert: lines }]);
+  const current = readRows(store);
+  const plan = planWhole(linesOf(current), lines);
 
-  return true;
+  if (!("places" in plan)) return { ok: false, kinds: unmovedKinds(linesOf(current), lines) };
+
+  const held = new Map<"image" | "table", BlockModel[]>();
+
+  for (const row of current) {
+    if (row.kind !== "image" && row.kind !== "table") continue;
+
+    let run = held.get(row.kind);
+
+    if (run === undefined) {
+      run = [];
+      held.set(row.kind, run);
+    }
+
+    run.push(row.model);
+  }
+
+  // Descendants go before their parent, as in `applyOne`; the opaque blocks stand aside through it.
+  for (const row of [...current].reverse()) {
+    if (row.kind === "image" || row.kind === "table") continue;
+
+    const parent = store.getParent(row.model);
+
+    if (parent === null) store.deleteBlock(row.model);
+    else store.deleteBlock(row.model, { bringChildrenTo: parent, deleteChildren: false });
+  }
+
+  const taken = new Map<"image" | "table", number>([["image", 0], ["table", 0]]);
+
+  // The answer read in order: the plain lines it draws are written at the foot of the body a group at
+  // a time, and each opaque block is moved to the foot the moment its line comes, so the body ends in
+  // exactly the order the answer drew.
+  let group: Row[] = [];
+
+  const write = (): void => {
+    if (group.length === 0) return;
+
+    insertRows(store, note, note.children.length, group);
+    group = [];
+  };
+
+  for (const line of lines) {
+    const row = rowOf(line);
+
+    if (row.kind !== "image" && row.kind !== "table") {
+      group.push(row);
+      continue;
+    }
+
+    write();
+
+    const at = taken.get(row.kind) ?? 0;
+    const model = held.get(row.kind)?.[at];
+
+    if (model !== undefined) {
+      store.moveBlocks([model], note, null, false);
+      taken.set(row.kind, at + 1);
+    }
+  }
+
+  write();
+  ensureBody(store);
+
+  return { ok: true, moved: plan.places.length };
+}
+
+/** The opaque kinds a refused rewrite could not place: the kinds whose count or depths differ
+ * between the note's lines and the answer's. */
+function unmovedKinds(base: string[], next: string[]): OpaqueKind[] {
+  const depthsOf = (lines: string[], kind: OpaqueKind): number[] =>
+    lines
+      .map(rowOf)
+      .filter((row) => row.kind === kind)
+      .map((row) => row.indent)
+      .sort((left, right) => left - right);
+
+  return (["image", "table"] as OpaqueKind[]).filter(kind => {
+    const stood = depthsOf(base, kind);
+    const drawn = depthsOf(next, kind);
+
+    return stood.length !== drawn.length || stood.some((depth, at) => depth !== drawn[at]);
+  });
 }
 
 function applyOne(store: Store, op: Op): void {

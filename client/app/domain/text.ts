@@ -14,6 +14,7 @@
 //   [[divider]]            a divider, standing as it stands
 //   [[image]]              an image, opaque: no patch deletes its line
 //   [[table]]              a table, opaque likewise
+//   [[title]] <text>       on an answer's first line only: the note's new title, never a block
 //
 // A line holds no raw newline or tab; a text payload escapes `\` as `\\`, a newline as `\n`, a
 // tab as `\t`, and any space standing first or last as `\ ` — so the line reads whole and the
@@ -48,9 +49,10 @@ export function opaqueRow(row: Row): boolean {
   return row.kind === "image" || row.kind === "table";
 }
 
-/** Whether a line names an opaque block, read from the line alone (the patch guards whole spans). */
+/** Whether a line names an opaque block, read from the line alone (the patch guards whole spans). A
+ * line whose own words merely end with a mark reads as the line it is, as `rowOf` reads it. */
 export function opaqueLine(line: string): boolean {
-  return line.trimStart().endsWith("[[image]]") || line.trimStart().endsWith("[[table]]");
+  return rowOf(line).kind === "image" || rowOf(line).kind === "table";
 }
 
 const MARKS: Array<[RowKind, string]> = [
@@ -122,7 +124,9 @@ export function rowsOf(lines: string[]): Row[] {
 
 /** Whether a plain paragraph's words would read as a mark, so a backslash must stand before them. */
 function readsAsMark(body: string): boolean {
-  if (body === "[[divider]]" || body === "[[image]]" || body === "[[table]]") return true;
+  // `[[title]]` leads the talk's answer when it renames the note, so a paragraph whose words open with
+  // it wears a backslash too and never reads as that rename.
+  if (body === "[[divider]]" || body === "[[image]]" || body === "[[table]]" || body === "[[title]]" || body.startsWith("[[title]] ")) return true;
 
   return body.startsWith("# ") || body.startsWith("## ") || body.startsWith("### ") || body.startsWith("- ") || body.startsWith("> ") || body.startsWith("```") || /^\d+\.\s/u.test(body);
 }

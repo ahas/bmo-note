@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { fencedAnswer, TALK_HEADING } from "../app/domain/talk";
+import { fencedAnswer, noteAnswer, TALK_HEADING } from "../app/domain/talk";
 
 // The talk's answer (`docs/design.md`, 「The AI talk panel」): one fenced block holds the whole edited
 // note; an answer without a closed one changes nothing.
@@ -40,9 +40,41 @@ describe("fencedAnswer", () => {
 });
 
 describe("the heading", () => {
-  test("states the line grammar and the one fenced answer", () => {
+  test("states the line grammar, the rename and the one fenced answer", () => {
     expect(TALK_HEADING).toContain("one fenced code block");
     expect(TALK_HEADING).toContain("[[image]]");
     expect(TALK_HEADING).toContain("two spaces per level");
+    expect(TALK_HEADING).toContain("[[title]]");
+  });
+});
+
+describe("noteAnswer", () => {
+  test("a block with no title line answers as lines alone", () => {
+    expect(noteAnswer("```\n# T\n- a\n```")).toEqual({ lines: ["# T", "- a"], title: null });
+  });
+
+  test("a title line rides above the lines and comes off them", () => {
+    expect(noteAnswer("```\n[[title]] Weekly log\n# T\n- a\n```")).toEqual({ lines: ["# T", "- a"], title: "Weekly log" });
+  });
+
+  test("a title is the answer's first line only, and a word with marks around it", () => {
+    expect(noteAnswer("```\n# T\n[[title]] late\n```")).toEqual({ lines: ["# T", "[[title]] late"], title: null });
+    expect(noteAnswer("```\n[[title]]   spaced   \n```")).toEqual({ lines: [], title: "spaced" });
+  });
+
+  test("a title line carrying nothing renames nothing and stands off the lines", () => {
+    expect(noteAnswer("```\n[[title]] \na\n```")).toEqual({ lines: ["a"], title: null });
+  });
+
+  test("an escaped title mark reads as the paragraph it is", () => {
+    expect(noteAnswer("```\n\\[[title]] not a rename\n```")).toEqual({ lines: ["\\[[title]] not a rename"], title: null });
+  });
+
+  test("a rename alone is an answer with no lines", () => {
+    expect(noteAnswer("```\n[[title]] Renamed\n```")).toEqual({ lines: [], title: "Renamed" });
+  });
+
+  test("an unclosed block changes nothing, title included", () => {
+    expect(noteAnswer("```\n[[title]] cut off\n")).toBeNull();
   });
 });

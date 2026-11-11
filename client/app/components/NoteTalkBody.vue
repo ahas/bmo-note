@@ -14,8 +14,6 @@ interface Props {
   failure: string | null;
   /** Whether an answer could not be written as a patch and waits for the reader's word. */
   fallback: boolean;
-  /** Whether that answer may replace the note outright, which plain lines alone allow. */
-  canFallback: boolean;
   canSend: boolean;
   /** Whether Enter must break the line instead of sending it, as on a phone. */
   phone: boolean;
@@ -64,8 +62,7 @@ function onSend(): void {
     <p v-if="busy" class="text-sm text-muted" role="status">{{ i18n.t("note.talk.answering") }}</p>
     <p v-if="failure !== null" class="text-sm text-error" role="alert">{{ failure }}</p>
     <div v-if="fallback" class="flex items-center gap-2">
-      <UButton size="sm" color="neutral" variant="subtle" :disabled="!canFallback" @click="emit('apply')">{{ i18n.t("note.action.apply_all") }}</UButton>
-      <span v-if="!canFallback" class="text-sm text-muted">{{ i18n.t("note.talk.replace_blocked") }}</span>
+      <UButton size="sm" color="neutral" variant="subtle" @click="emit('apply')">{{ i18n.t("note.action.apply_all") }}</UButton>
     </div>
 
     <!-- The console's chat prompt: Enter sends on a wide screen and Shift+Enter breaks the line; on a

@@ -31,7 +31,10 @@ export const TALK_HEADING = [
   "block. [[divider]], [[image]] and [[table]] name blocks that stand as they are. A deeper block",
   "carries two spaces per level.",
   "Answer with the whole edited note in one fenced code block and nothing outside it. Change only what",
-  "the owner asks for, and keep every line the request does not change."
+  "the owner asks for, and keep every line the request does not change.",
+  "To rename the note, put [[title]] and the new title on the first line of your block, above the",
+  "lines; it carries no indent and is the title alone, not a line of the note. Where the title stands,",
+  "write no such line."
 ].join("\n");
 
 /** The answer's fenced block as lines, or null where the answer carries none — then nothing changes. */
@@ -53,6 +56,37 @@ export function fencedAnswer(answer: string): string[] | null {
 
   // An opening fence with no closing one is an answer still being cut off; it changes nothing.
   return null;
+}
+
+/// The mark a renamed note's answer wears its new title under, on the block's first line.
+const TITLE_MARK = "[[title]]";
+
+/** The answer's lines and the title it renames the note to, where its first line carries one. */
+export interface NoteAnswer {
+  /** The note's lines, the title line taken off where it stood. */
+  lines: string[];
+  /** The new title, trimmed, where the answer names one. */
+  title: string | null;
+}
+
+/**
+ * The fenced block as an answer: its lines, and the title where its first line is `[[title]]` followed
+ * by the new title. The mark ends a line, so a title runs to the line's end; a line that escapes to
+ * the mark (a paragraph whose words start with it) reads as the paragraph it is.
+ */
+export function noteAnswer(answer: string): NoteAnswer | null {
+  const lines = fencedAnswer(answer);
+
+  if (lines === null) return null;
+
+  const first = lines[0] ?? "";
+
+  if (!first.startsWith(`${TITLE_MARK} `)) return { lines, title: null };
+
+  const titled = first.slice(TITLE_MARK.length + 1).trim();
+
+  // A title line with no title on it renames nothing, and its mark is still off the note's lines.
+  return { lines: lines.slice(1), title: titled === "" ? null : titled };
 }
 
 /**

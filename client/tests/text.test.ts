@@ -67,4 +67,18 @@ describe("opaque lines", () => {
     expect(opaqueLine("    [[table]]")).toBe(true);
     expect(opaqueLine("- keep [[image]] in the sentence")).toBe(false);
   });
+
+  test("a paragraph whose own words end with a mark reads as the paragraph it is", () => {
+    expect(opaqueLine("paste [[image]] at the end")).toBe(false);
+    expect(opaqueLine("\\[[image]] escaped")).toBe(false);
+  });
+
+  test("words opening with the title mark wear an escape and read back whole", () => {
+    const row: Row = { kind: "text", text: "[[title]] not a rename", indent: 0 };
+    const line = lineOf(row);
+
+    expect(line.startsWith("\\[")).toBe(true);
+    expect(rowOf(line)).toEqual(row);
+    expect(opaqueLine(line)).toBe(false);
+  });
 });

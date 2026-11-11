@@ -84,9 +84,13 @@ studied of AFFiNE and under which licence.
   width the reader drags at its leading edge or steps with the arrow keys, between its bounds, and the
   width is kept in that browser. The reader writes in the console's chat prompt.
 - The talk is scoped to the open note: the topic names the note by id and title and carries the note's
-  whole current body as a line list; the title stands in the topic beside it and no line changes it.
-  The supervisor answers with that same line list edited — one fenced block holding the whole new
-  text, in the protocol the panel's own heading states. The note never stands rewritten by a partial
+  whole current body as a line list. The supervisor answers with that same line list edited — one
+  fenced block holding the whole new text, in the protocol the panel's own heading states. To rename
+  the note, its answer puts the new title on the fenced block's first line under a `[[title]]` mark,
+  above the lines; the title rides the same document and the same versioned save as a body change
+  does, and a rename with no body change is an answer that changes no line. The mark is stripped
+  before the lines reach the patch, and a paragraph whose own words open with it wears the protocol's
+  escape, so no note line ever reads as a rename. The note never stands rewritten by a partial
   answer: where the fenced text is missing the panel shows the answer as words and changes nothing.
 - The unit's service sees no AI route. The service keeps the document opaque (its standing rule), and
   the supervisor never touches its bytes: a returned text reaches the note through the open editor's
@@ -102,11 +106,19 @@ studied of AFFiNE and under which licence.
 - An owner's edit elsewhere stands untouched through it; a range the anchoring cannot find, or one
   that would swallow a table or an image, fails the whole patch, and the panel says so in one line.
   The reader may then retry, or apply the text outright from the panel's own replace action, which
-  says plainly that it overwrites what stands under it. That fallback writes plain lines alone: a
-  note holding an image or a table is not rewritten outright, since no line brings either back.
+  says plainly that it overwrites what stands under it. That fallback rewrites the whole body from the
+  answer and keeps the note's images and tables: each marker line of the answer is paired with the
+  block of the same kind the note holds at the same depth, by their order of standing, and every
+  paired block is moved whole into the place its line draws. An answer that dropped a marker, drew one
+  the note does not hold, or moved one deeper than the note holds it is not applied at all; the panel
+  names the kinds it could not place and the note stands as it was.
 - The panel is docked beside the note on a wide viewport — a column of its own, parted from the
-  document by one line — so the note keeps its width and the reader may go on writing while the
-  answer comes; below that width it rises from the bottom edge as a drawer. Its key stands at the
+  document by one line, standing in the row the note fills rather than over it — so the note keeps its
+  width and the reader may go on writing while the answer comes; below that width it rises from the
+  bottom edge as a drawer. It never covers the note at either end of its width: its bounds are clamped
+  by the row it stands in, so the note keeps a readable column while the row can give one, and below
+  that the panel holds the narrowest column a chat line and its input read in. The width the reader
+  drags stands whole while there is room for it and comes back when a wider row returns. Its key stands at the
   format bar's trailing edge, and the panel closes by its own close key. A turn whose panel is closed still stands, and its change
   lands in the note. The talk is kept in the screen's memory alone: leaving the note drops it, the
   record of the talk is the note's own saved states.
@@ -148,6 +160,10 @@ studied of AFFiNE and under which licence.
     view), with its actions at the trailing edge. The first fetch reserves the rows with a skeleton
     of their shape; an empty view and a read that failed stand as their own states, in one line with
     the key each offers; a re-read that failed keeps the rows that stand and says so above them.
+    Opening a note marks the visit; coming back finds the list where it was left — the scroll stands
+    where it stood when the note was opened, the note just read is brought into sight and marked for
+    a breath, and where that row no longer stands (trashed meanwhile, or past the rows held) the
+    scroll is put back on its own. The visit is held in the screen's memory alone.
   - The open note's head carries the way back to the list and the note's title where the bar has
     room for it, nothing else, the way back leading. It rides the console's title bar where the console
     offers one — the way back in the bar's place before the screen's name, the title in its place after

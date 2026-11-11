@@ -5,9 +5,11 @@
 // anchored by the unchanged lines around it and located where the note moved them. An edit whose
 // anchor the note no longer carries, one that lands on lines the reader changed meanwhile, or one
 // that would swallow an image or a table fails the whole plan: the note is patched as a piece or
-// not at all.
+// not at all. Where that patch cannot land, the whole answer may still be applied outright —
+// `planWhole` reads the two line lists as one body's before and after and says which of the note's
+// opaque blocks the writer may move into it.
 
-import { opaqueLine } from "./text";
+import { opaqueLine, rowOf } from "./text";
 
 /** One replacement of the current lines: `del` lines at `at` give way to `insert`. */
 export interface Op {
@@ -219,4 +221,65 @@ function sameLines(lines: string[], at: number, run: string[]): boolean {
   if (at < 0 || at + run.length > lines.length) return false;
 
   return run.every((line, offset) => lines[at + offset] === line);
+}
+
+/** Where one of the note's opaque blocks lands in the body the whole answer draws. Depth is the
+ * block's own, read off its line: a whole rewrite places it there, and never deeper or shallower. */
+export interface OpaquePlace {
+  /** The block's index among the note's blocks, counting from its first line. */
+  at: number;
+  /** The index it wears in the answer's lines, the same count. */
+  into: number;
+  depth: number;
+}
+
+/** The whole answer read as a rewrite of the note body: where every opaque block of the base may be
+ * moved, by kind and order of standing. It places none when the two line lists do not hold the same
+ * blocks of each kind at the same depths — an answer that dropped one, drew a new one or moved one
+ * deeper than the note holds it. */
+export function planWhole(base: string[], next: string[]): { places: OpaquePlace[] } | { ok: false } {
+  const held = new Map<"image" | "table", OpaquePlace[]>();
+
+  const take = (kind: "image" | "table"): OpaquePlace[] => {
+    let run = held.get(kind);
+
+    if (run === undefined) {
+      run = [];
+      held.set(kind, run);
+    }
+
+    return run;
+  };
+
+  base.forEach((line, at) => {
+    const row = rowOf(line);
+
+    if (row.kind === "image" || row.kind === "table") take(row.kind).push({ at, into: -1, depth: row.indent });
+  });
+
+  const failed = { ok: false } as const;
+  const given = new Map<"image" | "table", number>([["image", 0], ["table", 0]]);
+
+  for (let into = 0; into < next.length; into += 1) {
+    const row = rowOf(next[into] as string);
+
+    if (row.kind !== "image" && row.kind !== "table") continue;
+
+    const run = take(row.kind);
+    const at = given.get(row.kind) ?? 0;
+    const stood = run[at];
+
+    // One marker more than the note holds blocks of its kind is a block no note line brings.
+    if (stood === undefined || stood.depth !== row.indent) return failed;
+
+    stood.into = into;
+    given.set(row.kind, at + 1);
+  }
+
+  const paired = [...held.values()].flat();
+
+  // A marker the answer left out pairs with nothing: that block would lose its place.
+  if (paired.some((place) => place.into < 0)) return failed;
+
+  return { places: paired.sort((left, right) => left.at - right.at) };
 }

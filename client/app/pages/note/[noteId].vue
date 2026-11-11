@@ -24,6 +24,7 @@ import type { RelayOptions } from "bmo-ui/app/domain/relay";
 import type { Call } from "../../domain/api";
 import type { Holding } from "../../domain/count";
 import type { Note } from "../../../shared/types";
+import type { ReplaceResult } from "../../domain/apply";
 import type { Op } from "../../domain/patch";
 import type { SaveState } from "../../domain/save";
 
@@ -153,8 +154,12 @@ function talkApply(ops: Op[]): boolean {
   return editor.value?.apply(ops) ?? false;
 }
 
-function talkReplace(lines: string[]): boolean {
-  return editor.value?.replace(lines) ?? false;
+function talkReplace(lines: string[]): ReplaceResult {
+  return editor.value?.replace(lines) ?? { ok: false, kinds: [] };
+}
+
+function talkRename(title: string): boolean {
+  return editor.value?.rename(title) ?? false;
 }
 
 /** Sends what the editor holds, naming the version it was made from (`docs/api.md`, 「Notes」). */
@@ -412,6 +417,7 @@ async function goBack(): Promise<void> {
         :lines="talkLines"
         :apply="talkApply"
         :replace="talkReplace"
+        :rename="talkRename"
       />
     </div>
   </div>

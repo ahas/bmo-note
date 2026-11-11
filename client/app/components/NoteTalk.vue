@@ -3,7 +3,8 @@
 // supervisor of his account answers with the whole note as lines, and the changed runs land in the
 // open editor at once. The talk is kept here alone — the receiver keeps no turn of it — and every
 // turn is handed with the turns before it. Where the anchored patch cannot land, the note stands as
-// it was and the panel says why; the plain-lines fallback is offered where no image or table would go.
+// it was and the panel says why, and the whole answer waits for the reader's word to be applied outright —
+// an image or a table in the note is kept and moved into the new body, and a refusal names what cannot be.
 //
 // The panel is docked beside the document on a wide viewport, a column of its own so the note keeps
 // its width and the reader may go on writing; below that width it rises from the bottom edge.
@@ -17,9 +18,10 @@ import { useNarrow } from "bmo-ui/app/domain/screen";
 
 import NoteTalkBody from "./NoteTalkBody.vue";
 import { planPatch } from "../domain/patch";
-import { opaqueLine } from "../domain/text";
-import { askNote, fencedAnswer } from "../domain/talk";
+import { rowOf } from "../domain/text";
+import { askNote, noteAnswer } from "../domain/talk";
 
+import type { OpaqueKind, ReplaceResult } from "../domain/apply";
 import type { Op, Why } from "../domain/patch";
 import type { TalkTurn } from "../domain/talk";
 
@@ -34,7 +36,9 @@ interface Props {
   /** Writes the patch's runs into the open editor. */
   apply: (ops: Op[]) => boolean;
   /** Writes the whole body from the answer, where the anchored patch could not land. */
-  replace: (lines: string[]) => boolean;
+  replace: (lines: string[]) => ReplaceResult;
+  /** Writes the title the answer renamed the note to into the document's own title. */
+  rename: (title: string) => boolean;
 }
 
 const props = defineProps<Props>();
@@ -48,7 +52,7 @@ const turns = ref<TalkTurn[]>([]);
 const said = ref("");
 const busy = ref(false);
 const failure = ref<string | null>(null);
-const fallback = ref<{ lines: string[]; why: Why } | null>(null);
+const fallback = ref<{ lines: string[]; title: string | null } | null>(null);
 
 // Why the anchored patch came apart, as the panel names it.
 const WHY: Record<Why, string> = {
@@ -59,8 +63,23 @@ const WHY: Record<Why, string> = {
 };
 
 const canSend = computed(() => !busy.value && said.value.trim() !== "");
-// The fallback rewrites plain lines only: an image or a table on either side would not come back.
-const canFallback = computed(() => fallback.value !== null && !props.lines().some(opaqueLine) && !fallback.value.lines.some(opaqueLine));
+
+// The blocks a refusal names: only the kinds it could not place, counted as the greater of what the
+// note holds and what the answer draws, each wearing the kind's word and the kinds joined with a
+// comma. The words are the bar's own, so the line speaks of an image and a table as the reader knows
+// them.
+function namesOf(kinds: readonly OpaqueKind[], base: string[], next: string[]): string {
+  const parts: string[] = [];
+
+  for (const kind of kinds) {
+    const read = (lines: string[]): number => lines.filter((line) => rowOf(line).kind === kind).length;
+    const count = Math.max(read(base), read(next));
+
+    if (count > 0) parts.push(i18n.t(`note.talk.${kind}_count`, { n: count }));
+  }
+
+  return parts.join(", ");
+}
 
 // The docked panel is put away by Escape, as the drawer it replaces is.
 function onEscape(event: KeyboardEvent): void {
@@ -78,11 +97,27 @@ onBeforeUnmount(() => removeEventListener("keydown", onEscape));
 
 // The docked panel's width: dragged at its leading edge or stepped by the arrow keys, held between its
 // bounds, and kept in this browser for the next note. A browser that keeps nothing opens at the default.
+//
+// The panel is a column of its own beside the note and never lies over it. Its worn width is the kept
+// one clamped by the row it stands in: the note keeps a readable column wherever the row has room for
+// one, and below that the panel holds the floor a chat line and its input need. The clamp is the
+// browser's (`max-width` and `min-width` on the column), so it follows the console's frame — a sidebar
+// takes its share of every window differently — and the kept value stays as it was, a wider row
+// bringing it back.
 const WIDTH_MIN = 260;
 const WIDTH_MAX = 640;
 const WIDTH_DEFAULT = 320;
 const WIDTH_STEP = 16;
 const WIDTH_KEY = "bmo-note-talk-width";
+
+// The narrowest note column the screen gives a panel to: the editor's own room to read and write in,
+// the page padding and the caret's column included.
+const NOTE_MIN = 480;
+
+// How narrow a chat column can be made and still hold a message line and its input; where the row
+// leaves less than the note's minimum and this floor together, this wins, an overlap of padding being
+// what it prevents rather than a chat no one can read.
+const PANEL_FLOOR = 200;
 
 const width = ref(WIDTH_DEFAULT);
 const dragging = ref(false);
@@ -186,17 +221,24 @@ async function send(): Promise<void> {
 
     turns.value.push({ owner: false, text: answer });
 
-    const next = fencedAnswer(answer);
+    const next = noteAnswer(answer);
 
-    // Words alone change nothing: the note stands as it is.
+    // Words alone change nothing: the note stands as it is, under the title it has.
     if (next === null) return;
 
-    const plan = planPatch(base, next, props.lines());
+    const plan = planPatch(base, next.lines, props.lines());
 
     if (plan.ok) {
-      if (plan.ops.length > 0 && !props.apply(plan.ops)) failure.value = i18n.t("note.talk.apply_failed");
+      if (plan.ops.length > 0 && !props.apply(plan.ops)) {
+        failure.value = i18n.t("note.talk.apply_failed");
+
+        return;
+      }
+
+      // The change landed, so a rename it carried lands with it; the editor's own change saves it.
+      if (next.title !== null) props.rename(next.title);
     } else {
-      fallback.value = { lines: next, why: plan.why };
+      fallback.value = { lines: next.lines, title: next.title };
       failure.value = i18n.t(WHY[plan.why]);
     }
   } catch (error) {
@@ -209,7 +251,7 @@ async function send(): Promise<void> {
 async function applyWhole(): Promise<void> {
   const held = fallback.value;
 
-  if (held === null || !canFallback.value) return;
+  if (held === null) return;
 
   const through = await askQuestion({
     title: i18n.t("note.talk.replace_question"),
@@ -219,12 +261,23 @@ async function applyWhole(): Promise<void> {
 
   if (!through) return;
 
-  if (props.replace(held.lines)) {
-    fallback.value = null;
-    failure.value = null;
-  } else {
-    failure.value = i18n.t("note.talk.replace_blocked");
+  const done = props.replace(held.lines);
+
+  if (!done.ok) {
+    // The rewrite holds nothing it could not place, and the note stands as it did: the plain failure
+    // says all the reader has.
+    failure.value =
+      done.kinds.length === 0
+        ? i18n.t("note.talk.apply_failed")
+        : i18n.t("note.talk.replace_opaque", { names: namesOf(done.kinds, props.lines(), held.lines) });
+
+    return;
   }
+
+  if (held.title !== null) props.rename(held.title);
+
+  fallback.value = null;
+  failure.value = null;
 }
 </script>
 
@@ -234,7 +287,7 @@ async function applyWhole(): Promise<void> {
   <aside
     v-if="docked && open"
     class="relative flex shrink-0 flex-col border-s border-default bg-default"
-    :style="{ width: `${width}px` }"
+    :style="{ width: `${width}px`, minWidth: `${PANEL_FLOOR}px`, maxWidth: `calc(100% - ${NOTE_MIN}px)` }"
     :aria-label="$t('note.talk.title')"
   >
     <!-- The leading edge is the handle, as on the console's own side panel: dragging it sets the width,
@@ -272,7 +325,6 @@ async function applyWhole(): Promise<void> {
         :busy="busy"
         :failure="failure"
         :fallback="fallback !== null"
-        :can-fallback="canFallback"
         :can-send="canSend"
         :phone="phone"
         @send="send"
@@ -296,7 +348,6 @@ async function applyWhole(): Promise<void> {
           :busy="busy"
           :failure="failure"
           :fallback="fallback !== null"
-          :can-fallback="canFallback"
           :can-send="canSend"
           :phone="phone"
           @send="send"
