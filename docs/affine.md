@@ -78,7 +78,10 @@ it in. The console bundle therefore builds the editor through four ordered steps
    decorator or an `accessor` field survives a transpile.
 4. `bun run bundle` builds the console plugin folder with the editor transpiled in, through the fork's
    own vanilla-extract plugin (the editor's stylesheets are compile-time files; without the plugin the
-   editor's runtime refuses them), targeting a browser baseline every console browser speaks.
+   editor's runtime refuses them), targeting a browser baseline every console browser speaks. The
+   build runs bmo-ui's bundle build, which leaves the libraries the bundle shares with its console
+   unbundled and writes the layer it was built on beside the module; the layer is the bmo-ui release
+   file the shared versions pin, vendored under `client/vendor/` as its release verb wrote it.
 
 The copy is a build step over the same working tree, never a second checkout; `client/blocksuite/` is
 not tracked. Merging `upstream/canary` moves the editor the bundle builds with, and `bun run vendor`

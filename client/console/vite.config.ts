@@ -8,6 +8,7 @@ import vue from "@vitejs/plugin-vue";
 import AutoImport from "unplugin-auto-import/vite";
 import Components from "unplugin-vue-components/vite";
 import { defineConfig } from "vite";
+import { consoleBundle } from "bmo-ui/bundle/console-bundle.js";
 
 import type { Plugin } from "vite";
 
@@ -16,16 +17,11 @@ import type { Plugin } from "vite";
 // all written into `dist/`, which the service answers under its manifest. The editor is the fork's own
 // vendored BlockSuite, built in from source (`docs/affine.md`, 「The client's build path to the
 // vendored editor」), which asks for the decorators lowered by the build's vendor steps, the fork's own
-// vanilla-extract plugin for its styled files, and a target the console's browsers all speak.
+// vanilla-extract plugin for its styled files, and a target the console's browsers all speak. bmo-ui's
+// bundle build leaves the libraries the bundle shares with its console unbundled and writes the layer it
+// was built on beside the module.
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-
-// The libraries every bundle shares with its console, left unbundled under the package's own path.
-const SHARED = ["vue", "vue-router", "vue-i18n", "nuxt/app", "@nuxt/ui", "bmo-ui"];
-
-function shared(id: string): boolean {
-  return SHARED.some((name) => id === name || id.startsWith(`${name}/`));
-}
 
 // The tags the editor draws that a Vue template must hand to the browser untouched.
 function editorElement(tag: string): boolean {
@@ -62,6 +58,7 @@ function words(): Plugin {
 export default defineConfig({
   resolve: { alias: { "#build": join(root, ".nuxt") } },
   plugins: [
+    consoleBundle(),
     AutoImport({
       imports: [
         "vue",
@@ -87,7 +84,6 @@ export default defineConfig({
     target: "chrome120",
     outDir: join(root, "dist"),
     emptyOutDir: true,
-    lib: { entry: join(root, "console/routes.ts"), formats: ["es"], fileName: () => "bundle.js", cssFileName: "bundle" },
-    rollupOptions: { external: shared }
+    lib: { entry: join(root, "console/routes.ts"), formats: ["es"], fileName: () => "bundle.js", cssFileName: "bundle" }
   }
 });
