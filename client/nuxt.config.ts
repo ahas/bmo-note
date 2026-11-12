@@ -1,6 +1,6 @@
-// The note console bundle as a layer: the 노트 screen, its components and the modules they stand on,
-// on top of bmo-ui. A console extends it as it extends bmo-ui and attaches it by its declaration,
-// `console-bundle.json` (bmo-ui's `docs/console-bundles.md`).
+// The note screens as a Nuxt app over bmo-ui, for the typecheck and the local dev app that extends it:
+// what a console runs is the bundle `console/vite.config.ts` builds, which the service answers under its
+// manifest (docs/api.md, 「Console」).
 export default defineNuxtConfig({
   extends: ["bmo-ui"],
   compatibilityDate: "2025-09-01",

@@ -162,11 +162,10 @@ studied of AFFiNE and under which licence.
 
 ## The console surface
 
-- The bundle follows bmo-ui's console plugin contract: a manifest at `/console-manifest`, a built
-  module and stylesheet at digested paths, and words at `/console/words`, guarded by the console's
-  credential and the member role, with an owner key on every call the screens make. The manifest
-  names one other service under `calls` — the receiver, which the AI talk panel speaks through — and
-  the bundle calls nothing else beside its own service.
+- The bundle keeps bmo-ui's console plugin contract (bmo-ui `docs/console-bundles.md`). Within it the
+  note asks for the member role and an owner key on every call the screens make, and names one other
+  service under `calls`, the receiver, which the AI talk panel speaks through; the bundle calls nothing
+  else beside its own service. `docs/api.md`, 「Console」, names the rest of what the note chooses.
 - Two screens stand under `/note`: the list and the editor (`/note/<id>`).
   - The list's head names the screen where the console draws no bar, and carries the view switch
     between the live notes and the trash and the key that makes a new note. Its rows stand newest

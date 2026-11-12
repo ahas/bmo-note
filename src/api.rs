@@ -96,6 +96,14 @@ fn credential(app: &App, headers: &HeaderMap) -> Answer<bool> {
   }
 }
 
+/// The console's credential alone, as the console bundle's own routes take it (401 for any other).
+fn console_credential(app: &App, headers: &HeaderMap) -> Answer<()> {
+  match credential(app, headers)? {
+    false => Ok(()),
+    true => Err(ApiError::unauthorized()),
+  }
+}
+
 /// The account a route of the screens answers for: the reader's key on a console call, the named
 /// `owner` on a service-token call.
 fn caller(app: &App, headers: &HeaderMap, owner: Option<String>) -> Answer<Caller> {
@@ -525,28 +533,34 @@ async fn events(
 // ---------------------------------------------------------------------------------------------------------
 // The console bundle
 
-fn bundle(served: &Served, headers: &HeaderMap) -> Answer<Arc<Bundle>> {
-  credential(&served.app, headers)?;
+fn built(served: &Served) -> Answer<Arc<Bundle>> {
   served
     .bundle
     .clone()
     .ok_or_else(|| ApiError::not_found("The console bundle is not built here."))
 }
 
+// The manifest and the words, which the console reads for no reader.
 async fn manifest(State(served): State<Served>, headers: HeaderMap) -> Answer<Response> {
-  Ok(Json(bundle(&served, &headers)?.manifest()).into_response())
+  console_credential(&served.app, &headers)?;
+  Ok(Json(built(&served)?.manifest()).into_response())
 }
 
 async fn words(State(served): State<Served>, headers: HeaderMap) -> Answer<Response> {
-  Ok(Json(bundle(&served, &headers)?.words.clone()).into_response())
+  console_credential(&served.app, &headers)?;
+  Ok(Json(built(&served)?.words.clone()).into_response())
 }
 
+// The module, the stylesheet and the build's other files, held to the reader's key and role as every
+// route of the screens is.
 async fn console_file(
   State(served): State<Served>,
   headers: HeaderMap,
   Path(name): Path<String>,
 ) -> Answer<Response> {
-  let served_bundle = bundle(&served, &headers)?;
+  console_credential(&served.app, &headers)?;
+  caller(&served.app, &headers, None)?;
+  let served_bundle = built(&served)?;
   // The name is the bundle's own built path: one of the two digested files, or a chunk or font the
   // module pulls by them. A name that walks outside the folder is simply not there.
   if name.split('/').any(|segment| segment.is_empty() || segment == "." || segment == "..") {

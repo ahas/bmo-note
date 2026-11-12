@@ -10,14 +10,18 @@ strings, a failure a non-2xx status with `code` (kebab-case) and `error` (an Eng
 ## The control port
 
 The service listens on the loopback at the address `env/note.toml` names (`[server] listen`, by
-convention `127.0.0.1:13129`), under `Authorization: Bearer <token>` with the service token
-(`[server] token`). The console reaches it with the console credential (`[console] token`) and the
-headers the console sets on every relayed call: `Owner-Key`, the signed-in account's id, and
-`Owner-Role`, `administrator` or `member`. A call with no credential or a wrong one is 401
-`unauthorized`; a console call with no `Owner-Key` (or one longer than 200 characters), or with an
-`Owner-Role` that is neither word, is 403 `forbidden`, the console's own reads of the manifest, the
-words, the module and the stylesheet aside (「Console」). A service-token call names the account it
-acts for with an `owner` query (or path-side query of the same name on the list).
+convention `127.0.0.1:13129`), under `Authorization: Bearer <token>`, one of two:
+
+- The service token (`[server] token`), on every route but the console bundle's own (「Console」). A
+  service-token call names the account it acts for with an `owner` query (or path-side query of the
+  same name on the list).
+- The console credential (`[console] token`), with the reader's headers the console sets on every call
+  it relays, held to the manifest's role and owner key as bmo-ui's console plugin contract states
+  (bmo-ui `docs/console-bundles.md`, 「Roles and the owner key」). An `Owner-Key` longer than 200
+  characters is refused as one missing.
+
+A call with no credential or a wrong one is 401 `unauthorized`; a console call the role or the owner
+key refuses is 403 `forbidden`.
 
 ## Health
 
@@ -63,13 +67,25 @@ A service-token call on these routes answers for the `owner` it names; one namin
 
 ## Console
 
+The note brings a console screen by bmo-ui's console plugin contract (bmo-ui `docs/console-bundles.md`),
+which states the manifest, how the module, the stylesheet and the words are addressed, and how each of
+the bundle's routes is guarded; this section names only what the note chooses within it.
+
 | Method | Path | Does |
 |---|---|---|
-| GET | `/console-manifest` | The bundle manifest (bmo-ui `docs/console-bundles.md`): `name` `note`, `title` `note.title`, `icon` `i-material-symbols-edit-note-outline`, `screenPath` `/note`, `serviceName` `note`, `apiPrefix` `/`, `role` `member`, `ownerKey` true, `events` true (the stream below), `websocket` false, `calls` naming the receiver alone (the AI talk panel's `POST /talks`, under the receiver's own terms), and `pushKinds`, `relays`, `shareReads` empty |
+| GET | `/console-manifest` | The bundle manifest |
 | GET | `/console/words` | The bundle's words, every locale |
 | GET | `/console/{*file}` | The bundle's module and stylesheet, and every other file its build left |
 
-The four take the console credential (or the service token) with no owner key and no role. They are
+The manifest names the bundle `note`, its title the word `note.title`, its icon
+`i-material-symbols-edit-note-outline`, its screens under `/note`, its service `note` under the API
+prefix `/`, the `member` role, the owner key, the event stream (below), no WebSocket, and under `calls`
+the receiver alone (the AI talk panel's `POST /talks`, on the receiver's own terms); it names no push
+kinds, relays or share reads.
+
+The routes take the console credential alone, the service token among the credentials they refuse. The
+manifest and the words ask for no owner key and no role; the module, the stylesheet and every other file
+of the build are held to the manifest's role and owner key, as every route of the screens is. They are
 read from the bundle's built folder (`[console] folder`) once at start: the module `bundle.js`, the
 stylesheet `bundle.css` and the words `words.json`, the module and the stylesheet answered at
 `/console/bundle-<digest>.js` and `.css`, the digest the first sixteen hex digits of their bytes'
@@ -77,8 +93,8 @@ SHA-256, with `cache-control: private, max-age=31536000, immutable`. The editor'
 module; what it pulls as it works — language packs, canvases, fonts its stylesheet names — stands as
 further files of the same build, each answered under `/console/` by the name the build gave it (its
 own content hash in it), on the same cache line; a name that walks outside the folder answers
-`not-found`. A folder that does not hold the three named files leaves the four answered 404
-`not-found`.
+`not-found`. A folder that does not hold the three named files leaves the routes answered 404
+`not-found` past their guard.
 
 ## Events the note service publishes
 
