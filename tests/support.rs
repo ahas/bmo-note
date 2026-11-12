@@ -3,7 +3,9 @@
 
 use std::fs;
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use axum::http::StatusCode;
@@ -44,7 +46,8 @@ impl Scratch {
     self.path.join(tail)
   }
 
-  /// The console bundle as the build leaves it: a module, a stylesheet and words in a folder.
+  /// The console bundle as bmo-ui's bundle build leaves it: a module, a stylesheet, words, the layer it was
+  /// built on and the files the module loads, in a folder.
   pub fn bundle_folder(&self) -> PathBuf {
     let folder = self.join("dist");
     fs::create_dir_all(&folder).expect("the bundle folder is made");
@@ -58,6 +61,8 @@ impl Scratch {
     fs::create_dir_all(folder.join("fonts")).expect("the font folder is made");
     fs::write(folder.join("editor-chunk.js"), "export const chunk = 1;\n").expect("the chunk is written");
     fs::write(folder.join("fonts/note.woff2"), "fontbytes").expect("the font is written");
+    fs::write(folder.join("layer.json"), serde_json::json!({ "layer": release_layer() }).to_string())
+      .expect("the layer is written");
     folder
   }
 }
@@ -187,4 +192,34 @@ pub fn settings(scratch: &Scratch, listen: SocketAddr) -> Settings {
   );
   fs::write(folder.join("settings.local.toml"), toml).expect("the settings are written");
   Settings::read(&folder, Some(std::collections::HashMap::new())).expect("the settings read")
+}
+
+/// The client's folder.
+const CLIENT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/client");
+
+/// The bmo-ui release file the client vendors, as its package manifest names it.
+pub fn vendored_release() -> PathBuf {
+  let manifest: Value = serde_json::from_slice(
+    &fs::read(Path::new(CLIENT).join("package.json")).expect("the client's manifest reads"),
+  )
+  .expect("the client's manifest is JSON");
+  let taken = manifest["devDependencies"]["bmo-ui"].as_str().expect("the client takes bmo-ui");
+  Path::new(CLIENT).join(taken.strip_prefix("file:").expect("bmo-ui is taken as a file"))
+}
+
+/// The layer the vendored release names, as its own layer file in the packed file holds it: the layer a
+/// bundle built on it names.
+pub fn release_layer() -> &'static str {
+  static LAYER: OnceLock<String> = OnceLock::new();
+  LAYER.get_or_init(|| {
+    let read = Command::new("tar")
+      .arg("-xzOf")
+      .arg(vendored_release())
+      .arg("package/shared/layer.json")
+      .output()
+      .expect("tar runs");
+    assert!(read.status.success(), "{}", String::from_utf8_lossy(&read.stderr));
+    let file: Value = serde_json::from_slice(&read.stdout).expect("the release's layer file is JSON");
+    file["layer"].as_str().expect("the release names its layer").to_owned()
+  })
 }

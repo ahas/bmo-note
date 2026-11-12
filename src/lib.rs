@@ -1,5 +1,5 @@
 //! The note service: editable BlockSuite notes kept as binary documents in the unit's own store,
-//! answered on its own port, with the console bundle that shows them (`docs/design.md`, `docs/api.md`).
+//! answered on its own port, with the console face that shows them (`docs/design.md`, `docs/api.md`).
 
 pub mod api;
 pub mod app;
@@ -15,9 +15,8 @@ use std::sync::Arc;
 
 use tokio::net::TcpListener;
 
-use crate::api::{Served, router};
+use crate::api::router;
 use crate::app::App;
-use crate::console::Bundle;
 use crate::settings::Settings;
 use crate::store::Store;
 
@@ -37,16 +36,21 @@ pub async fn serve_on(
   stop: impl Future<Output = ()> + Send + 'static,
 ) -> Result<(), String> {
   let store = Store::open(&settings.store_path())?;
-  let bundle = match Bundle::read(&settings.console.folder) {
-    Ok(bundle) => Some(Arc::new(bundle)),
-    Err(why) => {
-      eprintln!("bmo-note: the console bundle is not served: {why}");
-      None
+  let face = if settings.console.token.is_empty() {
+    eprintln!("bmo-note: the console face is not served: no console credential is set");
+    None
+  } else {
+    match console::face(&settings.console.folder, &settings.console.token) {
+      Ok(face) => Some(face),
+      Err(why) => {
+        eprintln!("bmo-note: the console face is not served: {why}");
+        None
+      }
     }
   };
   let app = App::new(settings, store);
   let stopping = Arc::clone(&app);
-  axum::serve(listener, router(Served { app, bundle }))
+  axum::serve(listener, router(app, face))
     .with_graceful_shutdown(async move {
       stop.await;
       stopping.events.stop();

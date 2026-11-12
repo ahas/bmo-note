@@ -15,11 +15,20 @@ discover = false
 paths = ["client"]
 
 [check]
-# This fork carries upstream manifests by design, so the sweeps that read every manifest in the tree
-# (`dependencies`, `shared-versions`) and the one that rewrites the root Cargo profiles upstream owns
-# (`cargo-profile`) do not run; the unit's own folders stand under the checks the steps below and the
-# test suite run, and `docs/affine.md` states the licence line the fork holds to.
-quick = []
+# The shared versions the unit's manifests, lock and vendored packages hold to. This fork carries upstream
+# manifests by design, so the sweep that reads every manifest in the tree (`dependencies`) and the one that
+# rewrites the root Cargo profiles upstream owns (`cargo-profile`) do not run; the unit's own folders stand
+# under the checks the steps below and the test suite run, and `docs/affine.md` states the licence line the
+# fork holds to.
+quick = ["shared-versions"]
+# The one base library the crate takes; the repository's own check of its dependencies reads this list.
+base_libraries = ["bmo-console-face"]
+
+# The repository whose root holds the shared versions. The fork's upstream folders, which the unit neither
+# builds nor rewrites, stand outside the check.
+[check.shared_versions]
+repository = "bmo-chat"
+exclude = ["packages/**"]
 
 [[check.step]]
 id = "check"
@@ -51,6 +60,11 @@ env_links = [{ link = "settings.local.toml", target = "env/note.toml" }]
 units = ["deploy/*.service"]
 # Answers 0 once the service the deployed settings name answers ready (docs/api.md, 「Health」).
 health = "~/.local/share/bmo-note/deploy/bin/bmo-note health"
+
+# The note screens the service brings to a console, whose face the deployment probes once the service is up:
+# how a console reaches it, printed from the release's settings (docs/api.md, 「Console」).
+[deploy.console]
+reach = "bin/bmo-note console-reach"
 
 # The console bundle the service serves from the release (docs/api.md, 「Console」): the vendored editor
 # copied from this repository's own tree, its locked packages installed, its decorated sources

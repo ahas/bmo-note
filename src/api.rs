@@ -1,5 +1,6 @@
 //! The routes (`docs/api.md`): who calls (the service token or the console's credential with the reader's
-//! key and role), the notes, the event stream, the console bundle and the health.
+//! key and role), the notes, the event stream and the health, beside the console face (`docs/api.md`,
+//! 「Console」).
 
 use std::convert::Infallible;
 use std::sync::Arc;
@@ -13,11 +14,11 @@ use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::sse::{Event as Sent, KeepAlive, Sse};
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::get;
+use bmo_console_face::{ConsoleFace, OWNER_KEY_HEADER};
 use futures_util::{StreamExt, stream};
 use serde::de::DeserializeOwned;
 
 use crate::app::App;
-use crate::console::{Bundle, KEPT_FOR_GOOD, MANIFEST_PATH, WORDS_PATH};
 use crate::error::ApiError;
 use crate::events::Record;
 use crate::model::{
@@ -32,32 +33,39 @@ use crate::wire::{
 /// The most rows and events one page holds.
 pub const PAGE_MAX: i64 = 200;
 
+/// The cache line of a stored image, whose key never names other bytes.
+const KEPT_FOR_GOOD: &str = "private, max-age=31536000, immutable";
+
 /// How often a comment line keeps a stream open.
 const KEEP_OPEN: StdDuration = StdDuration::from_secs(15);
 
 type Answer<T> = Result<T, ApiError>;
 
-/// The service as the routes see it: its state and its console bundle, where one is built.
-#[derive(Clone)]
-pub struct Served {
-  pub app: Arc<App>,
-  pub bundle: Option<Arc<Bundle>>,
+/// Every route, the unknown ones answered `no-route`: the health, the routes the screens call under the
+/// console face's guard, and the face's own routes, where a face stands (`docs/api.md`, 「Console」).
+pub fn router(app: Arc<App>, face: Option<ConsoleFace>) -> Router {
+  let screens = screens();
+  let screens = match &face {
+    Some(face) => face.guard_screens(screens),
+    None => screens,
+  };
+  let mut routes = Router::new().route("/health", get(health)).merge(screens);
+  if let Some(face) = &face {
+    routes = routes.merge(face.router());
+  }
+  routes
+    .fallback(|| async { ApiError::no_route() })
+    .method_not_allowed_fallback(|| async { ApiError::no_route() })
+    .with_state(app)
 }
 
-/// Every route, the unknown ones answered `no-route`.
-pub fn router(served: Served) -> Router {
+/// The routes that act for a reader, which the screens call.
+fn screens() -> Router<Arc<App>> {
   Router::new()
-    .route(MANIFEST_PATH, get(manifest))
-    .route(WORDS_PATH, get(words))
-    .route("/console/{*file}", get(console_file))
-    .route("/health", get(health))
     .route("/events", get(events))
     .route("/notes", get(list_notes).post(create_note))
     .route("/notes/{noteId}", get(read_note).patch(save_note).delete(delete_note))
     .route("/notes/{noteId}/blobs/{blobId}", get(read_blob).put(put_blob))
-    .fallback(|| async { ApiError::no_route() })
-    .method_not_allowed_fallback(|| async { ApiError::no_route() })
-    .with_state(served)
 }
 
 /// Who calls.
@@ -96,14 +104,6 @@ fn credential(app: &App, headers: &HeaderMap) -> Answer<bool> {
   }
 }
 
-/// The console's credential alone, as the console bundle's own routes take it (401 for any other).
-fn console_credential(app: &App, headers: &HeaderMap) -> Answer<()> {
-  match credential(app, headers)? {
-    false => Ok(()),
-    true => Err(ApiError::unauthorized()),
-  }
-}
-
 /// The account a route of the screens answers for: the reader's key on a console call, the named
 /// `owner` on a service-token call.
 fn caller(app: &App, headers: &HeaderMap, owner: Option<String>) -> Answer<Caller> {
@@ -118,14 +118,11 @@ fn caller(app: &App, headers: &HeaderMap, owner: Option<String>) -> Answer<Calle
       owner,
     });
   }
-  let key = header_text(headers, "owner-key")
+  // The console face's guard has held the call to the manifest's role and owner key; the key names the account.
+  let key = header_text(headers, OWNER_KEY_HEADER)
     .ok_or_else(|| ApiError::forbidden("The call carries no Owner-Key."))?;
   if key.chars().count() > 200 {
     return Err(ApiError::forbidden("The Owner-Key is longer than 200 characters."));
-  }
-  match header_text(headers, "owner-role") {
-    Some("administrator") | Some("member") => {}
-    _ => return Err(ApiError::forbidden("The call carries no Owner-Role of administrator or member.")),
   }
   Ok(Caller {
     service: false,
@@ -156,8 +153,8 @@ fn body<T: DeserializeOwned>(bytes: &Bytes) -> Answer<T> {
 // ---------------------------------------------------------------------------------------------------------
 // Health
 
-async fn health(State(served): State<Served>, headers: HeaderMap) -> Answer<Json<Health>> {
-  credential(&served.app, &headers)?;
+async fn health(State(app): State<Arc<App>>, headers: HeaderMap) -> Answer<Json<Health>> {
+  credential(&app, &headers)?;
   Ok(Json(Health {
     ready: true,
     reason: None,
@@ -177,12 +174,12 @@ fn limit_of(given: Option<i64>) -> Answer<i64> {
 }
 
 async fn list_notes(
-  State(served): State<Served>,
+  State(app): State<Arc<App>>,
   headers: HeaderMap,
   given: Result<Query<NotesQuery>, QueryRejection>,
 ) -> Answer<Json<Page<NoteMeta>>> {
   let given = query(given)?;
-  let caller = caller(&served.app, &headers, given.owner)?;
+  let caller = caller(&app, &headers, given.owner)?;
   let limit = limit_of(given.limit)?;
   let after = match given.after.as_deref().map(parse_cursor) {
     None => None,
@@ -191,8 +188,7 @@ async fn list_notes(
     }
     Some(Some(cursor)) => Some(cursor),
   };
-  let (items, more) = served
-    .app
+  let (items, more) = app
     .store
     .list(&caller.owner, given.deleted.unwrap_or(false), after, limit)
     .map_err(ApiError::failed)?;
@@ -200,12 +196,12 @@ async fn list_notes(
 }
 
 async fn create_note(
-  State(served): State<Served>,
+  State(app): State<Arc<App>>,
   headers: HeaderMap,
   given_query: Result<Query<NoteQuery>, QueryRejection>,
   bytes: Bytes,
 ) -> Answer<Response> {
-  let caller = caller(&served.app, &headers, query(given_query)?.owner)?;
+  let caller = caller(&app, &headers, query(given_query)?.owner)?;
   let given: NewNote = body(&bytes)?;
   let id = match given.id.as_deref() {
     Some(id) if valid_id(id) => id.to_owned(),
@@ -213,15 +209,11 @@ async fn create_note(
     None => fresh_id(),
   };
   let title = clean_title(&given.title)?;
-  let doc = decode_doc(&given.doc, served.app.settings.notes.max_doc_bytes)?;
+  let doc = decode_doc(&given.doc, app.settings.notes.max_doc_bytes)?;
   let at = now_ms();
-  let (meta, made) = served
-    .app
-    .store
-    .create(&caller.owner, &id, &title, &doc, at)
-    .map_err(ApiError::failed)?;
+  let (meta, made) = app.store.create(&caller.owner, &id, &title, &doc, at).map_err(ApiError::failed)?;
   if made {
-    served.app.events.publish(
+    app.events.publish(
       "note.saved",
       NoteEvent {
         note_id: id.clone(),
@@ -235,14 +227,13 @@ async fn create_note(
 }
 
 async fn read_note(
-  State(served): State<Served>,
+  State(app): State<Arc<App>>,
   headers: HeaderMap,
   Path(id): Path<String>,
   given: Result<Query<NoteQuery>, QueryRejection>,
 ) -> Answer<Json<Note>> {
-  let caller = caller(&served.app, &headers, query(given)?.owner)?;
-  let row = served
-    .app
+  let caller = caller(&app, &headers, query(given)?.owner)?;
+  let row = app
     .store
     .note(&caller.owner, &id, Some(false))
     .map_err(ApiError::failed)?
@@ -254,12 +245,12 @@ async fn read_note(
 }
 
 async fn save_note(
-  State(served): State<Served>,
+  State(app): State<Arc<App>>,
   headers: HeaderMap,
   Path(id): Path<String>,
   bytes: Bytes,
 ) -> Answer<Response> {
-  let caller = caller(&served.app, &headers, None)?;
+  let caller = caller(&app, &headers, None)?;
   let given: NoteSave = body(&bytes)?;
   if given.version < 1 {
     return Err(ApiError::bad_request("version is a whole number from 1."));
@@ -268,19 +259,18 @@ async fn save_note(
   let doc = given
     .doc
     .as_deref()
-    .map(|doc| decode_doc(doc, served.app.settings.notes.max_doc_bytes))
+    .map(|doc| decode_doc(doc, app.settings.notes.max_doc_bytes))
     .transpose()?;
   let restore = given.restore.unwrap_or(false);
   let at = now_ms();
-  let saved = served
-    .app
+  let saved = app
     .store
     .save(&caller.owner, &id, title.as_deref(), doc.as_deref(), given.version, restore, at)
     .map_err(ApiError::failed)?;
   match saved {
     Saved::Unchanged(meta) => Ok(json_answer(StatusCode::OK, meta)),
     Saved::Saved(meta) => {
-      served.app.events.publish(
+      app.events.publish(
         "note.saved",
         NoteEvent {
           note_id: id.clone(),
@@ -291,7 +281,7 @@ async fn save_note(
       Ok(json_answer(StatusCode::OK, meta))
     }
     Saved::Restored(meta) => {
-      served.app.events.publish(
+      app.events.publish(
         "note.restored",
         NoteEvent {
           note_id: id.clone(),
@@ -318,24 +308,22 @@ async fn save_note(
 }
 
 async fn delete_note(
-  State(served): State<Served>,
+  State(app): State<Arc<App>>,
   headers: HeaderMap,
   Path(id): Path<String>,
   given: Result<Query<DeleteQuery>, QueryRejection>,
 ) -> Answer<Response> {
   let DeleteQuery { purge, owner } = query(given)?;
-  let caller = caller(&served.app, &headers, owner)?;
+  let caller = caller(&app, &headers, owner)?;
   if purge.unwrap_or(false) {
-    let purged = served.app.store.purge(&caller.owner, &id).map_err(ApiError::failed)?;
+    let purged = app.store.purge(&caller.owner, &id).map_err(ApiError::failed)?;
     if !purged {
-      return Err(
-        match served.app.store.meta(&caller.owner, &id, Some(false)).map_err(ApiError::failed)? {
-          Some(_) => ApiError::not_trashed(&id),
-          None => ApiError::not_found(format!("No note {id} stands.")),
-        },
-      );
+      return Err(match app.store.meta(&caller.owner, &id, Some(false)).map_err(ApiError::failed)? {
+        Some(_) => ApiError::not_trashed(&id),
+        None => ApiError::not_found(format!("No note {id} stands.")),
+      });
     }
-    served.app.events.publish(
+    app.events.publish(
       "note.purged",
       NoteEvent {
         note_id: id.clone(),
@@ -345,10 +333,10 @@ async fn delete_note(
     );
     return Ok(StatusCode::NO_CONTENT.into_response());
   }
-  let trashed = served.app.store.trash(&caller.owner, &id, now_ms()).map_err(ApiError::failed)?;
+  let trashed = app.store.trash(&caller.owner, &id, now_ms()).map_err(ApiError::failed)?;
   match trashed {
     Some(_) => {
-      served.app.events.publish(
+      app.events.publish(
         "note.trashed",
         NoteEvent {
           note_id: id.clone(),
@@ -359,14 +347,7 @@ async fn delete_note(
       Ok(StatusCode::NO_CONTENT.into_response())
     }
     // Already in the trash: the note stands where the call would have moved it.
-    None
-      if served
-        .app
-        .store
-        .meta(&caller.owner, &id, Some(true))
-        .map_err(ApiError::failed)?
-        .is_some() =>
-    {
+    None if app.store.meta(&caller.owner, &id, Some(true)).map_err(ApiError::failed)?.is_some() => {
       Ok(StatusCode::NO_CONTENT.into_response())
     }
     None => Err(ApiError::not_found(format!("No note {id} stands."))),
@@ -377,13 +358,13 @@ async fn delete_note(
 // The images of a note
 
 async fn put_blob(
-  State(served): State<Served>,
+  State(app): State<Arc<App>>,
   Path((note, id)): Path<(String, String)>,
   given: Result<Query<NoteQuery>, QueryRejection>,
   request: Request,
 ) -> Answer<Response> {
   let headers = request.headers().clone();
-  let caller = caller(&served.app, &headers, query(given)?.owner)?;
+  let caller = caller(&app, &headers, query(given)?.owner)?;
   if !valid_blob_id(&id) {
     return Err(ApiError::bad_request("The blob id is not 1 to 128 letters, digits, -, _ and =."));
   }
@@ -391,28 +372,20 @@ async fn put_blob(
   if !mime.starts_with("image/") {
     return Err(ApiError::bad_request("The body must name its type as an image."));
   }
-  match served.app.store.meta(&caller.owner, &note, Some(false)).map_err(ApiError::failed)? {
+  match app.store.meta(&caller.owner, &note, Some(false)).map_err(ApiError::failed)? {
     Some(_) => {}
-    None
-      if served
-        .app
-        .store
-        .meta(&caller.owner, &note, Some(true))
-        .map_err(ApiError::failed)?
-        .is_some() =>
-    {
+    None if app.store.meta(&caller.owner, &note, Some(true)).map_err(ApiError::failed)?.is_some() => {
       return Err(ApiError::trashed(&note));
     }
     None => return Err(ApiError::not_found(format!("No note {note} stands."))),
   }
   // The body is read here, at the cap, so a store of the note's own account sees no more than the
   // cap's bytes and the refusal carries the store's code whatever the call declared.
-  let max = served.app.settings.notes.max_blob_bytes;
+  let max = app.settings.notes.max_blob_bytes;
   let bytes = axum::body::to_bytes(request.into_body(), max)
     .await
     .map_err(|_| ApiError::too_large(max))?;
-  served
-    .app
+  app
     .store
     .put_blob(&caller.owner, &note, &id, mime, &bytes, now_ms())
     .map_err(ApiError::failed)?;
@@ -420,14 +393,13 @@ async fn put_blob(
 }
 
 async fn read_blob(
-  State(served): State<Served>,
+  State(app): State<Arc<App>>,
   headers: HeaderMap,
   Path((note, id)): Path<(String, String)>,
   given: Result<Query<NoteQuery>, QueryRejection>,
 ) -> Answer<Response> {
-  let caller = caller(&served.app, &headers, query(given)?.owner)?;
-  let (mime, bytes) = served
-    .app
+  let caller = caller(&app, &headers, query(given)?.owner)?;
+  let (mime, bytes) = app
     .store
     .blob(&caller.owner, &note, &id)
     .map_err(ApiError::failed)?
@@ -461,11 +433,10 @@ fn visible(caller: &Caller, service: bool, record: &Record) -> bool {
 }
 
 async fn events(
-  State(served): State<Served>,
+  State(app): State<Arc<App>>,
   headers: HeaderMap,
   given: Result<Query<EventsQuery>, QueryRejection>,
 ) -> Answer<Response> {
-  let app = Arc::clone(&served.app);
   let given = query(given)?;
   let caller = stream_caller(&app, &headers)?;
   let service = caller.service;
@@ -528,57 +499,4 @@ async fn events(
     .map(|record| Ok::<_, Infallible>(sent(&record.event)))
     .take_until(app.events.stopped());
   Ok(Sse::new(stream).keep_alive(KeepAlive::new().interval(KEEP_OPEN)).into_response())
-}
-
-// ---------------------------------------------------------------------------------------------------------
-// The console bundle
-
-fn built(served: &Served) -> Answer<Arc<Bundle>> {
-  served
-    .bundle
-    .clone()
-    .ok_or_else(|| ApiError::not_found("The console bundle is not built here."))
-}
-
-// The manifest and the words, which the console reads for no reader.
-async fn manifest(State(served): State<Served>, headers: HeaderMap) -> Answer<Response> {
-  console_credential(&served.app, &headers)?;
-  Ok(Json(built(&served)?.manifest()).into_response())
-}
-
-async fn words(State(served): State<Served>, headers: HeaderMap) -> Answer<Response> {
-  console_credential(&served.app, &headers)?;
-  Ok(Json(built(&served)?.words.clone()).into_response())
-}
-
-// The module, the stylesheet and the build's other files, held to the reader's key and role as every
-// route of the screens is.
-async fn console_file(
-  State(served): State<Served>,
-  headers: HeaderMap,
-  Path(name): Path<String>,
-) -> Answer<Response> {
-  console_credential(&served.app, &headers)?;
-  caller(&served.app, &headers, None)?;
-  let served_bundle = built(&served)?;
-  // The name is the bundle's own built path: one of the two digested files, or a chunk or font the
-  // module pulls by them. A name that walks outside the folder is simply not there.
-  if name.split('/').any(|segment| segment.is_empty() || segment == "." || segment == "..") {
-    return Err(ApiError::not_found("No bundle file answers that name."));
-  }
-  let (content_type, bytes) = match served_bundle.file(&name) {
-    Some(file) => (file.content_type, file.bytes.clone()),
-    None => match served_bundle.other(&name) {
-      Some(other) => (other.content_type, other.bytes.clone()),
-      None => return Err(ApiError::not_found(format!("The bundle holds no {name}."))),
-    },
-  };
-  Ok(
-    (
-      StatusCode::OK,
-      [(header::CONTENT_TYPE, content_type), (header::CACHE_CONTROL, KEPT_FOR_GOOD)],
-      bytes,
-    )
-      .into_response(),
-  )
 }

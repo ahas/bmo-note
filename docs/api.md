@@ -12,12 +12,12 @@ strings, a failure a non-2xx status with `code` (kebab-case) and `error` (an Eng
 The service listens on the loopback at the address `env/note.toml` names (`[server] listen`, by
 convention `127.0.0.1:13129`), under `Authorization: Bearer <token>`, one of two:
 
-- The service token (`[server] token`), on every route but the console bundle's own (「Console」). A
+- The service token (`[server] token`), on every route but the console face's own (「Console」). A
   service-token call names the account it acts for with an `owner` query (or path-side query of the
   same name on the list).
 - The console credential (`[console] token`), with the reader's headers the console sets on every call
-  it relays, held to the manifest's role and owner key as bmo-ui's console plugin contract states
-  (bmo-ui `docs/console-bundles.md`, 「Roles and the owner key」). An `Owner-Key` longer than 200
+  it relays. The console face's guard holds such a call to the manifest's role and owner key
+  (「Console」); the route then reads the account from the `Owner-Key`, and one longer than 200
   characters is refused as one missing.
 
 A call with no credential or a wrong one is 401 `unauthorized`; a console call the role or the owner
@@ -67,34 +67,31 @@ A service-token call on these routes answers for the `owner` it names; one namin
 
 ## Console
 
-The note brings a console screen by bmo-ui's console plugin contract (bmo-ui `docs/console-bundles.md`),
-which states the manifest, how the module, the stylesheet and the words are addressed, and how each of
-the bundle's routes is guarded; this section names only what the note chooses within it.
+The note brings its screens to a console under bmo-ui's console plugin contract (bmo-ui
+`docs/console-bundles.md`), which is the one statement of what a console asks and a service answers. Its
+console face is bmo-chat's `bmo-console-face` (bmo-chat `docs/console-face.md`), which answers
+`GET /console-manifest` and every file of the bundle under `GET /console/{file}`, guards them, and lays
+the same guard over the routes the screens call. The note supplies the face what the contract leaves to
+it:
 
-| Method | Path | Does |
-|---|---|---|
-| GET | `/console-manifest` | The bundle manifest |
-| GET | `/console/words` | The bundle's words, every locale |
-| GET | `/console/{*file}` | The bundle's module and stylesheet, and every other file its build left |
+- its declaration of the manifest fields it decides: name `note`, title `note.title`, icon
+  `i-material-symbols-edit-note-outline`, screen path `/note`, service name `note`, API prefix `/`,
+  role `member` and the owner key, the event stream (below), no WebSocket, and under `calls` the
+  receiver alone (the AI talk panel's `POST /talks`, on the receiver's own terms); no push kinds,
+  relays or share reads;
+- the bundle build's folder (`[console] folder`), as bmo-ui's bundle build writes it: the module
+  `bundle.js`, the stylesheet `bundle.css`, the words `words.json`, the layer `layer.json`, and the
+  chunks and fonts the editor loads as it works, read once at start;
+- the console credential (`[console] token`).
 
-The manifest names the bundle `note`, its title the word `note.title`, its icon
-`i-material-symbols-edit-note-outline`, its screens under `/note`, its service `note` under the API
-prefix `/`, the `member` role, the owner key, the event stream (below), no WebSocket, and under `calls`
-the receiver alone (the AI talk panel's `POST /talks`, on the receiver's own terms); it names no push
-kinds, relays or share reads.
+The screens' routes are the notes, their blobs and the event stream. Where the credential is empty, or
+the folder cannot be served, no face stands, the reason is written to the service's log, and the
+console's routes answer 404 `no-route`; the service's own routes are answered as ever.
 
-The routes take the console credential alone, the service token among the credentials they refuse. The
-manifest and the words ask for no owner key and no role; the module, the stylesheet and every other file
-of the build are held to the manifest's role and owner key, as every route of the screens is. They are
-read from the bundle's built folder (`[console] folder`) once at start: the module `bundle.js`, the
-stylesheet `bundle.css` and the words `words.json`, the module and the stylesheet answered at
-`/console/bundle-<digest>.js` and `.css`, the digest the first sixteen hex digits of their bytes'
-SHA-256, with `cache-control: private, max-age=31536000, immutable`. The editor's own body is one
-module; what it pulls as it works — language packs, canvases, fonts its stylesheet names — stands as
-further files of the same build, each answered under `/console/` by the name the build gave it (its
-own content hash in it), on the same cache line; a name that walks outside the folder answers
-`not-found`. A folder that does not hold the three named files leaves the routes answered 404
-`not-found` past their guard.
+`bmo-note console-reach` prints, as one JSON object, how a console reaches the service: `address`, the
+base address its settings name, `consoleToken`, the console credential, and `token`, the service token,
+which the console's routes refuse. A deployment's console probe runs it (bmo-testbed `docs/deploy.md`,
+「The console probe」).
 
 ## Events the note service publishes
 

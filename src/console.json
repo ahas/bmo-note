@@ -1,0 +1,16 @@
+{
+  "name": "note",
+  "title": "note.title",
+  "icon": "i-material-symbols-edit-note-outline",
+  "screenPath": "/note",
+  "serviceName": "note",
+  "apiPrefix": "/",
+  "role": "member",
+  "ownerKey": true,
+  "events": true,
+  "websocket": false,
+  "pushKinds": [],
+  "calls": ["receiver"],
+  "relays": [],
+  "shareReads": []
+}

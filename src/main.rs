@@ -1,5 +1,6 @@
 //! The `bmo-note` command: `serve` answers the routes until it is told to stop; `health` ends 0 only
-//! where the service its settings name answers ready.
+//! where the service its settings name answers ready; `console-reach` prints how a console reaches the
+//! service.
 
 use std::process::ExitCode;
 
@@ -20,6 +21,8 @@ enum Verb {
   Serve,
   /// Whether the service the settings name answers ready: exit code 0 where it does, 1 where not.
   Health,
+  /// Prints how a console reaches the service, as one JSON object, for a deployment's console probe.
+  ConsoleReach,
 }
 
 async fn health(settings: &Settings) -> Result<(), String> {
@@ -53,6 +56,10 @@ async fn main() -> ExitCode {
     Ok(settings) => match verb {
       Verb::Serve => bmo_note::serve(settings).await,
       Verb::Health => health(&settings).await,
+      Verb::ConsoleReach => {
+        println!("{}", bmo_note::console::reach(&settings));
+        Ok(())
+      }
     },
   };
   match ended {

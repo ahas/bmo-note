@@ -151,34 +151,3 @@ pub struct NoteEvent {
   pub note_id: String,
   pub owner: String,
 }
-
-/// A role a reader holds.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Role {
-  Administrator,
-  Member,
-}
-
-/// The console bundle's manifest (bmo-ui's `docs/console-bundles.md`, 「The manifest」).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ConsoleManifest {
-  pub name: String,
-  pub title: String,
-  pub icon: String,
-  pub screen_path: String,
-  pub service_name: String,
-  pub bundle: String,
-  pub stylesheet: String,
-  pub words: String,
-  pub api_prefix: String,
-  pub role: Role,
-  pub owner_key: bool,
-  pub events: bool,
-  pub websocket: bool,
-  pub push_kinds: Vec<String>,
-  pub calls: Vec<String>,
-  pub relays: Vec<Value>,
-  pub share_reads: Vec<String>,
-}

@@ -216,7 +216,15 @@ fn korean_stands_only_where_the_ledger_of_the_unit_allows_it() {
 }
 
 #[test]
-fn the_crate_depends_on_registry_crates_alone() {
+fn the_crate_depends_on_registry_crates_and_its_declared_base_libraries_alone() {
+  let declaration = declaration();
+  let base_libraries: Vec<&str> = table(&declaration, "check")
+    .get("base_libraries")
+    .and_then(toml::Value::as_array)
+    .expect("the declaration names its base libraries")
+    .iter()
+    .map(|library| library.as_str().expect("a base library is named"))
+    .collect();
   let metadata = metadata();
   let packages = metadata["packages"].as_array().expect("metadata lists packages");
   let mut refused = Vec::new();
@@ -229,6 +237,9 @@ fn the_crate_depends_on_registry_crates_alone() {
     for dependency in package["dependencies"].as_array().expect("a dependency table") {
       let source = dependency["source"].as_str().unwrap_or_default();
       let given = dependency["name"].as_str().expect("a dependency has a name");
+      if base_libraries.contains(&given) {
+        continue;
+      }
       if !source.starts_with("registry+") {
         refused.push(format!("{name} -> {given} is not a registry crate"));
       }
@@ -237,7 +248,10 @@ fn the_crate_depends_on_registry_crates_alone() {
       }
     }
   }
-  assert!(refused.is_empty(), "dependencies outside the registry: {refused:?}");
+  assert!(
+    refused.is_empty(),
+    "dependencies outside the registry and the base libraries: {refused:?}"
+  );
 }
 
 fn declaration() -> toml::Table {

@@ -11,8 +11,8 @@ Edition this repository is, with `upstream` kept for later merges.
 
 `cargo test` (through the testbed) runs the crate's one harness, `tests/main.rs`, on a scratch SQLite
 file and a loopback port: notes written, read, saved, conflicted, trashed, restored and purged, each
-account's own (`notes.rs`), the stream the writes publish (`events.rs`), the console's guard, manifest
-and files (`console.rs`), and the unit's own repository checks (`repository.rs`). The console bundle's
+account's own (`notes.rs`), the stream the writes publish (`events.rs`), the console face the service
+serves, its manifest read through bmo-ui's own reading on the vendored release (`console.rs`), and the unit's own repository checks (`repository.rs`). The console bundle's
 check is `bun run check` inside `client/`, which copies the vendored editor, installs, transpiles its
 decorated sources with the TypeScript compiler, typechecks and tests (`docs/affine.md`, 「The client's
 build path to the vendored editor」).
@@ -21,7 +21,7 @@ build path to the vendored editor」).
 
 | Folder | Holds |
 |---|---|
-| `src/` | The service and its command: the routes, the note store, the event ring, the console bundle's serving |
+| `src/` | The service and its command: the routes, the note store, the event ring, the console face's declaration |
 | `client/` | The console plugin bundle, a project of its own; `client/blocksuite/` (untracked) holds the build's copy of the editor |
 | `deploy/` | The service's user unit |
 | `tests/` | The crate's one test harness and the stand-ins it runs over, beside the fork's upstream end-to-end test folders |
@@ -40,6 +40,7 @@ own JavaScript manifests and tsconfigs.
 
 - `bmo-note serve` opens its store and answers the routes until it is told to stop.
 - `bmo-note health` ends 0 where the service its settings name answers ready.
+- `bmo-note console-reach` prints how a console reaches the service, for a deployment's console probe.
 
 The settings are read from the binary's built-in `settings.toml`, then the deployment's `settings.toml`
 and `settings.local.toml` beside the release (the data root's `env/note.toml`), then
