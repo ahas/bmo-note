@@ -1,10 +1,12 @@
 <script setup lang="ts">
 // The format bar over the editor (`docs/design.md`, 「The console surface」): the inline marks, the
-// kinds a line turns into, the image upload and the table insert, in one standing row. It holds no
-// formatting of its own — every press rides the vendored editor's command chain through
-// `app/domain/format`, the same mechanism the hotkeys and the slash menu ride. While the editor is
-// still mounting, or where nothing stands written that a key could change, those keys stand disabled;
-// a file past the store's cap is told through the `failed` line the screen owns.
+// kinds a line turns into, the image upload and the table insert, in one standing row, between the
+// way back at its leading end and what acts on the whole note at its trailing end; every key is the
+// library's small button, an icon-only one its small square. It holds no formatting of its own —
+// every press rides the vendored editor's command chain through `app/domain/format`, the same
+// mechanism the hotkeys and the slash menu ride. While the editor is still mounting, or where nothing
+// stands written that a key could change, those keys stand disabled; a file past the store's cap is
+// told through the `failed` line the screen owns.
 
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
@@ -167,18 +169,25 @@ function addTable(): void {
   <!-- `@mousedown.prevent` keeps the caret and selection in the document: the fork's mark and kind
        commands run against the editor's own range, and a control that took focus would take the
        selection with it. Keys reachable by Tab still ring on focus, as every control does. The row
-       stays one row at a phone's width and scrolls its keys sideways, as the mobile rule asks. -->
+       stays one row at a phone's width and scrolls its keys sideways between its two ends, as the mobile
+       rule asks. -->
   <ToolBar :label="$t('note.label.toolbar')" @mousedown.prevent>
+    <!-- The way back leads the row: the bar is the screen's own row under the title bar. It and the trailing
+         cell hold to the bar's ends while the keys between them scroll on a narrow screen, on the bar's own
+         ground, with the bar's bottom line drawn again over it. -->
+    <div v-if="$slots.start" class="sticky start-0 z-10 flex shrink-0 items-center bg-default shadow-[inset_0_-1px_0_var(--ui-border)]">
+      <slot name="start" />
+    </div>
+
     <!-- The bar spans the page; its keys gather in one row of their own width, centred, rather than
          spreading across a wide screen. Ask AI leads it, as it leads the selection toolbar, and stands
          whenever the editor does: with nothing selected and no caret it asks over the whole note. -->
     <div class="mx-auto flex h-full w-max shrink-0 items-center gap-1" data-bar-row>
       <HintTip :text="$t('note.ask.key')" press>
         <UButton
-          size="lg"
+          size="sm"
           color="primary"
           variant="ghost"
-          class="pointer-coarse:h-10"
           icon="i-material-symbols-auto-awesome-outline"
           :label="$t('note.ask.key')"
           :disabled="props.std === null"
@@ -192,10 +201,9 @@ function addTable(): void {
       <HintTip :text="$t('note.action.turn_into')" press>
         <UDropdownMenu :items="[kindItems]" :disabled="!writable" :content="{ align: 'start' }">
           <UButton
-            size="lg"
+            size="sm"
             color="neutral"
             variant="ghost"
-            class="pointer-coarse:h-10"
             :icon="kindIcon"
             trailing-icon="i-material-symbols-expand-more"
             :disabled="!writable"
@@ -209,11 +217,10 @@ function addTable(): void {
 
       <HintTip v-for="(config, at) in barMarks" :key="config.id" :text="$t(`note.mark.${config.id}`)" press>
         <UButton
-          size="lg"
+          size="sm"
           color="neutral"
           :variant="marks[at] ? 'subtle' : 'ghost'"
           square
-          class="pointer-coarse:size-10"
           :icon="markIcons[config.id] ?? 'i-material-symbols-text-fields'"
           :disabled="!writable"
           :aria-label="$t(`note.mark.${config.id}`)"
@@ -226,11 +233,10 @@ function addTable(): void {
 
       <HintTip :text="$t('note.action.image')" press>
         <UButton
-          size="lg"
+          size="sm"
           color="neutral"
           variant="ghost"
           square
-          class="pointer-coarse:size-10"
           icon="i-material-symbols-add-photo-alternate"
           :loading="working"
           :disabled="!writable || working"
@@ -242,11 +248,10 @@ function addTable(): void {
 
       <HintTip :text="$t('note.action.table')" press>
         <UButton
-          size="lg"
+          size="sm"
           color="neutral"
           variant="ghost"
           square
-          class="pointer-coarse:size-10"
           icon="i-material-symbols-grid-view"
           :disabled="!writable || working"
           :aria-label="$t('note.action.table')"
@@ -261,7 +266,7 @@ function addTable(): void {
     </div>
 
     <!-- What acts on the whole note rather than the selection stands apart at the bar's trailing edge. -->
-    <div v-if="$slots.end" class="flex shrink-0 items-center">
+    <div v-if="$slots.end" class="sticky end-0 z-10 flex shrink-0 items-center bg-default shadow-[inset_0_-1px_0_var(--ui-border)]">
       <slot name="end" />
     </div>
   </ToolBar>

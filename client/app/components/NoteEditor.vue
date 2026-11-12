@@ -205,6 +205,9 @@ defineExpose({
 <template>
   <div class="flex min-h-0 flex-1 flex-col">
     <NoteToolbar :std="scope" @failed="toast.add({ title: $t('note.error.image_failed'), color: 'error' })" @ask="openAsk">
+      <template v-if="$slots.barStart" #start>
+        <slot name="barStart" />
+      </template>
       <template v-if="$slots.barEnd" #end>
         <slot name="barEnd" />
       </template>

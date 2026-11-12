@@ -179,12 +179,16 @@ studied of AFFiNE and under which licence.
     where it stood when the note was opened, the note just read is brought into sight and marked for
     a breath, and where that row no longer stands (trashed meanwhile, or past the rows held) the
     scroll is put back on its own. The visit is held in the screen's memory alone.
-  - The open note's head carries the way back to the list and the note's title where the bar has
-    room for it, nothing else, the way back leading. It rides the console's title bar where the console
-    offers one — the way back in the bar's place before the screen's name, the title in its place after
-    it, or both after it, the way back first, where the console offers no place before — and stands as
-    the screen's own head where it does not. The title is the document's own, as the editor holds it, cut to the bar with
-    its whole value in a tooltip; a phone's narrow bar leaves it to the document's own title.
+  - The open note lays nothing into the console's title bar, which names the screen alone; the note
+    is named by the document's own title. Where the console draws no bar, the screen draws its own,
+    holding the note's title alone, as the editor holds it, cut to the bar with its whole value in a
+    tooltip. The way back to the list stands at the leading end of the screen's own row under the bar,
+    which is the format bar, under the console's bar and the screen's own alike. While the note is
+    read the format bar already stands, its keys disabled; where the note is missing or could not be
+    read, the row stands with the way back alone.
+- Neither screen reads the places the console's title bar offers for a screen's actions and way back:
+  the list's view switch and new-note key stand in its own row under the bar, and the open note's way
+  back and talk key stand at the two ends of its format bar.
 - The list stands in the console's content width — at most its `--ui-container` across, centred — as
   every console screen does, its rows reaching that width with only their own inner room. The open
   note is the screen that releases that width in its own panel: its page fills the console's content
@@ -193,8 +197,13 @@ studied of AFFiNE and under which licence.
   and code, an image upload and a table insert, each driving the vendored editor's own command chain,
   so the bar, the hotkeys and the slash menu all ride one mechanism. The bar and the editor stand as
   one column filling the page; the bar spans that column, but its controls stand in one gathered,
-  centred row of their own width, never spread edge to edge. The talk key stands apart at the bar's
-  trailing edge, since it acts on the whole note rather than the selection. Slash commands stay a shortcut, never
+  centred row of their own width, never spread edge to edge. The way back stands apart at the bar's
+  leading edge and the talk key at its trailing edge, since it acts on the whole note rather than the
+  selection. Where the bar is wider than the screen, as on a phone, the way back and the talk key hold
+  to the bar's two ends and the format keys scroll sideways between them, so both stand in sight at
+  every width. Every key in the bar is the library's small button at its own size, an icon-only key its
+  small square, centred in the row with its hover and press filling its own shape, never a cell
+  stretched to the row's height. Slash commands stay a shortcut, never
   the way in. The image key opens a file input of the bundle's own: it carries the native hidden
   attribute, and the bundle's stylesheet holds it hidden with an `!important` rule. The selection toolbar,
   the drag handle and the floating format menu are the fork's own and stand as it drew them, but for one

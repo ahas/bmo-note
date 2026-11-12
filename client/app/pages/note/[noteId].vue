@@ -2,20 +2,23 @@
 // One note open: the note's own head, the format bar and the BlockSuite page editor in one column,
 // autosaved with a short debounce, its state and holding told in the status line at the screen's
 // foot, and what must be acted on said in a banner above the document (`docs/design.md`, 「Editing
-// and saving」, 「The console surface」). The head carries the way back and the note's title; it rides
-// the console's title bar where the console offers one, and stands as the screen's own where it does
-// not. The talk key stands at the format bar's trailing edge, and its panel is docked beside the
-// document.
+// and saving」, 「The console surface」). Nothing is laid into the console's title bar; where no console
+// offers one, the screen draws its own, holding the note's title alone. The format bar is the row
+// under the bar: the way back stands at its leading edge and the talk key at its trailing edge, and
+// the talk's panel is docked beside the document.
 
 import { computed, inject, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 import { onBeforeRouteLeave, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import HintTip from "bmo-ui/app/components/HintTip.vue";
+import ToolBar from "bmo-ui/app/components/ToolBar.vue";
 import { askQuestion } from "bmo-ui/app/domain/question";
 import { relayCall } from "bmo-ui/app/domain/relay";
 
+import NoteBack from "../../components/NoteBack.vue";
 import NoteEditor from "../../components/NoteEditor.vue";
 import NoteTalk from "../../components/NoteTalk.vue";
+import NoteToolbar from "../../components/NoteToolbar.vue";
 import { createNoteApi, Refusal, Unreachable } from "../../domain/api";
 import { clockOf, sizeOf } from "../../domain/count";
 import { holdsChange, initialSaveState, nextSaveState, versionOf } from "../../domain/save";
@@ -34,9 +37,9 @@ const i18n = useI18n();
 const router = useRouter();
 const api = createNoteApi(<T>(path: string, options?: Parameters<Call>[1]) => relayCall<T>(SERVICE, path, options as RelayOptions));
 
-// The console's bar, where it offers one: the place after its name the screen's own actions take, and the place
-// before it the way back takes where the console names one.
-const barOffer = inject<{ screenActions: string; screenLead?: string } | null>("bmo-console-title-bar", null);
+// The console's bar, where it offers one: it names the screen, so this one draws no bar of its own. Nothing is
+// laid into it.
+const consoleBar = inject<object | null>("bmo-console-title-bar", null);
 
 const noteId = String(router.currentRoute.value.params.noteId ?? "");
 const note = shallowRef<Note | null>(null);
@@ -306,63 +309,55 @@ const refusedLine = computed(() => {
 
   return i18n.te(key) ? i18n.t(key) : i18n.t("note.status.refused");
 });
-
-async function goBack(): Promise<void> {
-  await router.push("/note");
-}
 </script>
 
 <template>
   <div class="flex h-full min-h-0 flex-col">
-    <!-- The head, riding the console's title bar where it offers one: the way back before the screen's name, the
-         note's title after it — or both after it, the way back first, where the bar offers no place before.
-         Where it offers no bar, the screen stands the same row itself. -->
-    <Teleport v-if="barOffer?.screenLead && note !== null && stand === 'ready'" defer :to="barOffer.screenLead">
-      <HintTip :text="$t('note.action.back')" press>
-        <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-arrow-back" :aria-label="$t('note.action.back')" @click="goBack" />
-      </HintTip>
-    </Teleport>
-
-    <Teleport v-if="barOffer !== null && note !== null && stand === 'ready'" defer :to="barOffer.screenActions">
-      <div class="flex min-w-0 items-center gap-2">
-        <HintTip v-if="!barOffer.screenLead" :text="$t('note.action.back')" press>
-          <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-arrow-back" :aria-label="$t('note.action.back')" @click="goBack" />
-        </HintTip>
-
-        <HintTip class="hidden max-w-64 min-w-0 truncate text-sm font-medium text-highlighted sm:block" style="align-self: center" :text="titleLine" cut>{{ titleLine }}</HintTip>
-      </div>
-    </Teleport>
-
-    <div v-if="barOffer === null" class="flex h-12 shrink-0 items-center gap-2 border-b border-default px-4 sm:px-6">
-      <HintTip :text="$t('note.action.back')" press>
-        <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-arrow-back" :aria-label="$t('note.action.back')" @click="goBack" />
-      </HintTip>
+    <!-- The console's bar names the screen and holds nothing of it. Where no console offers a bar, the screen
+         draws its own, holding the note's title alone. -->
+    <div v-if="consoleBar === null" class="flex h-12 shrink-0 items-center border-b border-default px-4 sm:px-6" data-screen-bar>
       <HintTip class="block min-w-0 truncate text-sm font-medium text-highlighted" style="align-self: center" :text="headTitle" cut>{{ headTitle }}</HintTip>
-
     </div>
 
     <div class="flex min-h-0 flex-1" data-screen-fill>
       <div class="flex min-w-0 flex-1 flex-col">
-        <div v-if="stand === 'loading'" role="status" :aria-label="$t('note.status.loading')" class="flex w-full flex-col gap-4 px-4 py-6 sm:px-6">
-          <USkeleton class="h-9 w-2/5 rounded-md" />
-          <div class="flex flex-col gap-2">
-            <USkeleton class="h-4 w-full rounded-sm" />
-            <USkeleton class="h-4 w-3/4 rounded-sm" />
-            <USkeleton class="h-4 w-full rounded-sm" />
+        <!-- The row under the bar is the format bar, the way back at its leading end. While the note is read
+             it stands with its keys disabled; a note missing or unread keeps the row with the way back alone. -->
+        <template v-if="stand === 'loading'">
+          <NoteToolbar :std="null">
+            <template #start>
+              <NoteBack />
+            </template>
+          </NoteToolbar>
+
+          <div role="status" :aria-label="$t('note.status.loading')" class="flex w-full flex-col gap-4 px-4 py-6 sm:px-6">
+            <USkeleton class="h-9 w-2/5 rounded-md" />
+            <div class="flex flex-col gap-2">
+              <USkeleton class="h-4 w-full rounded-sm" />
+              <USkeleton class="h-4 w-3/4 rounded-sm" />
+              <USkeleton class="h-4 w-full rounded-sm" />
+            </div>
           </div>
-        </div>
+        </template>
 
-        <div v-else-if="stand === 'missing'" class="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-16 text-center">
-          <UIcon name="i-material-symbols-search-off" class="size-10 text-dimmed" />
-          <p class="text-sm text-muted">{{ $t("note.status.missing") }}</p>
-          <UButton color="neutral" variant="soft" icon="i-material-symbols-arrow-back" :label="$t('note.action.back')" @click="goBack" />
-        </div>
+        <template v-else-if="stand === 'missing' || stand === 'failed'">
+          <ToolBar :label="$t('note.label.toolbar')">
+            <div class="flex shrink-0 items-center">
+              <NoteBack />
+            </div>
+          </ToolBar>
 
-        <div v-else-if="stand === 'failed'" role="alert" class="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-16 text-center">
-          <UIcon name="i-material-symbols-error-outline" class="size-10 text-error" />
-          <p class="text-sm text-error">{{ $t("note.error.read_failed") }}</p>
-          <UButton color="neutral" variant="soft" icon="i-material-symbols-refresh" :label="$t('note.action.retry')" @click="read" />
-        </div>
+          <div v-if="stand === 'missing'" class="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-16 text-center">
+            <UIcon name="i-material-symbols-search-off" class="size-10 text-dimmed" />
+            <p class="text-sm text-muted">{{ $t("note.status.missing") }}</p>
+          </div>
+
+          <div v-else role="alert" class="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-16 text-center">
+            <UIcon name="i-material-symbols-error-outline" class="size-10 text-error" />
+            <p class="text-sm text-error">{{ $t("note.error.read_failed") }}</p>
+            <UButton color="neutral" variant="soft" icon="i-material-symbols-refresh" :label="$t('note.action.retry')" @click="read" />
+          </div>
+        </template>
 
         <template v-else-if="note !== null">
           <!-- What the reader must act on stands in a line of its own, above the document. -->
@@ -387,9 +382,12 @@ async function goBack(): Promise<void> {
             @title="liveTitle = $event"
             @ready="() => { count(); readTitle(); }"
           >
+            <template #barStart>
+              <NoteBack />
+            </template>
             <template #barEnd>
               <HintTip :text="$t('note.action.talk')" press>
-                <UButton size="lg" color="neutral" variant="ghost" icon="i-material-symbols-forum-outline" class="pointer-coarse:h-10" :label="$t('note.action.talk')" @click="talkOpen = true" />
+                <UButton size="sm" color="neutral" variant="ghost" icon="i-material-symbols-forum-outline" :label="$t('note.action.talk')" @click="talkOpen = true" />
               </HintTip>
             </template>
           </NoteEditor>

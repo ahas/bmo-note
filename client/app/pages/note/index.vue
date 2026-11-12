@@ -25,8 +25,9 @@ const router = useRouter();
 const notes = useNotes();
 const toast = useToast();
 
-// The console's bar, where it offers one: it names the screen, so this one draws no title of its own.
-const barOffer = inject<{ screenActions: string } | null>("bmo-console-title-bar", null);
+// The console's bar, where it offers one: it names the screen, so this one draws no title of its own. Nothing is
+// laid into it; the view switch and the new-note key stand in the screen's own row under it.
+const consoleBar = inject<object | null>("bmo-console-title-bar", null);
 
 const confirming = ref<string | null>(null);
 const working = ref<string | null>(null);
@@ -193,7 +194,7 @@ function detailText(note: NoteMeta): string {
     <header class="shrink-0 border-b border-default px-4 sm:px-6">
       <div class="mx-auto flex w-full max-w-(--ui-container) flex-col gap-2 py-3">
         <!-- Where the console draws no bar, the screen names itself before the row of actions. -->
-        <h1 v-if="barOffer === null" class="text-xl font-semibold text-highlighted">{{ $t("note.title") }}</h1>
+        <h1 v-if="consoleBar === null" class="text-xl font-semibold text-highlighted">{{ $t("note.title") }}</h1>
 
         <div class="flex items-center gap-2">
           <UTabs
