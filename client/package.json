@@ -4,6 +4,11 @@
   "private": true,
   "license": "MIT",
   "type": "module",
+  "bmo": {
+    "browser": [
+      "tests/browser/*.test.ts"
+    ]
+  },
   "workspaces": [
     "blocksuite/affine/all",
     "blocksuite/affine/blocks/attachment",
@@ -82,7 +87,7 @@
     "decorators": "bun scripts/decorators.ts",
     "bundle": "bun run decorators && vite build --config console/vite.config.ts",
     "typecheck": "bun scripts/typecheck.ts",
-    "check": "bun run vendor && bun install --frozen-lockfile && bun run decorators && bun run typecheck && bun test",
+    "check": "bun run vendor && bun install --frozen-lockfile && bun run decorators && bun run typecheck && bun test --path-ignore-patterns='tests/browser/**'",
     "prepare": "bun x nuxi prepare"
   },
   "dependencies": {
@@ -107,6 +112,7 @@
     "bmo-ui": "file:vendor/bmo-ui-0.1.0-rev.18.tgz",
     "nuxt": "^4.5.2",
     "ofetch": "^1.4.1",
+    "playwright-core": "1.62.1",
     "tailwindcss": "4.3.3",
     "typescript": "^5.9.3",
     "unplugin-auto-import": "21.1.0",

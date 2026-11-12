@@ -208,6 +208,15 @@ studied of AFFiNE and under which licence.
   the drag handle and the floating format menu are the fork's own and stand as it drew them, but for one
   thing: on a touch screen the floating format menu stands down. It is wider than a phone, it doubles the
   bar, and the phone lays its own selection menu over the words; the bar does its work there.
+- **The screens' browser test holds them to these rows.** It builds the note service from the checkout,
+  starts it on a settings folder and a store of its own, starts the bundle's dev host relaying to it as
+  the console would, and drives both screens in a real browser at 1,280 and 360 pixels wide, in the light
+  and the dark scheme: the list names itself with nothing beside the name and its own row ends with the
+  new-note key; every key of the format bar is the library's small button, an icon-only one its small
+  square; every key of either row stands centred with room above and below it, its hover filling its own
+  shape and never its cell or the row; the way back and the talk key stay in sight while the keys scroll on
+  a phone; and a missing note keeps the row with the way back alone. It runs in the suite's browser lane,
+  apart from the client's own check, and is skipped where the browser build is not on the machine.
 - **The editor's styles stay in the editor.** The vendored editor lays its stylesheets on the page as plain
   style elements, unlayered, which beat every layered rule of the console; and a few of its rules name nothing
   of the editor's own — a bare `input`, a `.truncate` — so once a note is opened they would reach every screen

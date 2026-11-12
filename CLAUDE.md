@@ -22,7 +22,8 @@ Community Edition, kept so the unit can follow upstream. `docs/design.md` states
   (`docs/affine.md`, 「The client's build path to the vendored editor」).
 - **Tests live in `tests/`,** one harness `tests/main.rs`; checks: `cargo check --workspace --all-targets`,
   `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --all --check`, `cargo test` through
-  the testbed; the client's `bun run check`.
+  the testbed; the client's `bun run check`; the screens' browser test under `client/tests/browser/`,
+  which `client/package.json` declares to the suite's browser lane and the client's check leaves out.
 - **English only** in code, documents, tests and commits; Korean in the bundle's `ko` words alone.
 - **No personal data, no names of agents, owners or hosts** in code, documents or commits. A note
   document's *content* is user data that stands in the store at runtime, never in the repository.
