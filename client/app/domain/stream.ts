@@ -8,7 +8,11 @@ import { relayAddress } from "bmo-ui/app/domain/relay";
 
 export type NoteStreamEvent = { kind: string; data: { noteId: string; owner: string } };
 
-export const STREAM_KINDS = ["note.saved", "note.trashed", "note.restored", "note.purged"] as const;
+// The kinds the screen reads, each `note.<event>`. They are put together from the event's name, since the
+// bundle build reads a dotted string the screen writes whole under the bundle's name as a key of its words.
+const STREAM_EVENTS = ["saved", "trashed", "restored", "purged"] as const;
+
+export const STREAM_KINDS = STREAM_EVENTS.map((event) => `note.${event}` as const);
 
 // How long a stream the service refused waits before it is opened afresh.
 const REOPEN_MS = 3_000;
