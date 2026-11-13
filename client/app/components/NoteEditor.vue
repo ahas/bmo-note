@@ -220,7 +220,7 @@ defineExpose({
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col">
-    <NoteToolbar v-if="props.toolbar" :std="props.readonly ? null : scope" @failed="toast.add({ title: $t('note.error.image_failed'), color: 'error' })" @ask="openAsk">
+    <NoteToolbar v-if="props.toolbar" :std="props.readonly ? null : scope" :ask="!props.readonly" @failed="toast.add({ title: $t('note.error.image_failed'), color: 'error' })" @ask="openAsk">
       <template v-if="$slots.barStart" #start>
         <slot name="barStart" />
       </template>

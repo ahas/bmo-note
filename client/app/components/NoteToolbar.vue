@@ -20,7 +20,14 @@ import type { BarConversion } from "../domain/format";
 import type { BlockStdScope } from "@blocksuite/affine/std";
 import type { Subscription } from "rxjs";
 
-const props = defineProps<{ std: BlockStdScope | null }>();
+const props = withDefaults(
+  defineProps<{
+    std: BlockStdScope | null;
+    /** Whether the AI key stands: not over a note the reader holds to read only. */
+    ask?: boolean;
+  }>(),
+  { ask: true }
+);
 
 const emit = defineEmits<{ inserted: []; failed: []; ask: [] }>();
 
@@ -181,9 +188,10 @@ function addTable(): void {
 
     <!-- The bar spans the page; its keys gather in one row of their own width, centred, rather than
          spreading across a wide screen. Ask AI leads it, as it leads the selection toolbar, and stands
-         whenever the editor does: with nothing selected and no caret it asks over the whole note. -->
+         whenever the editor does: with nothing selected and no caret it asks over the whole note. Over a
+         note held to read only it does not stand. -->
     <div class="mx-auto flex h-full w-max shrink-0 items-center gap-1" data-bar-row>
-      <HintTip :text="$t('note.ask.key')" press>
+      <HintTip v-if="props.ask" :text="$t('note.ask.key')" press>
         <UButton
           size="sm"
           color="primary"
@@ -196,7 +204,7 @@ function addTable(): void {
         />
       </HintTip>
 
-      <div class="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden="true" />
+      <div v-if="props.ask" class="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden="true" />
 
       <HintTip :text="$t('note.action.turn_into')" press>
         <UDropdownMenu :items="[kindItems]" :disabled="!writable" :content="{ align: 'start' }">

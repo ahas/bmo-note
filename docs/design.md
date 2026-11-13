@@ -302,8 +302,8 @@ studied of AFFiNE and under which licence.
 - **The sharing browser test holds the screens to this.** On the same throwaway service and dev host as
   the screens' test, it drives the share dialog in a real browser: the owner makes a link and the share
   page opens the note read only with no format bar; the owner finds a member in the people directory and
-  shares the note; the member finds it in the shared view and opens it read only, with no share or talk
-  key; a reader it is not shared with finds no note; and once the owner takes the member off, the member
+  shares the note; the member finds it in the shared view and opens it read only, with no share, talk or
+  AI key; a reader it is not shared with finds no note; and once the owner takes the member off, the member
   finds no note either. The dev host stands in for the console's people directory with a few made-up
   people, and a browser names the reader the relay presents by a cookie of the dev host's own, so one
   test acts as each of the three accounts.
