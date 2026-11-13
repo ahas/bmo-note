@@ -31,13 +31,33 @@ studied of AFFiNE and under which licence.
 - The document's own format belongs to BlockSuite. An upgrade of the editor may read documents the old
   one wrote (the schema carries its versions); the unit adds no format of its own.
 
-## Who owns a note
+## Who owns a note, and who it is shared with
 
-- Every note belongs to one console account, keyed by the `Owner-Key` the console sets on relayed
-  calls. An account reads and writes only its own notes; a service-token call names the account it
-  acts for with an `owner` query. Notes are not shared between accounts, and there is no organization
-  realm, no roles beyond the manifest's member floor, and no share page; each is a follow-up row, not
-  a withheld v1 feature.
+- **Every note belongs to one console account,** keyed by the `Owner-Key` the console sets on relayed
+  calls; a service-token call names the account it acts for with an `owner` query. The owner reads,
+  writes, trashes, restores and purges the note, and alone decides who else it opens to.
+- **The owner shares a note two ways,** both from bmo-ui's one share dialog (bmo-ui
+  `docs/console-bundles.md`, sharing and share pages):
+  - by a link: one live link per note, made for a span the owner picks or for good, which opens the
+    note read only to whoever holds it, with no sign-in, on the note's share page;
+  - with members: people of the owner's company, the accounts standing anywhere under the top-level
+    organization unit the owner's own unit belongs to, as the console's people directory finds them.
+    Each member is kept by the account key with a permission.
+- **A member's permission is `read` or `edit`, and a member is given `read`.**
+  - `read` opens the note and its images, read only.
+  - `edit` opens the saves and the image uploads as well, through the same versioned door the owner's
+    edits go through, so a member's save and the owner's are refused, not merged, when one is made from
+    behind the other.
+  - Neither opens the trash, the purge, a restore or the sharing itself: the owner alone grants, changes
+    and takes back a share and makes or ends the link.
+- **A shared note opens only while it lives.** A note in the trash opens to its owner alone; its link
+  and its members stand with it and open it again on a restore. A purge takes them with the note.
+- **Everyone else is refused as a stranger:** a signed-in reader the note is not shared with, a member
+  whose share was taken back, and a link that ended or never stood each find no note there, the same
+  answer as for a note that does not stand, so a refusal tells nothing of what another account holds.
+- **The service does not ask who a member is.** It calls no unit, so it keeps whatever account key the
+  owner shares with; the console's people directory is what offers only the company's people, and a
+  key nobody signs in with opens the note to nobody.
 
 ## Editing and saving
 
@@ -68,13 +88,15 @@ studied of AFFiNE and under which licence.
 
 ## Storage
 
-- One SQLite file under the unit's data directory holds two tables: each note's owner, id, title, doc
-  bytes, version, timestamps, and deleted mark, and each attachment's note, id, type and bytes. An
+- One SQLite file under the unit's data directory holds four tables: each note's owner, id, title, doc
+  bytes, version, timestamps, and deleted mark; each attachment's note, id, type and bytes; each share
+  link's token, note, moment made and end; and each member share's note, member key, permission and
+  moment shared. A note is named by its owner and its id together, since ids are each account's own. An
   attachment is an image only: the editor uploads one to its note's blob route before an image block
   stands, and reads it back through the same route, so no block ever stands on bytes the service does
   not hold. The document itself never carries image bytes; the cap on one stored document leaves the
   document's own text and structure.
-- A purge takes the note and its blobs together. A save that drops an image leaves its bytes standing
+- A purge takes the note with its blobs, its link and its member shares. A save that drops an image leaves its bytes standing
   until the note goes: the store collects no garbage of its own.
 - A deletion moves the note to a trash list; a restore moves it back; a purge deletes the row and is
   open for a trashed note only. Nothing else deletes a note.
@@ -84,9 +106,12 @@ studied of AFFiNE and under which licence.
 ## Events
 
 - The service publishes `note.saved`, `note.trashed`, `note.restored` and `note.purged`, each naming
-  its note and its owner, kept in the same in-memory ring every platform service keeps and answered
-  over the common stream route. The console bundle subscribes through the console and refreshes the
-  open list. A restart loses the ring, as every unit's does.
+  its note and its owner, and `note.shared` and `note.unshared`, naming the member too, kept in the
+  same in-memory ring every platform service keeps and answered over the common stream route.
+- An event reaches the note's owner and the members the note is shared with as it is published; a
+  share's own two events reach its owner and that member. The console bundle subscribes through the
+  console and refreshes the open list, so a note shared with a reader appears in their shared view
+  without a reload. A restart loses the ring, as every unit's does.
 
 ## The AI talk panel
 
@@ -165,10 +190,14 @@ studied of AFFiNE and under which licence.
 - The bundle keeps bmo-ui's console plugin contract (bmo-ui `docs/console-bundles.md`). Within it the
   note asks for the member role and an owner key on every call the screens make, and names one other
   service under `calls`, the receiver, which the AI talk panel speaks through; the bundle calls nothing
-  else beside its own service. `docs/api.md`, 「Console」, names the rest of what the note chooses.
-- Two screens stand under `/note`: the list and the editor (`/note/<id>`).
+  else beside its own service, and reads the console's people directory for the share dialog's members.
+  `docs/api.md`, 「Console」, names the rest of what the note chooses.
+- Three screens stand under `/note`: the list, the editor (`/note/<id>`, and `/note/<id>?owner=<key>`
+  for a note another account shared), and the share page a link opens (`/note/share/<token>`).
   - The list's head names the screen where the console draws no bar, and carries the view switch
-    between the live notes and the trash and the key that makes a new note. Its rows stand newest
+    between the live notes, the notes shared with the reader and the trash, and the key that makes a
+    new note. A row of the shared view names under its title the account that shared it, by the name
+    the people directory answers, and carries no actions: the trash is the owner's. Its rows stand newest
     changed first, each with the note's title on its own line and, under it, what the note holds —
     its stored size — and the moment it changed (the moment it went to the trash, in the trash
     view), with its actions at the trailing edge. The first fetch reserves the rows with a skeleton
@@ -187,7 +216,8 @@ studied of AFFiNE and under which licence.
     read, the row stands with the way back alone.
 - Neither screen reads the places the console's title bar offers for a screen's actions and way back:
   the list's view switch and new-note key stand in its own row under the bar, and the open note's way
-  back and talk key stand at the two ends of its format bar.
+  back stands at the leading end of its format bar, its share key and talk key at the trailing end.
+
 - The list stands in the console's content width — at most its `--ui-container` across, centred — as
   every console screen does, its rows reaching that width with only their own inner room. The open
   note is the screen that releases that width in its own panel: its page fills the console's content
@@ -243,6 +273,25 @@ studied of AFFiNE and under which licence.
   bundle mirrors the console's mode onto it and the document switches as the console's own screens
   do. Light is as the fork drew it.
 
+## Sharing on the screens
+
+- **The share key opens bmo-ui's share dialog,** on the owner's own open note alone, titled by the
+  note. The bundle hands the dialog its roads; the dialog calls nothing itself.
+  - The link road is the note's link on the service: read, made for a span and ended there, and the
+    page it opens is the share page under the console's own address. The spans offered are a day,
+    a week, a month and for good, a week offered first.
+  - The member road is handed only where the console offers its people directory: the search is the
+    directory's, and who the note is shared with is read, shared, changed and taken back on the
+    service, each member drawn by the name the directory answers for the key, or the key itself where
+    it answers none. Found without the directory, the dialog shares by link alone.
+- **A shared note opens as its permission allows.** Opened by a `read` member, the document stands
+  read only: the format bar keeps its keys disabled, the talk key, Ask AI and the share key do not
+  stand, nothing is saved, and the status line says the note is read only where it would tell the
+  save state. Opened by an `edit` member, the screen is the owner's but for the share key.
+- **The share page stands with no frame of the console's,** its own bar holding the note's title, and
+  under it the document read only, its images read through the link. A link that opens nothing stands
+  as its own state, one line saying the note is not shared.
+
 ## Deployment shape
 
 - The service answers its own loopback port (by convention `127.0.0.1:13129`), reads its own settings
@@ -251,6 +300,6 @@ studied of AFFiNE and under which licence.
   `settings.toml`, the deployment's files, then `BMO_NOTE_<TABLE>__<KEY>`).
 - The unit serves no route to a person directly: the console is where people read and write notes, and
   the console reaches the service over the loopback with its own credential. It therefore takes no
-  public name under the platform's domain, no DNS record and no proxy host. If a note is ever shared
-  to a reader without sign-in, that share page will need a public path through the console, the way
-  drive, theater and artifact share through the console's own name, not a name of the note unit's.
+  public name under the platform's domain, no DNS record and no proxy host. A note shared by link is
+  read on its share page through the console's own name, the way drive, theater and artifact share,
+  and the console relays the page's reads to the service with no sign-in.

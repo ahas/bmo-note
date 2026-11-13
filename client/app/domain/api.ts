@@ -2,7 +2,7 @@
 // (`docs/api.md`, 「Notes」). The caller hands the call itself — through the console's relay in the
 // browser, to a stand-in in a test — so this module names no address and no fetcher.
 
-import type { Note, NoteMeta, NotesView, Page } from "../../shared/types";
+import type { MemberPermission, Note, NoteLink, NoteMember, NoteMeta, NotesView, Page, SharedNote } from "../../shared/types";
 
 export type Call = <T>(path: string, options?: { method?: "GET" | "POST" | "PATCH" | "DELETE"; body?: unknown; query?: Record<string, string | undefined> }) => Promise<T>;
 
@@ -44,13 +44,36 @@ function segment(value: string): string {
   return encodeURIComponent(value);
 }
 
+/** The note a call reaches: the reader's own by its id, or another account's shared with the reader,
+ * named by its owner too (`docs/api.md`, 「Sharing」). */
+export interface NoteKey {
+  id: string;
+  /** The account the note belongs to, where it is not the reader's own. */
+  owner?: string;
+}
+
 export interface NoteApi {
   list: (view: NotesView, after?: string) => Promise<Page<NoteMeta>>;
-  read: (id: string) => Promise<Note>;
+  read: (key: NoteKey) => Promise<Note>;
   create: (write: { id: string; title: string; doc: string }) => Promise<NoteMeta>;
-  save: (id: string, write: { version: number; title?: string; doc?: string; restore?: boolean }) => Promise<NoteMeta>;
+  save: (key: NoteKey, write: { version: number; title?: string; doc?: string; restore?: boolean }) => Promise<NoteMeta>;
   trash: (id: string) => Promise<void>;
   purge: (id: string) => Promise<void>;
+  /** The note's live link, or null where none stands. */
+  link: (id: string) => Promise<NoteLink | null>;
+  makeLink: (id: string, expiresAt: number | null) => Promise<NoteLink>;
+  endLink: (id: string) => Promise<void>;
+  members: (id: string) => Promise<NoteMember[]>;
+  share: (id: string, users: string[], permission: MemberPermission) => Promise<NoteMember[]>;
+  changeMember: (id: string, user: string, permission: MemberPermission) => Promise<NoteMember>;
+  unshare: (id: string, user: string) => Promise<void>;
+  /** The note a link's token opens, read with the token alone. */
+  shared: (token: string) => Promise<SharedNote>;
+}
+
+/** The query naming the note's owner, where the note is another account's. */
+function ownerQuery(key: NoteKey): Record<string, string | undefined> | undefined {
+  return key.owner === undefined ? undefined : { owner: key.owner };
 }
 
 export function createNoteApi(call: Call): NoteApi {
@@ -65,12 +88,28 @@ export function createNoteApi(call: Call): NoteApi {
   return {
     list: (view, after) =>
       sent<Page<NoteMeta>>("/notes", {
-        query: { deleted: view === "trash" ? "true" : undefined, after, limit: "50" }
+        query: { deleted: view === "trash" ? "true" : undefined, shared: view === "shared" ? "true" : undefined, after, limit: "50" }
       }),
-    read: (id) => sent<Note>(`/notes/${segment(id)}`),
+    read: (key) => sent<Note>(`/notes/${segment(key.id)}`, { query: ownerQuery(key) }),
     create: (write) => sent<NoteMeta>("/notes", { method: "POST", body: write }),
-    save: (id, write) => sent<NoteMeta>(`/notes/${segment(id)}`, { method: "PATCH", body: write }),
+    save: (key, write) => sent<NoteMeta>(`/notes/${segment(key.id)}`, { method: "PATCH", body: write, query: ownerQuery(key) }),
     trash: (id) => sent<void>(`/notes/${segment(id)}`, { method: "DELETE" }),
-    purge: (id) => sent<void>(`/notes/${segment(id)}?purge=true`, { method: "DELETE" })
+    purge: (id) => sent<void>(`/notes/${segment(id)}?purge=true`, { method: "DELETE" }),
+    link: async (id) => {
+      try {
+        return await sent<NoteLink>(`/notes/${segment(id)}/link`);
+      } catch (error) {
+        if (error instanceof Refusal && error.code === "not-found") return null;
+
+        throw error;
+      }
+    },
+    makeLink: (id, expiresAt) => sent<NoteLink>(`/notes/${segment(id)}/link`, { method: "POST", body: { expiresAt } }),
+    endLink: (id) => sent<void>(`/notes/${segment(id)}/link`, { method: "DELETE" }),
+    members: async (id) => (await sent<Page<NoteMember>>(`/notes/${segment(id)}/members`)).items,
+    share: async (id, users, permission) => (await sent<Page<NoteMember>>(`/notes/${segment(id)}/members`, { method: "POST", body: { users, permission } })).items,
+    changeMember: (id, user, permission) => sent<NoteMember>(`/notes/${segment(id)}/members/${segment(user)}`, { method: "PATCH", body: { permission } }),
+    unshare: (id, user) => sent<void>(`/notes/${segment(id)}/members/${segment(user)}`, { method: "DELETE" }),
+    shared: (token) => sent<SharedNote>(`/shares/${segment(token)}`)
   };
 }

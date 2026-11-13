@@ -1,13 +1,13 @@
-//! The unit's own store (`docs/design.md`, 「Storage」): one SQLite file, two tables — every note of every
-//! account with its document bytes, and every note's images with theirs. The service's truth stands here;
-//! it rebuilds nothing.
+//! The unit's own store (`docs/design.md`, 「Storage」): one SQLite file, four tables — every note of every
+//! account with its document bytes, every note's images with theirs, every note's share link, and every
+//! account a note is shared with. The service's truth stands here; it rebuilds nothing.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use rusqlite::{Connection, OptionalExtension, params};
 
-use crate::wire::NoteMeta;
+use crate::wire::{Access, Link, Member, NoteMeta, Permission};
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS notes (
@@ -31,6 +31,23 @@ CREATE TABLE IF NOT EXISTS blobs (
   created_at INTEGER NOT NULL,
   PRIMARY KEY (owner, note, id)
 );
+CREATE TABLE IF NOT EXISTS links (
+  token TEXT NOT NULL PRIMARY KEY,
+  owner TEXT NOT NULL,
+  note TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER
+);
+CREATE UNIQUE INDEX IF NOT EXISTS links_note ON links (owner, note);
+CREATE TABLE IF NOT EXISTS members (
+  owner TEXT NOT NULL,
+  note TEXT NOT NULL,
+  member TEXT NOT NULL,
+  permission TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (owner, note, member)
+);
+CREATE INDEX IF NOT EXISTS members_member ON members (member);
 ";
 
 /// A note as the store reads one, with its document.
@@ -102,7 +119,7 @@ impl Store {
       let live = if deleted { "deleted_at IS NOT NULL" } else { "deleted_at IS NULL" };
       let walked = if after.is_some() { "AND (changed_at, id) < (?3, ?4) " } else { "" };
       let sql = format!(
-        "SELECT id, title, version, created_at, changed_at, length(doc), deleted_at \
+        "SELECT id, owner, title, version, created_at, changed_at, length(doc), deleted_at \
          FROM notes WHERE owner = ?1 AND {live} {walked} \
          ORDER BY changed_at DESC, id DESC LIMIT ?2"
       );
@@ -241,7 +258,12 @@ impl Store {
         "DELETE FROM notes WHERE owner = ?1 AND id = ?2 AND deleted_at IS NOT NULL",
         params![owner, id],
       )?;
-      transaction.execute("DELETE FROM blobs WHERE owner = ?1 AND note = ?2", params![owner, id])?;
+      if changed == 1 {
+        for table in ["blobs", "links", "members"] {
+          transaction
+            .execute(&format!("DELETE FROM {table} WHERE owner = ?1 AND note = ?2"), params![owner, id])?;
+        }
+      }
       transaction.commit()?;
       Ok(changed == 1)
     })
@@ -276,40 +298,252 @@ impl Store {
         .optional()
     })
   }
+
+  /// The live notes other accounts share with `member`, newest changed first, as one page, each with the
+  /// access the share gives; `after` is the last row's moment, id and owner.
+  pub fn list_shared(
+    &self,
+    member: &str,
+    after: Option<(i64, String, String)>,
+    limit: i64,
+  ) -> Result<(Vec<NoteMeta>, bool), String> {
+    self.with(|connection| {
+      let walked = if after.is_some() { "AND (n.changed_at, n.id, n.owner) < (?3, ?4, ?5) " } else { "" };
+      let sql = format!(
+        "SELECT n.id, n.owner, n.title, n.version, n.created_at, n.changed_at, length(n.doc), n.deleted_at, \
+         m.permission FROM members m JOIN notes n ON n.owner = m.owner AND n.id = m.note \
+         WHERE m.member = ?1 AND n.deleted_at IS NULL {walked} \
+         ORDER BY n.changed_at DESC, n.id DESC, n.owner DESC LIMIT ?2"
+      );
+      let mut statement = connection.prepare(&sql)?;
+      let shared = |row: &rusqlite::Row<'_>| {
+        let permission = Permission::of_word(&row.get::<_, String>(8)?);
+        Ok(NoteMeta {
+          access: permission.access(),
+          ..meta_of(row)?
+        })
+      };
+      let found = match &after {
+        Some((moment, id, owner)) => statement.query_map(params![member, limit + 1, moment, id, owner], shared)?,
+        None => statement.query_map(params![member, limit + 1], shared)?,
+      };
+      let mut metas = found.collect::<rusqlite::Result<Vec<_>>>()?;
+      let more = metas.len() > limit as usize;
+      metas.truncate(limit as usize);
+      Ok((metas, more))
+    })
+  }
+
+  /// The permission `member` holds of `owner`'s note, where the note lives and is shared with them.
+  pub fn permission(&self, owner: &str, note: &str, member: &str) -> Result<Option<Permission>, String> {
+    self.with(|connection| {
+      connection
+        .prepare_cached(
+          "SELECT m.permission FROM members m JOIN notes n ON n.owner = m.owner AND n.id = m.note \
+           WHERE m.owner = ?1 AND m.note = ?2 AND m.member = ?3 AND n.deleted_at IS NULL",
+        )?
+        .query_row(params![owner, note, member], |row| row.get::<_, String>(0))
+        .optional()
+        .map(|word| word.as_deref().map(Permission::of_word))
+    })
+  }
+
+  /// Who the note is shared with, oldest share first.
+  pub fn members(&self, owner: &str, note: &str) -> Result<Vec<Member>, String> {
+    self.with(|connection| members_in(connection, owner, note))
+  }
+
+  /// The note shared with each of `users` at `permission`; a member already standing keeps the moment
+  /// they were shared with and takes the permission. Answers the members as they now stand.
+  pub fn share(
+    &self,
+    owner: &str,
+    note: &str,
+    users: &[String],
+    permission: Permission,
+    at: i64,
+  ) -> Result<Vec<Member>, String> {
+    self.with(|connection| {
+      let transaction = connection.unchecked_transaction()?;
+      for user in users {
+        transaction.execute(
+          "INSERT INTO members (owner, note, member, permission, created_at) VALUES (?1, ?2, ?3, ?4, ?5) \
+           ON CONFLICT (owner, note, member) DO UPDATE SET permission = excluded.permission",
+          params![owner, note, user, permission.word(), at],
+        )?;
+      }
+      transaction.commit()?;
+      members_in(connection, owner, note)
+    })
+  }
+
+  /// One member's permission changed; none where the note is not shared with that key.
+  pub fn change_member(
+    &self,
+    owner: &str,
+    note: &str,
+    member: &str,
+    permission: Permission,
+  ) -> Result<Option<Member>, String> {
+    self.with(|connection| {
+      connection.execute(
+        "UPDATE members SET permission = ?4 WHERE owner = ?1 AND note = ?2 AND member = ?3",
+        params![owner, note, member, permission.word()],
+      )?;
+      Ok(members_in(connection, owner, note)?.into_iter().find(|one| one.user == member))
+    })
+  }
+
+  /// One member taken off. Answers whether they stood.
+  pub fn unshare(&self, owner: &str, note: &str, member: &str) -> Result<bool, String> {
+    self.with(|connection| {
+      let removed = connection.execute(
+        "DELETE FROM members WHERE owner = ?1 AND note = ?2 AND member = ?3",
+        params![owner, note, member],
+      )?;
+      Ok(removed == 1)
+    })
+  }
+
+  /// The note's live link at `now`.
+  pub fn link(&self, owner: &str, note: &str, now: i64) -> Result<Option<Link>, String> {
+    self.with(|connection| live_link(connection, owner, note, now))
+  }
+
+  /// A link made for the note under `token`, or the live one that already stands. Answers the link and
+  /// whether it was made now.
+  pub fn make_link(
+    &self,
+    owner: &str,
+    note: &str,
+    token: &str,
+    expires_at: Option<i64>,
+    now: i64,
+  ) -> Result<(Link, bool), String> {
+    self.with(|connection| {
+      let transaction = connection.unchecked_transaction()?;
+      if let Some(standing) = live_link(&transaction, owner, note, now)? {
+        return Ok((standing, false));
+      }
+      transaction.execute(
+        "INSERT INTO links (token, owner, note, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![token, owner, note, now, expires_at],
+      )?;
+      transaction.commit()?;
+      Ok((
+        Link {
+          token: token.to_owned(),
+          note_id: note.to_owned(),
+          created_at: now,
+          expires_at,
+        },
+        true,
+      ))
+    })
+  }
+
+  /// The note's link ended. Answers whether one stood.
+  pub fn end_link(&self, owner: &str, note: &str) -> Result<bool, String> {
+    self.with(|connection| {
+      let ended =
+        connection.execute("DELETE FROM links WHERE owner = ?1 AND note = ?2", params![owner, note])?;
+      Ok(ended == 1)
+    })
+  }
+
+  /// The live note a live link's token opens at `now`, with the link's end.
+  pub fn opened(&self, token: &str, now: i64) -> Result<Option<(Row, Option<i64>)>, String> {
+    self.with(|connection| {
+      connection
+        .prepare_cached(
+          "SELECT n.id, n.owner, n.title, n.version, n.created_at, n.changed_at, length(n.doc), n.deleted_at, \
+           n.doc, l.expires_at FROM links l JOIN notes n ON n.owner = l.owner AND n.id = l.note \
+           WHERE l.token = ?1 AND n.deleted_at IS NULL AND (l.expires_at IS NULL OR l.expires_at > ?2)",
+        )?
+        .query_row(params![token, now], |row| Ok((row_of(row)?, row.get(9)?)))
+        .optional()
+    })
+  }
 }
 
 /// The note at an id, document and all: one note is at most the cap, so reads carry it.
 fn found(connection: &Connection, owner: &str, id: &str) -> rusqlite::Result<Option<Row>> {
   connection
     .prepare_cached(
-      "SELECT id, title, version, created_at, changed_at, length(doc), deleted_at, doc \
+      "SELECT id, owner, title, version, created_at, changed_at, length(doc), deleted_at, doc \
        FROM notes WHERE owner = ?1 AND id = ?2",
     )?
-    .query_row(params![owner, id], |row| {
-      Ok(Row {
-        meta: NoteMeta {
-          id: row.get(0)?,
-          title: row.get(1)?,
-          version: row.get(2)?,
-          created_at: row.get(3)?,
-          changed_at: row.get(4)?,
-          size: row.get(5)?,
-          deleted_at: row.get(6)?,
-        },
-        doc: row.get(7)?,
-      })
-    })
+    .query_row(params![owner, id], row_of)
     .optional()
 }
 
+/// A note row read in the order `found` selects it, document last.
+fn row_of(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
+  Ok(Row {
+    meta: meta_of(row)?,
+    doc: row.get(8)?,
+  })
+}
+
+/// A note's metadata read from a row whose first columns are id, owner, title, version, the two
+/// moments, the document's length and the trash mark; the owner's own access.
 fn meta_of(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteMeta> {
   Ok(NoteMeta {
     id: row.get(0)?,
-    title: row.get(1)?,
-    version: row.get(2)?,
-    created_at: row.get(3)?,
-    changed_at: row.get(4)?,
-    size: row.get(5)?,
-    deleted_at: row.get(6)?,
+    owner: row.get(1)?,
+    title: row.get(2)?,
+    version: row.get(3)?,
+    created_at: row.get(4)?,
+    changed_at: row.get(5)?,
+    size: row.get(6)?,
+    deleted_at: row.get(7)?,
+    access: Access::Owner,
   })
+}
+
+/// A member read from a row of id-less columns: the member, the permission word and the moment shared.
+fn member_of(row: &rusqlite::Row<'_>) -> rusqlite::Result<Member> {
+  Ok(Member {
+    user: row.get(0)?,
+    permission: Permission::of_word(&row.get::<_, String>(1)?),
+    shared_at: row.get(2)?,
+  })
+}
+
+/// A link read from a row of its token, note, moment made and end.
+fn link_of(row: &rusqlite::Row<'_>) -> rusqlite::Result<Link> {
+  Ok(Link {
+    token: row.get(0)?,
+    note_id: row.get(1)?,
+    created_at: row.get(2)?,
+    expires_at: row.get(3)?,
+  })
+}
+
+/// Drops the note's link where its end has passed, so a live link is the one row that stands.
+fn sweep_link(connection: &Connection, owner: &str, note: &str, now: i64) -> rusqlite::Result<()> {
+  connection.execute(
+    "DELETE FROM links WHERE owner = ?1 AND note = ?2 AND expires_at IS NOT NULL AND expires_at <= ?3",
+    params![owner, note, now],
+  )?;
+  Ok(())
+}
+
+/// The note's live link, its passed one swept first.
+fn live_link(connection: &Connection, owner: &str, note: &str, now: i64) -> rusqlite::Result<Option<Link>> {
+  sweep_link(connection, owner, note, now)?;
+  connection
+    .prepare_cached("SELECT token, note, created_at, expires_at FROM links WHERE owner = ?1 AND note = ?2")?
+    .query_row(params![owner, note], link_of)
+    .optional()
+}
+
+fn members_in(connection: &Connection, owner: &str, note: &str) -> rusqlite::Result<Vec<Member>> {
+  connection
+    .prepare_cached(
+      "SELECT member, permission, created_at FROM members WHERE owner = ?1 AND note = ?2 \
+       ORDER BY created_at, member",
+    )?
+    .query_map(params![owner, note], member_of)?
+    .collect()
 }

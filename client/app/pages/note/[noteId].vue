@@ -4,13 +4,16 @@
 // foot, and what must be acted on said in a banner above the document (`docs/design.md`, 「Editing
 // and saving」, 「The console surface」). Nothing is laid into the console's title bar; where no console
 // offers one, the screen draws its own, holding the note's title alone. The format bar is the row
-// under the bar: the way back stands at its leading edge and the talk key at its trailing edge, and
-// the talk's panel is docked beside the document.
+// under the bar: the way back stands at its leading edge, the share key and the talk key at its trailing
+// edge, and the talk's panel is docked beside the document. A note another account shares with the reader
+// is named by its owner in the address and opens as the share's permission allows (`docs/design.md`,
+// 「Sharing on the screens」).
 
 import { computed, inject, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 import { onBeforeRouteLeave, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import HintTip from "bmo-ui/app/components/HintTip.vue";
+import ShareDialog from "bmo-ui/app/components/ShareDialog.vue";
 import ToolBar from "bmo-ui/app/components/ToolBar.vue";
 import { askQuestion } from "bmo-ui/app/domain/question";
 import { relayCall } from "bmo-ui/app/domain/relay";
@@ -20,11 +23,14 @@ import NoteEditor from "../../components/NoteEditor.vue";
 import NoteTalk from "../../components/NoteTalk.vue";
 import NoteToolbar from "../../components/NoteToolbar.vue";
 import { createNoteApi, Refusal, Unreachable } from "../../domain/api";
+import { noteBlobSource } from "../../domain/blobs";
 import { clockOf, sizeOf } from "../../domain/count";
 import { holdsChange, initialSaveState, nextSaveState, versionOf } from "../../domain/save";
+import { CONSOLE_PEOPLE, FIRST_SPAN, linkRoad, linkSpans, memberRoad } from "../../domain/share";
 
 import type { RelayOptions } from "bmo-ui/app/domain/relay";
-import type { Call } from "../../domain/api";
+import type { Call, NoteKey } from "../../domain/api";
+import type { ConsolePeople } from "../../domain/share";
 import type { Holding } from "../../domain/count";
 import type { Note } from "../../../shared/types";
 import type { ReplaceResult } from "../../domain/apply";
@@ -41,14 +47,22 @@ const api = createNoteApi(<T>(path: string, options?: Parameters<Call>[1]) => re
 // laid into it.
 const consoleBar = inject<object | null>("bmo-console-title-bar", null);
 
+// The console's people directory, where it offers one: the share dialog finds members there.
+const people = inject<ConsolePeople | null>(CONSOLE_PEOPLE, null);
+
 const noteId = String(router.currentRoute.value.params.noteId ?? "");
+const ownerQuery = router.currentRoute.value.query.owner;
+// The account a note shared with the reader belongs to; none for the reader's own.
+const ownerKey = typeof ownerQuery === "string" && ownerQuery !== "" ? ownerQuery : undefined;
+const noteKey: NoteKey = { id: noteId, owner: ownerKey };
 const note = shallowRef<Note | null>(null);
 const stand = ref<"loading" | "ready" | "missing" | "failed">("loading");
 const readCount = ref(0);
-const saveState = ref<SaveState>(initialSaveState({ id: noteId, title: "", version: 1, createdAt: 0, changedAt: 0, size: 0, deletedAt: null }));
+const saveState = ref<SaveState>(initialSaveState({ id: noteId, owner: ownerKey ?? "", title: "", version: 1, createdAt: 0, changedAt: 0, size: 0, deletedAt: null, access: "owner" }));
 const editor = shallowRef<InstanceType<typeof NoteEditor> | null>(null);
 const holding = ref<Holding>({ words: 0 });
 const talkOpen = ref(false);
+const shareOpen = ref(false);
 const liveTitle = ref("");
 const retrying = ref(false);
 const reloading = ref(false);
@@ -58,11 +72,20 @@ let unloadGuard: ((event: BeforeUnloadEvent) => void) | null = null;
 
 const changed = computed(() => holdsChange(saveState.value));
 
+// What the reader holds of the note: a `read` share opens it read only, and only the owner shares it.
+const readonly = computed(() => note.value?.access === "read");
+const owns = computed(() => note.value?.access === "owner");
+
+const blobs = computed(() => noteBlobSource(noteId, ownerKey, readonly.value));
+const shareRoad = linkRoad(api, noteId);
+const shareSpans = computed(() => linkSpans((wordKey) => i18n.t(wordKey)));
+const shareMembers = people === null ? undefined : memberRoad(api, people, noteId);
+
 async function read(): Promise<void> {
   stand.value = "loading";
 
   try {
-    const found = await api.read(noteId);
+    const found = await api.read(noteKey);
 
     note.value = found;
     saveState.value = initialSaveState(found);
@@ -111,6 +134,8 @@ onBeforeUnmount(() => {
 });
 
 function onEdit(): void {
+  if (readonly.value) return;
+
   saveState.value = nextSaveState(saveState.value, { type: "edited" });
   count();
 
@@ -180,7 +205,7 @@ async function flush(): Promise<void> {
   const taken = snapshot();
 
   try {
-    const meta = await api.save(held.id, {
+    const meta = await api.save(noteKey, {
       version: versionOf(saveState.value) ?? held.version,
       title: taken?.title,
       doc: taken?.doc
@@ -287,7 +312,11 @@ const saveTone = computed(() => {
   }
 });
 
-const saveSpin = computed(() => saveState.value.kind === "queued" || saveState.value.kind === "saving");
+const saveSpin = computed(() => !readonly.value && (saveState.value.kind === "queued" || saveState.value.kind === "saving"));
+
+// A note open to read only tells so where the save state would stand.
+const footIcon = computed(() => (readonly.value ? "i-material-symbols-lock-outline" : saveIcon.value));
+const footTone = computed(() => (readonly.value ? "text-muted" : saveTone.value));
 
 // The status line: what the note holds, and the save state with the moment the last save landed.
 const wordsLine = computed(() => `${new Intl.NumberFormat(i18n.locale.value).format(holding.value.words)} ${i18n.t("note.label.words")}`);
@@ -295,6 +324,8 @@ const wordsLine = computed(() => `${new Intl.NumberFormat(i18n.locale.value).for
 const sizeLine = computed(() => sizeOf(note.value?.size ?? 0, i18n.locale.value));
 
 const footState = computed(() => {
+  if (readonly.value) return i18n.t("note.label.read_only");
+
   if (saveState.value.kind !== "saved") return saveLabel.value;
 
   return `${i18n.t("note.label.saved")} ${clockOf(note.value?.changedAt ?? Date.now(), i18n.locale.value)}`;
@@ -378,6 +409,8 @@ const refusedLine = computed(() => {
             :note-id="note.id"
             :doc="note.doc"
             :title="titleLine"
+            :blobs="blobs"
+            :readonly="readonly"
             @change="onEdit"
             @title="liveTitle = $event"
             @ready="() => { count(); readTitle(); }"
@@ -385,10 +418,15 @@ const refusedLine = computed(() => {
             <template #barStart>
               <NoteBack />
             </template>
-            <template #barEnd>
-              <HintTip :text="$t('note.action.talk')" press>
-                <UButton size="sm" color="neutral" variant="ghost" icon="i-material-symbols-forum-outline" :label="$t('note.action.talk')" @click="talkOpen = true" />
-              </HintTip>
+            <template v-if="!readonly" #barEnd>
+              <div class="flex shrink-0 items-center gap-1">
+                <HintTip v-if="owns" :text="$t('note.action.share')" press>
+                  <UButton size="sm" color="neutral" variant="ghost" icon="i-material-symbols-share-outline" :label="$t('note.action.share')" @click="shareOpen = true" />
+                </HintTip>
+                <HintTip :text="$t('note.action.talk')" press>
+                  <UButton size="sm" color="neutral" variant="ghost" icon="i-material-symbols-forum-outline" :label="$t('note.action.talk')" @click="talkOpen = true" />
+                </HintTip>
+              </div>
             </template>
           </NoteEditor>
 
@@ -399,8 +437,8 @@ const refusedLine = computed(() => {
               <span class="text-dimmed">·</span>
               <span class="truncate">{{ sizeLine }}</span>
             </span>
-            <span role="status" aria-live="polite" class="inline-flex min-w-0 items-center gap-1.5" :class="saveTone">
-              <UIcon :name="saveIcon" class="size-4 shrink-0" :class="saveSpin ? 'animate-spin' : ''" />
+            <span role="status" aria-live="polite" class="inline-flex min-w-0 items-center gap-1.5" :class="footTone">
+              <UIcon :name="footIcon" class="size-4 shrink-0" :class="saveSpin ? 'animate-spin' : ''" />
               <span class="truncate">{{ footState }}</span>
             </span>
           </div>
@@ -408,7 +446,7 @@ const refusedLine = computed(() => {
       </div>
 
       <NoteTalk
-        v-if="stand === 'ready' && note !== null"
+        v-if="stand === 'ready' && note !== null && !readonly"
         v-model:open="talkOpen"
         :note-id="note.id"
         :title="titleLine"
@@ -418,5 +456,15 @@ const refusedLine = computed(() => {
         :rename="talkRename"
       />
     </div>
+
+    <ShareDialog
+      v-if="owns"
+      v-model:open="shareOpen"
+      :road="shareRoad"
+      :spans="shareSpans"
+      :span="FIRST_SPAN"
+      :members="shareMembers"
+      :subject="titleLine"
+    />
   </div>
 </template>

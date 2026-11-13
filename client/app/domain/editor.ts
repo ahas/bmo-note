@@ -27,11 +27,12 @@ import type { ExtensionType } from "@blocksuite/affine/store";
 const MAX_BLOB_BYTES = 8 * 1024 * 1024;
 
 /** What the editor can ask the screen to say: a line, and a question with an answer; and what the
- * selection toolbar's Ask AI key opens, under the word it wears. */
+ * selection toolbar's Ask AI key opens, under the word it wears, or none where the note stands read
+ * only and the key does not stand. */
 export interface EditorNotice {
   toast: (message: string) => void;
   confirm: (title: string) => Promise<boolean>;
-  ask: () => void;
+  ask: (() => void) | null;
   askLabel: string;
 }
 
@@ -58,26 +59,13 @@ export function pageExtensions(notice: EditorNotice): ExtensionType[] {
     notifyWithUndoAction: (options) => notice.toast(String(options.title ?? ""))
   };
 
+  const ask = notice.ask;
+
   return [
     ...(manager.get("page") as ExtensionType[]),
     FontConfigExtension(CommunityCanvasTextFonts),
     // Ask AI leads the toolbar the editor floats over a text selection (`docs/design.md`, 「Ask AI」).
-    ToolbarModuleExtension({
-      id: BlockFlavourIdentifier("custom:affine:note"),
-      config: {
-        actions: [
-          {
-            id: "A.ask",
-            placement: ActionPlacement.Start,
-            score: -1,
-            label: notice.askLabel,
-            showLabel: true,
-            icon: ASK_ICON,
-            run: () => notice.ask()
-          }
-        ]
-      }
-    }),
+    ...(ask === null ? [] : [askModule(notice.askLabel, ask)]),
     {
       setup: (di: Container) => {
         di.override(DocModeProvider, () => mode);
@@ -86,4 +74,24 @@ export function pageExtensions(notice: EditorNotice): ExtensionType[] {
       }
     }
   ];
+}
+
+/** The selection toolbar's Ask AI key, wearing `label` and opening `ask`. */
+function askModule(label: string, ask: () => void): ExtensionType {
+  return ToolbarModuleExtension({
+    id: BlockFlavourIdentifier("custom:affine:note"),
+    config: {
+      actions: [
+        {
+          id: "A.ask",
+          placement: ActionPlacement.Start,
+          score: -1,
+          label,
+          showLabel: true,
+          icon: ASK_ICON,
+          run: () => ask()
+        }
+      ]
+    }
+  });
 }

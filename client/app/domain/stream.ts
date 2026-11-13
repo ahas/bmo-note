@@ -10,7 +10,7 @@ export type NoteStreamEvent = { kind: string; data: { noteId: string; owner: str
 
 // The kinds the screen reads, each `note.<event>`. They are put together from the event's name, since the
 // bundle build reads a dotted string the screen writes whole under the bundle's name as a key of its words.
-const STREAM_EVENTS = ["saved", "trashed", "restored", "purged"] as const;
+const STREAM_EVENTS = ["saved", "trashed", "restored", "purged", "shared", "unshared"] as const;
 
 export const STREAM_KINDS = STREAM_EVENTS.map((event) => `note.${event}` as const);
 

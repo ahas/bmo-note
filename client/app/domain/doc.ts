@@ -9,6 +9,8 @@ import { TestWorkspace } from "@blocksuite/affine/store/test";
 import * as Y from "yjs";
 
 import { noteBlobSource } from "./blobs";
+
+import type { BlobSource } from "./blobs";
 import { noteTitle } from "./title";
 
 import type { Titlable } from "./title";
@@ -42,13 +44,13 @@ export interface NoteDoc {
   dispose: () => void;
 }
 
-function collection(id: string): TestWorkspace {
+function collection(id: string, blobs: BlobSource): TestWorkspace {
   // Each block's store extension carries its own schema; the store needs none named outright. The
   // meta must be initialized before a doc is made, or the added doc meta lands nowhere and the
   // document stands null — the order every use of this test workspace in the fork keeps. The blob
   // source is the note's own on the service, so an image block never stands on bytes no store holds
   // (`docs/design.md`, 「Storage」).
-  const made = new TestWorkspace({ id, blobSources: { main: noteBlobSource(id) } });
+  const made = new TestWorkspace({ id, blobSources: { main: blobs } });
 
   made.storeExtensions = new StoreExtensionManager(getInternalStoreExtensions()).get("store");
   made.meta.initialize();
@@ -74,7 +76,7 @@ function seed(doc: Doc): void {
 
 /** A new, empty document, standing where a note the service has never held stands. */
 export function emptyNoteDoc(id: string): NoteDoc {
-  const workspace = collection(id);
+  const workspace = collection(id, noteBlobSource(id));
   const doc = workspace.createDoc(id);
 
   seed(doc);
@@ -82,18 +84,19 @@ export function emptyNoteDoc(id: string): NoteDoc {
   return hold(workspace, doc);
 }
 
-/** The document from the bytes the service answered, made empty where the bytes read nothing. */
-export function openNoteDoc(id: string, bytes: Uint8Array): NoteDoc {
-  const workspace = collection(id);
+/** The document from the bytes the service answered, made empty where the bytes read nothing, its images
+ * read through `blobs`. A read-only document refuses every edit the editor would make. */
+export function openNoteDoc(id: string, bytes: Uint8Array, blobs: BlobSource, readonly = false): NoteDoc {
+  const workspace = collection(id, blobs);
   const doc = workspace.createDoc(id);
 
   if (bytes.byteLength > 0) Y.applyUpdate(doc.spaceDoc, bytes);
   else seed(doc);
 
-  return hold(workspace, doc);
+  return hold(workspace, doc, readonly);
 }
 
-function hold(workspace: TestWorkspace, doc: Doc): NoteDoc {
+function hold(workspace: TestWorkspace, doc: Doc, readonly = false): NoteDoc {
   const store = doc.getStore();
 
   // The store's own load arms its extensions, the history extension among them: the fork readies
@@ -101,6 +104,7 @@ function hold(workspace: TestWorkspace, doc: Doc): NoteDoc {
   // test workspace's doc load does not touch, so an unloaded store answers `canUndo` false forever
   // and the editor's undo keys stand dead (`docs/design.md`, 「Editing and saving」).
   store.load();
+  store.readonly = readonly;
 
   return {
     store,

@@ -8,6 +8,8 @@ use serde_json::Value;
 #[serde(rename_all = "camelCase")]
 pub struct NoteMeta {
   pub id: String,
+  /// The account key the note belongs to.
+  pub owner: String,
   /// May be empty; the screen names an empty one by its own word.
   pub title: String,
   /// A whole number from 1, held up on each save.
@@ -18,6 +20,113 @@ pub struct NoteMeta {
   pub size: i64,
   /// Epoch ms of the move to the trash; null while the note lives.
   pub deleted_at: Option<i64>,
+  /// What the caller holds of the note.
+  pub access: Access,
+}
+
+/// What a caller holds of a note: the note's own account, or a member's share (`docs/design.md`, 「Who
+/// owns a note, and who it is shared with」).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Access {
+  Owner,
+  Edit,
+  Read,
+}
+
+impl Access {
+  /// Whether the caller may write the note's document and images.
+  pub fn writes(self) -> bool {
+    matches!(self, Self::Owner | Self::Edit)
+  }
+}
+
+/// The permission a member is given.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Permission {
+  Read,
+  Edit,
+}
+
+impl Permission {
+  /// The word the store keeps the permission as.
+  pub fn word(self) -> &'static str {
+    match self {
+      Self::Read => "read",
+      Self::Edit => "edit",
+    }
+  }
+
+  /// The permission a stored word names; anything but `edit` reads as `read`, the narrower one.
+  pub fn of_word(word: &str) -> Self {
+    if word == "edit" { Self::Edit } else { Self::Read }
+  }
+
+  /// What a member holding the permission holds of the note.
+  pub fn access(self) -> Access {
+    match self {
+      Self::Read => Access::Read,
+      Self::Edit => Access::Edit,
+    }
+  }
+}
+
+/// A note's share link (`docs/api.md`, 「Sharing」).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Link {
+  pub token: String,
+  pub note_id: String,
+  pub created_at: i64,
+  /// Epoch ms the link stops opening; null where it never does.
+  pub expires_at: Option<i64>,
+}
+
+/// A link to make.
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewLink {
+  /// Epoch ms in the future; none for a link that never ends.
+  #[serde(default)]
+  pub expires_at: Option<i64>,
+}
+
+/// One account a note is shared with.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Member {
+  /// The account key.
+  pub user: String,
+  pub permission: Permission,
+  pub shared_at: i64,
+}
+
+/// A share with people.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewMembers {
+  pub users: Vec<String>,
+  pub permission: Permission,
+}
+
+/// A member's permission changed.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemberChange {
+  pub permission: Permission,
+}
+
+/// The note a link opens, as its share page reads it: nothing of the owner's account.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SharedNote {
+  pub id: String,
+  pub title: String,
+  pub changed_at: i64,
+  pub size: i64,
+  pub expires_at: Option<i64>,
+  pub doc: String,
 }
 
 /// A note with its document, base64 (`docs/design.md`, 「What a note is」).
@@ -62,7 +171,10 @@ pub struct NotesQuery {
   /// Answers the trash instead of the live notes.
   #[serde(default)]
   pub deleted: Option<bool>,
-  /// The cursor: `changedAt:id` of the last row of the page before.
+  /// Answers the live notes other accounts share with the caller.
+  #[serde(default)]
+  pub shared: Option<bool>,
+  /// The cursor: `changedAt:id` of the last row of the page before, `changedAt:id:owner` in the shared view.
   #[serde(default)]
   pub after: Option<String>,
   /// The most rows one page holds, 50 where none is given, at most 200.
@@ -77,7 +189,7 @@ pub struct NotesQuery {
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteQuery {
-  /// The account a service-token call acts for.
+  /// The account a service-token call acts for; on a console call, the account whose note it reaches.
   #[serde(default)]
   pub owner: Option<String>,
 }
@@ -89,7 +201,7 @@ pub struct DeleteQuery {
   /// Deletes a trashed note for good instead of trashing a live one.
   #[serde(default)]
   pub purge: Option<bool>,
-  /// The account a service-token call acts for.
+  /// The account a service-token call acts for; on a console call, the account whose note it reaches.
   #[serde(default)]
   pub owner: Option<String>,
 }
@@ -150,4 +262,16 @@ pub struct EventsQuery {
 pub struct NoteEvent {
   pub note_id: String,
   pub owner: String,
+}
+
+/// The data a share's own events carry.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareEvent {
+  pub note_id: String,
+  pub owner: String,
+  pub member: String,
+  /// The permission given; none on `note.unshared`.
+  #[serde(skip_serializing_if = "Option::is_none", default)]
+  pub permission: Option<Permission>,
 }

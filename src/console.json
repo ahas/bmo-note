@@ -12,5 +12,5 @@
   "pushKinds": [],
   "calls": ["receiver"],
   "relays": [],
-  "shareReads": []
+  "shareReads": ["/shares/{token}", "/shares/{token}/blobs/{blobId}"]
 }

@@ -3,6 +3,7 @@
     "title": "노트",
     "view": {
       "live": "노트",
+      "shared": "공유받은 노트",
       "trash": "휴지통"
     },
     "action": {
@@ -21,12 +22,14 @@
       "restore": "복원",
       "retry": "다시 시도",
       "send": "보내기",
+      "share": "공유",
       "table": "표",
       "talk": "의논",
       "turn_into": "종류 변경"
     },
     "label": {
       "conflict": "충돌",
+      "read_only": "읽기 전용",
       "save_failed": "저장 안 됨",
       "saved": "저장됨",
       "saving": "저장 중…",
@@ -79,6 +82,7 @@
     },
     "empty": {
       "live": "아직 노트가 없습니다. 새 노트를 만들어 보세요.",
+      "shared": "공유받은 노트가 없습니다.",
       "trash": "휴지통은 비어 있습니다."
     },
     "status": {
@@ -137,6 +141,13 @@
         "outline": "개요 만들기",
         "brainstorm": "아이디어 내기"
       }
+    },
+    "share": {
+      "missing": "공유되지 않은 노트입니다.",
+      "span_day": "1일",
+      "span_forever": "무기한",
+      "span_month": "30일",
+      "span_week": "7일"
     }
   }
 }

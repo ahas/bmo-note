@@ -3,6 +3,7 @@
     "title": "Notes",
     "view": {
       "live": "Notes",
+      "shared": "Shared with me",
       "trash": "Trash"
     },
     "action": {
@@ -21,12 +22,14 @@
       "restore": "Restore",
       "retry": "Try again",
       "send": "Send",
+      "share": "Share",
       "table": "Table",
       "talk": "Talk",
       "turn_into": "Turn into"
     },
     "label": {
       "conflict": "Conflict",
+      "read_only": "Read only",
       "save_failed": "Not saved",
       "saved": "Saved",
       "saving": "Saving…",
@@ -79,6 +82,7 @@
     },
     "empty": {
       "live": "No notes yet. Make one.",
+      "shared": "No notes are shared with you.",
       "trash": "The trash is empty."
     },
     "status": {
@@ -137,6 +141,13 @@
         "outline": "Make an outline",
         "brainstorm": "Brainstorm ideas"
       }
+    },
+    "share": {
+      "missing": "This note is not shared.",
+      "span_day": "1 day",
+      "span_forever": "Forever",
+      "span_month": "30 days",
+      "span_week": "7 days"
     }
   }
 }

@@ -2,7 +2,9 @@
 // The BlockSuite editor as this unit mounts it: the fork's page editor, one document, page mode, with
 // the bundle's format bar standing over it. The element is the preset's own container, registered once
 // (docs/affine.md, 「What stands borrowed」); its standard scope reaches the bar once the container has
-// drawn, and reaches this file's caller for the foot line's count.
+// drawn, and reaches this file's caller for the foot line's count. A note opened read only — shared with
+// the reader to read, or on its share page — stands with its edits refused, the bar's keys disabled and
+// no Ask AI (`docs/design.md`, 「Sharing on the screens」).
 
 import { onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
@@ -16,6 +18,7 @@ import "@toeverything/theme/style.css";
 import NoteAsk from "./NoteAsk.vue";
 import NoteToolbar from "./NoteToolbar.vue";
 import { applyOps, readRows, replaceBody, runOf } from "../domain/apply";
+import { noteBlobSource } from "../domain/blobs";
 import { ensureEditorRegistered, fromBase64, openNoteDoc, toBase64 } from "../domain/doc";
 import { pageExtensions } from "../domain/editor";
 import { countHolding } from "../domain/count";
@@ -25,6 +28,7 @@ import { linesOf, opaqueRow } from "../domain/text";
 import { followScreenMode } from "../domain/theme";
 import { writeNoteTitle } from "../domain/title";
 
+import type { BlobSource } from "../domain/blobs";
 import type { EditorNotice } from "../domain/editor";
 import type { Holding } from "../domain/count";
 import type { NoteDoc } from "../domain/doc";
@@ -32,7 +36,19 @@ import type { ReplaceResult } from "../domain/apply";
 import type { Op } from "../domain/patch";
 import type { BlockStdScope } from "@blocksuite/affine/std";
 
-const props = defineProps<{ noteId: string; doc: string; title: string }>();
+const props = withDefaults(
+  defineProps<{
+    noteId: string;
+    doc: string;
+    title: string;
+    /** Where the note's images are read and stored; the reader's own note's routes where none is given. */
+    blobs?: BlobSource;
+    readonly?: boolean;
+    /** Whether the format bar stands over the document. */
+    toolbar?: boolean;
+  }>(),
+  { blobs: undefined, readonly: false, toolbar: true }
+);
 
 const emit = defineEmits<{ change: []; title: [title: string]; ready: [] }>();
 
@@ -55,7 +71,7 @@ const notice: EditorNotice = {
   },
   confirm: async (title: string) =>
     (await overlay.create(QuestionDialog, { props: { title, confirm: i18n.t("note.action.apply"), leaving: true }, destroyOnClose: true }).open()) === true,
-  ask: () => openAsk(),
+  ask: props.readonly ? null : () => openAsk(),
   askLabel: i18n.t("note.ask.key")
 };
 
@@ -99,7 +115,7 @@ function placeAsked(how: "replace" | "below", lines: string[]): void {
 onMounted(async () => {
   await ensureEditorRegistered();
 
-  held = openNoteDoc(props.noteId, fromBase64(props.doc));
+  held = openNoteDoc(props.noteId, fromBase64(props.doc), props.blobs ?? noteBlobSource(props.noteId), props.readonly);
 
   stopChange = held.onChange(() => {
     emit("change");
@@ -116,7 +132,7 @@ onMounted(async () => {
     updateComplete?: Promise<boolean>;
   };
 
-  container.autofocus = true;
+  container.autofocus = !props.readonly;
   container.doc = held.store;
   container.pageSpecs = pageExtensions(notice);
   host.value?.append(container);
@@ -204,7 +220,7 @@ defineExpose({
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col">
-    <NoteToolbar :std="scope" @failed="toast.add({ title: $t('note.error.image_failed'), color: 'error' })" @ask="openAsk">
+    <NoteToolbar v-if="props.toolbar" :std="props.readonly ? null : scope" @failed="toast.add({ title: $t('note.error.image_failed'), color: 'error' })" @ask="openAsk">
       <template v-if="$slots.barStart" #start>
         <slot name="barStart" />
       </template>
@@ -215,6 +231,7 @@ defineExpose({
     <div ref="host" data-note-editor class="note-editor-host min-h-0 flex-1 overflow-y-auto" />
 
     <NoteAsk
+      v-if="!props.readonly"
       v-model:open="asking"
       :note-id="props.noteId"
       :title="props.title"

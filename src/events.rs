@@ -15,13 +15,27 @@ use crate::wire::StreamEvent;
 pub const KEPT: usize = 1000;
 
 /// The kinds the note service publishes.
-pub const KINDS: [&str; 4] = ["note.saved", "note.trashed", "note.restored", "note.purged"];
+pub const KINDS: [&str; 6] = [
+  "note.saved",
+  "note.trashed",
+  "note.restored",
+  "note.purged",
+  "note.shared",
+  "note.unshared",
+];
 
-/// One event, and the account whose note it is: a console reader is given its own alone.
+/// One event, and the accounts it reaches: a console reader is given an event it stands among alone.
 #[derive(Clone, Debug)]
 pub struct Record {
   pub event: StreamEvent,
-  pub owner: String,
+  pub audience: Vec<String>,
+}
+
+impl Record {
+  /// Whether the event reaches the account.
+  pub fn reaches(&self, account: &str) -> bool {
+    self.audience.iter().any(|one| one == account)
+  }
 }
 
 /// The kept events and the live readers.
@@ -56,8 +70,8 @@ impl Events {
     self.first
   }
 
-  /// One event published.
-  pub fn publish(&self, kind: &str, data: impl Serialize, owner: &str) {
+  /// One event published to the accounts of `audience`.
+  pub fn publish(&self, kind: &str, data: impl Serialize, audience: Vec<String>) {
     let Ok(mut kept) = self.kept.lock() else {
       return;
     };
@@ -69,7 +83,7 @@ impl Events {
         at: now_ms(),
         data: serde_json::to_value(data).unwrap_or_default(),
       },
-      owner: owner.to_owned(),
+      audience,
     };
     kept.1.push_back(record.clone());
     while kept.1.len() > KEPT {

@@ -1,12 +1,14 @@
 <script setup lang="ts">
-// The notes list: the account's own, newest changed first, with the trash kept a view away. The head
+// The notes list: the account's own, newest changed first, with the notes other accounts share with the
+// reader and the trash each kept a view away. The head
 // names the screen where the console offers no bar and carries the view switch and the new-note
 // action; a row reads title first, then what the note holds and when it changed. A row opens its
 // note; its actions stand at its right. The list is built again on the way back from a note and finds
 // its place: the scroll stands where it was, and the row just read is kept in sight and marked for a
-// breath (`docs/design.md`, 「The console surface」).
+// breath (`docs/design.md`, 「The console surface」). A shared row names the account that shared it, by
+// the name the console's people directory answers, and carries no actions.
 
-import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef } from "vue";
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useToast } from "@nuxt/ui/composables/useToast";
@@ -14,8 +16,10 @@ import HintTip from "bmo-ui/app/components/HintTip.vue";
 
 import { rememberVisit, takeVisit, useNotes } from "../../composables/useNotes";
 import { sizeOf } from "../../domain/count";
+import { CONSOLE_PEOPLE } from "../../domain/share";
 
-import type { NoteMeta } from "../../../shared/types";
+import type { ConsolePeople } from "../../domain/share";
+import type { NoteMeta, NotesView } from "../../../shared/types";
 
 /// How long the row the reader came back from wears its mark: a breath to find it in, not a state.
 const FLASH_MS = 1_600;
@@ -33,7 +37,45 @@ const confirming = ref<string | null>(null);
 const working = ref<string | null>(null);
 const retrying = ref(false);
 
+const people = inject<ConsolePeople | null>(CONSOLE_PEOPLE, null);
+
 const live = computed(() => notes.view.value === "live");
+const shared = computed(() => notes.view.value === "shared");
+// A row of the live or the shared view opens its note; a trashed row is acted on, not read.
+const opens = computed(() => notes.view.value !== "trash");
+
+const viewItems = computed(() => [
+  { label: i18n.t("note.view.live"), value: "live" },
+  { label: i18n.t("note.view.shared"), value: "shared" },
+  { label: i18n.t("note.view.trash"), value: "trash" }
+]);
+
+// The names of the accounts that shared the rows of the shared view, as the people directory answers each
+// key once; a key it answers none for stands as itself.
+const ownerNames = ref<Record<string, string>>({});
+
+watch(
+  () => (shared.value ? notes.rows.value.map((note) => note.owner) : []),
+  (owners) => {
+    if (people === null) return;
+
+    for (const owner of new Set(owners)) {
+      if (owner in ownerNames.value) continue;
+
+      ownerNames.value = { ...ownerNames.value, [owner]: owner };
+      void people
+        .person(owner)
+        .then((person) => {
+          if (person !== null) ownerNames.value = { ...ownerNames.value, [owner]: person.name };
+        })
+        .catch(() => {});
+    }
+  }
+);
+
+function rowKey(note: NoteMeta): string {
+  return `${note.owner}/${note.id}`;
+}
 
 // The list is built again on the way back from a note: the scroll left where it was, and the row just
 // read is found, kept in sight, and marked for a breath. Where the row is gone — trashed meanwhile, or
@@ -83,11 +125,13 @@ async function returnToVisit(): Promise<void> {
 }
 
 function open(note: NoteMeta): void {
-  if (!live.value) return;
+  if (!opens.value) return;
 
   rememberVisit(note.id, list.value?.scrollTop ?? 0);
 
-  void router.push(`/note/${encodeURIComponent(note.id)}`);
+  const address = `/note/${encodeURIComponent(note.id)}`;
+
+  void router.push(shared.value ? `${address}?owner=${encodeURIComponent(note.owner)}` : address);
 }
 
 async function makeNew(): Promise<void> {
@@ -178,13 +222,27 @@ function titleText(note: NoteMeta): string {
   return note.title === "" ? i18n.t("note.label.untitled") : note.title;
 }
 
-// The second line of a row: what the note holds, then when it changed; a trashed row names its moment
-// as the one it went to the trash, not as an edit.
+// The second line of a row: what the note holds, then when it changed; a shared row names first who
+// shared it, and a trashed row names its moment as the one it went to the trash, not as an edit.
 function detailText(note: NoteMeta): string {
   const size = sizeOf(note.size, i18n.locale.value);
 
+  if (shared.value) return `${ownerNames.value[note.owner] ?? note.owner} · ${size} · ${changedText(note)}`;
+
   return live.value ? `${size} · ${changedText(note)}` : `${size} · ${i18n.t("note.label.trashed")} ${changedText(note)}`;
 }
+
+const emptyIcon = computed(() => {
+  if (live.value) return "i-material-symbols-edit-note-outline";
+
+  return shared.value ? "i-material-symbols-folder-shared-outline" : "i-material-symbols-delete-outline";
+});
+
+const emptyText = computed(() => {
+  if (live.value) return i18n.t("note.empty.live");
+
+  return shared.value ? i18n.t("note.empty.shared") : i18n.t("note.empty.trash");
+});
 </script>
 
 <template>
@@ -198,15 +256,12 @@ function detailText(note: NoteMeta): string {
 
         <div class="flex items-center gap-2">
           <UTabs
-            :items="[
-              { label: $t('note.view.live'), value: 'live' },
-              { label: $t('note.view.trash'), value: 'trash' }
-            ]"
+            :items="viewItems"
             :model-value="notes.view.value"
             :content="false"
             color="neutral"
             class="shrink-0"
-            @update:model-value="notes.switchView($event as 'live' | 'trash')"
+            @update:model-value="notes.switchView($event as NotesView)"
           />
           <UButton
             icon="i-material-symbols-add"
@@ -240,8 +295,8 @@ function detailText(note: NoteMeta): string {
         </div>
 
         <div v-else-if="notes.rows.value.length === 0" class="flex flex-col items-center gap-3 py-20 text-center">
-          <UIcon :name="live ? 'i-material-symbols-edit-note-outline' : 'i-material-symbols-delete-outline'" class="size-10 text-dimmed" />
-          <p class="text-sm text-muted">{{ live ? $t("note.empty.live") : $t("note.empty.trash") }}</p>
+          <UIcon :name="emptyIcon" class="size-10 text-dimmed" />
+          <p class="text-sm text-muted">{{ emptyText }}</p>
           <UButton v-if="live" icon="i-material-symbols-add" :label="$t('note.action.new')" :loading="notes.creating.value" @click="makeNew" />
         </div>
 
@@ -254,7 +309,7 @@ function detailText(note: NoteMeta): string {
           </p>
 
           <ul class="flex flex-col gap-1">
-            <li v-for="note in notes.rows.value" :key="note.id" :data-note="note.id">
+            <li v-for="note in notes.rows.value" :key="rowKey(note)" :data-note="note.id">
               <!-- The row: the title takes the room; what it holds and when it changed stand under it.
                    A row the reader has just come back from wears the chosen tone for a breath. -->
               <div
@@ -263,12 +318,12 @@ function detailText(note: NoteMeta): string {
                 :class="justRead === note.id ? 'bg-elevated' : ''"
               >
                 <component
-                  :is="live ? 'button' : 'div'"
-                  :type="live ? 'button' : undefined"
+                  :is="opens ? 'button' : 'div'"
+                  :type="opens ? 'button' : undefined"
                   class="flex min-w-0 flex-1 items-center gap-3 py-0.5 text-start focus-inset"
                   @click="open(note)"
                 >
-                  <UIcon :name="live ? 'i-material-symbols-description-outline' : 'i-material-symbols-delete-outline'" class="size-5 shrink-0 text-dimmed" />
+                  <UIcon :name="opens ? 'i-material-symbols-description-outline' : 'i-material-symbols-delete-outline'" class="size-5 shrink-0 text-dimmed" />
                   <span class="flex min-w-0 flex-1 flex-col gap-0.5">
                     <HintTip
                       :text="titleText(note)"
@@ -296,7 +351,7 @@ function detailText(note: NoteMeta): string {
                     @click="askDelete(note)"
                   />
                 </HintTip>
-                <template v-else>
+                <template v-else-if="!shared">
                   <HintTip :text="$t('note.action.restore')" press>
                     <UButton
                       color="neutral"

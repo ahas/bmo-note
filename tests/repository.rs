@@ -19,13 +19,15 @@ const ROOT: &str = env!("CARGO_MANIFEST_DIR");
 const UNIT_FOLDERS: [&str; 4] = ["src", "client", "deploy", ".graph"];
 
 /// The files under the fork's own `docs/` and `tests/` that belong to the unit.
-const UNIT_LOOSE_FILES: [&str; 9] = [
+const UNIT_LOOSE_FILES: [&str; 11] = [
   "docs/design.md",
   "docs/api.md",
   "docs/affine.md",
   "tests/main.rs",
   "tests/support.rs",
   "tests/notes.rs",
+  "tests/blobs.rs",
+  "tests/sharing.rs",
   "tests/events.rs",
   "tests/console.rs",
   "tests/repository.rs",

@@ -8,7 +8,7 @@ import type { NoteMeta } from "../shared/types";
 // what came after it, and a conflict keeps the standing version for the reader to act on.
 
 function held(over: Partial<NoteMeta> = {}): NoteMeta {
-  return { id: "a1", title: "Groceries", version: 3, createdAt: 1, changedAt: 2, size: 10, deletedAt: null, ...over };
+  return { id: "a1", owner: "1", title: "Groceries", version: 3, createdAt: 1, changedAt: 2, size: 10, deletedAt: null, access: "owner", ...over };
 }
 
 describe("the save machine", () => {

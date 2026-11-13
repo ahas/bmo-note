@@ -53,7 +53,10 @@ export function useNotes() {
   function pageCursor(page: { items: NoteMeta[]; more: boolean }): string | null {
     const last = page.items[page.items.length - 1];
 
-    return last === undefined ? null : `${last.changedAt}:${last.id}`;
+    if (last === undefined) return null;
+
+    // Two accounts may each hold a note at one id, so the shared view's rows are told apart by owner too.
+    return view.value === "shared" ? `${last.changedAt}:${last.id}:${last.owner}` : `${last.changedAt}:${last.id}`;
   }
 
   async function load(): Promise<void> {
@@ -151,7 +154,7 @@ export function useNotes() {
   }
 
   async function restore(id: string, version: number): Promise<void> {
-    await api.save(id, { version, restore: true });
+    await api.save({ id }, { version, restore: true });
     await load();
   }
 

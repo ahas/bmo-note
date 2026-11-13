@@ -30,6 +30,7 @@ async fn the_served_manifest_is_read_by_the_contract_on_the_vendored_release() {
   assert_eq!(read["ownerKey"], true);
   assert_eq!(read["events"], true);
   assert_eq!(read["calls"], json!(["receiver"]));
+  assert_eq!(read["shareReads"], json!(["/shares/{token}", "/shares/{token}/blobs/{blobId}"]));
 
   // The face takes the console's credential, never the service's own token.
   let (status, _) = answered(ran.call("GET", "/console-manifest")).await;
@@ -43,6 +44,9 @@ async fn the_served_manifest_is_read_by_the_contract_on_the_vendored_release() {
   let response = ran.as_reader("GET", module, "1", "member").send().await.expect("the module answers");
   assert_eq!(response.status(), StatusCode::OK);
   assert_eq!(response.text().await.expect("the module reads"), "export default { routes: [] };\n");
+  // The share page's reader holds no session, so the module of a manifest naming share reads is theirs too.
+  let response = ran.as_console("GET", module).send().await.expect("the module answers");
+  assert_eq!(response.status(), StatusCode::OK);
 
   // How the deployment's console probe reaches this very service.
   assert_eq!(reach, json!({ "address": ran.address, "consoleToken": CONSOLE, "token": TOKEN }));

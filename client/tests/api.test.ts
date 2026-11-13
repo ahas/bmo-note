@@ -150,15 +150,15 @@ describe("the note api", () => {
 
     expect(page.items.map((row) => row.id)).toEqual(["b2", "a1"], "newest changed first");
 
-    const note = await api.read("b2");
+    const note = await api.read({ id: "b2" });
 
     expect(note.doc).toBe("eA==");
   });
 
   test("saves forward and refuses a save from behind", async () => {
-    await expect(api.save("a1", { version: 1, title: "Market run", doc: "eQ==" })).resolves.toMatchObject({ version: 2, title: "Market run" });
+    await expect(api.save({ id: "a1" }, { version: 1, title: "Market run", doc: "eQ==" })).resolves.toMatchObject({ version: 2, title: "Market run" });
 
-    const failure = await api.save("a1", { version: 1, doc: "eq==" }).catch((error: unknown) => error);
+    const failure = await api.save({ id: "a1" }, { version: 1, doc: "eq==" }).catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(Refusal);
     expect((failure as Refusal).status).toBe(409);
@@ -173,19 +173,19 @@ describe("the note api", () => {
 
     expect(trash.items.map((row) => row.id)).toEqual(["a1"]);
 
-    await expect(api.read("a1")).rejects.toBeInstanceOf(Refusal);
-    await expect(api.save("a1", { version: 2, doc: "Zw==" })).rejects.toMatchObject({ code: "trashed" });
+    await expect(api.read({ id: "a1" })).rejects.toBeInstanceOf(Refusal);
+    await expect(api.save({ id: "a1" }, { version: 2, doc: "Zw==" })).rejects.toMatchObject({ code: "trashed" });
 
-    await api.save("a1", { version: 2, restore: true });
+    await api.save({ id: "a1" }, { version: 2, restore: true });
     await api.trash("a1");
     await expect(api.purge("a1")).resolves.toBeUndefined();
-    expect((await api.read("a1").catch((error: unknown) => error)).constructor).toBe(Refusal);
+    expect((await api.read({ id: "a1" }).catch((error: unknown) => error)).constructor).toBe(Refusal);
   });
 
   test("answers a refusal with its code", async () => {
     refuse = { status: 413, code: "too-large" };
 
-    const failure = await api.save("b2", { version: 2, doc: "eA==" }).catch((error: unknown) => error);
+    const failure = await api.save({ id: "b2" }, { version: 2, doc: "eA==" }).catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(Refusal);
     expect((failure as Refusal).code).toBe("too-large");

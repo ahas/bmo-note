@@ -84,3 +84,26 @@ pub fn parse_cursor(after: &str) -> Option<(i64, String)> {
   let (moment, id) = after.split_once(':')?;
   Some((moment.parse().ok()?, id.to_owned()))
 }
+
+/// The shared view's cursor, `changedAt:id:owner`, where it reads; an owner key may itself hold colons.
+pub fn parse_shared_cursor(after: &str) -> Option<(i64, String, String)> {
+  let (moment, rest) = parse_cursor(after)?;
+  let (id, owner) = rest.split_once(':')?;
+  Some((moment, id.to_owned(), owner.to_owned()))
+}
+
+/// The bytes of randomness a link's token is made of.
+const TOKEN_BYTES: usize = 24;
+
+/// A share link's token: random bytes from the system's source, as 32 base64url characters.
+pub fn fresh_token() -> Result<String, String> {
+  use std::io::Read;
+  let mut bytes = [0u8; TOKEN_BYTES];
+  std::fs::File::open("/dev/urandom")
+    .and_then(|mut source| source.read_exact(&mut bytes))
+    .map_err(|why| format!("the system's randomness: {why}"))?;
+  Ok(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes))
+}
+
+/// The most characters an account key holds, as the console's `Owner-Key` is held to.
+pub const KEY_MAX: usize = 200;

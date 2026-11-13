@@ -8,6 +8,7 @@ pub mod error;
 pub mod events;
 pub mod model;
 pub mod settings;
+pub mod share;
 pub mod store;
 pub mod wire;
 
