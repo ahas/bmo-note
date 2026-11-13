@@ -1,7 +1,7 @@
 // A host of one's own: the smallest Nuxt app that loads this bundle as a console would, for a worker's
 // browser check of the screens before the platform console is told about the unit at all (the job report
-// names what it stands in for and what it cannot). It is not the console: the frame, the sign-in and the
-// owner headers the console sets stand here as fixed development values.
+// names what it stands in for and what it cannot). It is not the console: the frame, the sign-in, the
+// owner headers the console sets and the people directory it offers stand here as development values.
 import { vanillaExtractPlugin } from "@vanilla-extract/vite-plugin";
 
 export default defineNuxtConfig({

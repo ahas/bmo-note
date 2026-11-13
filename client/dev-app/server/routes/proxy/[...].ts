@@ -1,8 +1,13 @@
 // The dev relay: /proxy/<service>/<path...> forwarded to the service on its loopback port with the
-// development credential and a fixed reader, the headers the console would set on every call. The
+// development credential and a reader, the headers the console would set on every call. The reader is the
+// one the browser names with the dev host's reader cookie, else the fixed development one, so a browser
+// test can act as each account a note is shared between. The
 // bundle's manifest names the receiver under `calls` for the note's talk panel, so the relay carries
 // both roads the console relays. Nothing of a deployment's tokens stands here; the values come from
 // the environment the host runs with.
+
+/** The cookie a browser names the reader by; the dev host's own, never the console's. */
+const READER_COOKIE = "bmo-dev-reader";
 
 const SERVICES: Record<string, { address: string; token: string }> = {
   note: {
@@ -23,7 +28,7 @@ export default defineEventHandler(async (event) => {
     method: event.method,
     headers: {
       authorization: `Bearer ${service.token}`,
-      "owner-key": process.env.BMO_DEV_OWNER_KEY ?? "1",
+      "owner-key": getCookie(event, READER_COOKIE) || (process.env.BMO_DEV_OWNER_KEY ?? "1"),
       "owner-role": process.env.BMO_DEV_OWNER_ROLE ?? "member",
       ...(event.headers.get("content-type") ? { "content-type": String(event.headers.get("content-type")) } : {})
     },

@@ -196,7 +196,7 @@ studied of AFFiNE and under which licence.
   for a note another account shared), and the share page a link opens (`/note/share/<token>`).
   - The list's head names the screen where the console draws no bar, and carries the view switch
     between the live notes, the notes shared with the reader and the trash, and the key that makes a
-    new note. A row of the shared view names under its title the account that shared it, by the name
+    new note, which stands as its icon alone on a phone so the row keeps to one line. A row of the shared view names under its title the account that shared it, by the name
     the people directory answers, and carries no actions: the trash is the owner's. Its rows stand newest
     changed first, each with the note's title on its own line and, under it, what the note holds —
     its stored size — and the moment it changed (the moment it went to the trash, in the trash
@@ -291,6 +291,14 @@ studied of AFFiNE and under which licence.
 - **The share page stands with no frame of the console's,** its own bar holding the note's title, and
   under it the document read only, its images read through the link. A link that opens nothing stands
   as its own state, one line saying the note is not shared.
+- **The sharing browser test holds the screens to this.** On the same throwaway service and dev host as
+  the screens' test, it drives the share dialog in a real browser: the owner makes a link and the share
+  page opens the note read only with no format bar; the owner finds a member in the people directory and
+  shares the note; the member finds it in the shared view and opens it read only, with no share or talk
+  key; a reader it is not shared with finds no note; and once the owner takes the member off, the member
+  finds no note either. The dev host stands in for the console's people directory with a few made-up
+  people, and a browser names the reader the relay presents by a cookie of the dev host's own, so one
+  test acts as each of the three accounts.
 
 ## Deployment shape
 

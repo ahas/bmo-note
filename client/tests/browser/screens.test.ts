@@ -292,15 +292,15 @@ describe.skipIf(!ready).each(WIDTHS.flatMap((width) => SCHEMES.map((scheme) => (
         expect(await title.locator("button, a").count()).toBe(0);
 
         const newNote = newNoteKey(page);
-        const row = newNote.locator("xpath=..");
+        const row = page.locator("[data-list-row]");
         const measured = await keys(row);
         const end = measured.find((one) => one.name === WORDS.action.new)!;
 
-        expect(measured.map((one) => one.name)).toEqual([WORDS.view.live, WORDS.view.trash, WORDS.action.new]);
+        expect(measured.map((one) => one.name)).toEqual([WORDS.view.live, WORDS.view.shared, WORDS.view.trash, WORDS.action.new]);
         expect(Math.abs(end.row.right - end.box.right)).toBeLessThanOrEqual(1);
         centred(measured);
 
-        for (const name of [WORDS.view.live, WORDS.view.trash]) {
+        for (const name of [WORDS.view.live, WORDS.view.shared, WORDS.view.trash]) {
           await hoverStaysOnKey(page, row, row.getByRole("tab", { name }), name, false);
         }
 

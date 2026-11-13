@@ -13,6 +13,7 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useToast } from "@nuxt/ui/composables/useToast";
 import HintTip from "bmo-ui/app/components/HintTip.vue";
+import IconButton from "bmo-ui/app/components/IconButton.vue";
 
 import { rememberVisit, takeVisit, useNotes } from "../../composables/useNotes";
 import { sizeOf } from "../../domain/count";
@@ -23,6 +24,10 @@ import type { NoteMeta, NotesView } from "../../../shared/types";
 
 /// How long the row the reader came back from wears its mark: a breath to find it in, not a state.
 const FLASH_MS = 1_600;
+
+/// The widths below the library's small breakpoint, where the head's row holds the three views and the
+/// new-note key as its icon alone, so the row stays one line on a phone.
+const NARROW = "(max-width: 639.98px)";
 
 const i18n = useI18n();
 const router = useRouter();
@@ -85,11 +90,20 @@ const justRead = ref<string | null>(null);
 
 let flashTimer: ReturnType<typeof setTimeout> | null = null;
 
+const narrowQuery = matchMedia(NARROW);
+const narrow = ref(narrowQuery.matches);
+
+function followWidth(event: MediaQueryListEvent): void {
+  narrow.value = event.matches;
+}
+
 onMounted(() => {
+  narrowQuery.addEventListener("change", followWidth);
   void notes.load().then(() => void returnToVisit());
 });
 
 onBeforeUnmount(() => {
+  narrowQuery.removeEventListener("change", followWidth);
   if (flashTimer !== null) clearTimeout(flashTimer);
 });
 
@@ -254,7 +268,7 @@ const emptyText = computed(() => {
         <!-- Where the console draws no bar, the screen names itself before the row of actions. -->
         <h1 v-if="consoleBar === null" class="text-xl font-semibold text-highlighted">{{ $t("note.title") }}</h1>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2" data-list-row>
           <UTabs
             :items="viewItems"
             :model-value="notes.view.value"
@@ -263,14 +277,25 @@ const emptyText = computed(() => {
             class="shrink-0"
             @update:model-value="notes.switchView($event as NotesView)"
           />
-          <UButton
-            icon="i-material-symbols-add"
-            :label="$t('note.action.new')"
-            :loading="notes.creating.value"
-            :aria-label="$t('note.action.new')"
-            class="ms-auto"
-            @click="makeNew"
-          />
+          <div class="ms-auto flex shrink-0 items-center">
+            <IconButton
+              v-if="narrow"
+              color="primary"
+              variant="solid"
+              icon="i-material-symbols-add"
+              :label="$t('note.action.new')"
+              :loading="notes.creating.value"
+              @click="makeNew"
+            />
+            <UButton
+              v-else
+              icon="i-material-symbols-add"
+              :label="$t('note.action.new')"
+              :loading="notes.creating.value"
+              :aria-label="$t('note.action.new')"
+              @click="makeNew"
+            />
+          </div>
         </div>
       </div>
     </header>
