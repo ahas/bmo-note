@@ -195,14 +195,20 @@ studied of AFFiNE and under which licence.
 - Three screens stand under `/note`: the list, the editor (`/note/<id>`, and `/note/<id>?owner=<key>`
   for a note another account shared), and the share page a link opens (`/note/share/<token>`).
   - The list's head names the screen where the console draws no bar, and carries the view switch
-    between the live notes, the notes shared with the reader and the trash, and the key that makes a
-    new note, which stands as its icon alone on a phone so the row keeps to one line. A row of the shared view names under its title the account that shared it, by the name
+    between the live notes, the notes shared with the reader and the trash, with the layer's one create
+    button (bmo-ui `docs/components.md`, "Creating") at the row's right end: a grey icon whose tooltip
+    names a new note and its key, `n`. On a phone that button floats at the screen's bottom right
+    instead, the row holds the view switch alone, and the list's scrolling end keeps the layer's create
+    room, so its last row scrolled to the end stands clear of the button. A press makes the note and
+    opens it; a note that could not be made says so and the list stands. A row of the shared view
+    names under its title the account that shared it, by the name
     the people directory answers, and carries no actions: the trash is the owner's. Its rows stand newest
     changed first, each with the note's title on its own line and, under it, what the note holds —
     its stored size — and the moment it changed (the moment it went to the trash, in the trash
     view), with its actions at the trailing edge. The first fetch reserves the rows with a skeleton
-    of their shape; an empty view and a read that failed stand as their own states, in one line with
-    the key each offers; a re-read that failed keeps the rows that stand and says so above them.
+    of their shape; an empty view stands as one line saying so, with no key of its own beside the
+    create button; a read that failed stands as its own state, in one line with the key that tries
+    again; a re-read that failed keeps the rows that stand and says so above them.
     Opening a note marks the visit; coming back finds the list where it was left — the scroll stands
     where it stood when the note was opened, the note just read is brought into sight and marked for
     a breath, and where that row no longer stands (trashed meanwhile, or past the rows held) the
@@ -215,7 +221,7 @@ studied of AFFiNE and under which licence.
     read the format bar already stands, its keys disabled; where the note is missing or could not be
     read, the row stands with the way back alone.
 - Neither screen reads the places the console's title bar offers for a screen's actions and way back:
-  the list's view switch and new-note key stand in its own row under the bar, and the open note's way
+  the list's view switch and create button stand in its own row under the bar, and the open note's way
   back stands at the leading end of its format bar, its share key and talk key at the trailing end.
 
 - The list stands in the console's content width — at most its `--ui-container` across, centred — as
@@ -241,8 +247,10 @@ studied of AFFiNE and under which licence.
 - **The screens' browser test holds them to these rows.** It builds the note service from the checkout,
   starts it on a settings folder and a store of its own, starts the bundle's dev host relaying to it as
   the console would, and drives both screens in a real browser at 1,280 and 360 pixels wide, in the light
-  and the dark scheme: the list names itself with nothing beside the name and its own row ends with the
-  new-note key; every key of the format bar is the library's small button, an icon-only one its small
+  and the dark scheme: the list names itself with nothing beside the name; on a wide screen its own row
+  ends with the create button, a grey icon whose tooltip names a new note and its key, and the key makes
+  a note; on a phone the row holds the view switch alone, the create button floats at the bottom right,
+  and the last row scrolled to the end stands clear of it; every key of the format bar is the library's small button, an icon-only one its small
   square; every key of either row stands centred with room above and below it, its hover filling its own
   shape and never its cell or the row; the way back and the talk key stay in sight while the keys scroll on
   a phone; and a missing note keeps the row with the way back alone. It runs in the suite's browser lane,

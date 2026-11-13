@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // The notes list: the account's own, newest changed first, with the notes other accounts share with the
-// reader and the trash each kept a view away. The head
-// names the screen where the console offers no bar and carries the view switch and the new-note
-// action; a row reads title first, then what the note holds and when it changed. A row opens its
+// reader and the trash each kept a view away. The head names the screen where the console offers no
+// bar and carries the view switch and the layer's one create button, which floats at the screen's foot
+// on a phone; a row reads title first, then what the note holds and when it changed. A row opens its
 // note; its actions stand at its right. The list is built again on the way back from a note and finds
 // its place: the scroll stands where it was, and the row just read is kept in sight and marked for a
 // breath (`docs/design.md`, 「The console surface」). A shared row names the account that shared it, by
@@ -13,7 +13,7 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useToast } from "@nuxt/ui/composables/useToast";
 import HintTip from "bmo-ui/app/components/HintTip.vue";
-import IconButton from "bmo-ui/app/components/IconButton.vue";
+import CreateButton from "bmo-ui/app/components/CreateButton.vue";
 
 import { rememberVisit, takeVisit, useNotes } from "../../composables/useNotes";
 import { sizeOf } from "../../domain/count";
@@ -25,17 +25,13 @@ import type { NoteMeta, NotesView } from "../../../shared/types";
 /// How long the row the reader came back from wears its mark: a breath to find it in, not a state.
 const FLASH_MS = 1_600;
 
-/// The widths below the library's small breakpoint, where the head's row holds the three views and the
-/// new-note key as its icon alone, so the row stays one line on a phone.
-const NARROW = "(max-width: 639.98px)";
-
 const i18n = useI18n();
 const router = useRouter();
 const notes = useNotes();
 const toast = useToast();
 
 // The console's bar, where it offers one: it names the screen, so this one draws no title of its own. Nothing is
-// laid into it; the view switch and the new-note key stand in the screen's own row under it.
+// laid into it; the view switch and the create button stand in the screen's own row under it.
 const consoleBar = inject<object | null>("bmo-console-title-bar", null);
 
 const confirming = ref<string | null>(null);
@@ -90,20 +86,11 @@ const justRead = ref<string | null>(null);
 
 let flashTimer: ReturnType<typeof setTimeout> | null = null;
 
-const narrowQuery = matchMedia(NARROW);
-const narrow = ref(narrowQuery.matches);
-
-function followWidth(event: MediaQueryListEvent): void {
-  narrow.value = event.matches;
-}
-
 onMounted(() => {
-  narrowQuery.addEventListener("change", followWidth);
   void notes.load().then(() => void returnToVisit());
 });
 
 onBeforeUnmount(() => {
-  narrowQuery.removeEventListener("change", followWidth);
   if (flashTimer !== null) clearTimeout(flashTimer);
 });
 
@@ -277,30 +264,14 @@ const emptyText = computed(() => {
             class="shrink-0"
             @update:model-value="notes.switchView($event as NotesView)"
           />
-          <div class="ms-auto flex shrink-0 items-center">
-            <IconButton
-              v-if="narrow"
-              color="primary"
-              variant="solid"
-              icon="i-material-symbols-add"
-              :label="$t('note.action.new')"
-              :loading="notes.creating.value"
-              @click="makeNew"
-            />
-            <UButton
-              v-else
-              icon="i-material-symbols-add"
-              :label="$t('note.action.new')"
-              :loading="notes.creating.value"
-              :aria-label="$t('note.action.new')"
-              @click="makeNew"
-            />
-          </div>
+          <!-- The layer's one create button: a grey icon closing the row on a wide screen, floating at
+               the screen's foot on a phone, where the list keeps room for it. -->
+          <CreateButton class="ms-auto" :label="$t('note.action.new')" :loading="notes.creating.value" @click="makeNew" />
         </div>
       </div>
     </header>
 
-    <main ref="list" class="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6">
+    <main ref="list" class="min-h-0 flex-1 overflow-y-auto px-4 pb-[calc(1rem+var(--bmo-create-room))] sm:px-6 sm:pb-6">
       <div class="mx-auto flex w-full max-w-(--ui-container) flex-col py-2">
         <!-- A first fetch reserves the row it will replace: an icon and the two lines of the row. -->
         <div v-if="notes.stand.value === 'loading' && notes.rows.value.length === 0" role="status" :aria-label="$t('note.status.loading')" class="flex flex-col gap-1">
@@ -319,11 +290,11 @@ const emptyText = computed(() => {
           <UButton size="sm" color="neutral" variant="soft" icon="i-material-symbols-refresh" :loading="retrying" :label="$t('note.action.retry')" @click="retry" />
         </div>
 
-        <div v-else-if="notes.rows.value.length === 0" class="flex flex-col items-center gap-3 py-20 text-center">
-          <UIcon :name="emptyIcon" class="size-10 text-dimmed" />
-          <p class="text-sm text-muted">{{ emptyText }}</p>
-          <UButton v-if="live" icon="i-material-symbols-add" :label="$t('note.action.new')" :loading="notes.creating.value" @click="makeNew" />
-        </div>
+        <!-- An empty view is one line; making a note is the create button's alone. -->
+        <p v-else-if="notes.rows.value.length === 0" class="flex items-center justify-center gap-2 py-20 text-sm text-muted" data-empty>
+          <UIcon :name="emptyIcon" class="size-5 shrink-0 text-dimmed" />
+          <span>{{ emptyText }}</span>
+        </p>
 
         <template v-else>
           <!-- A re-read that did not answer keeps the rows that stand and says so above them. -->

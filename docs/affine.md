@@ -86,4 +86,6 @@ it in. The console bundle therefore builds the editor through four ordered steps
 The copy is a build step over the same working tree, never a second checkout; `client/blocksuite/` is
 not tracked. Merging `upstream/canary` moves the editor the bundle builds with, and `bun run vendor`
 refreshes the copy. `bun run check` runs the same chain up to the tests; the deployment's console-bundle
-step runs it whole.
+step runs it whole. A fresh tree the testbed tests in (a bench copy, a gate's checkout, the daily run's
+tree) runs the chain up to the bundle as its declared setup, before any unit, since the screens' browser
+tests drive a dev host that imports the copy and the installed packages.

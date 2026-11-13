@@ -81,7 +81,7 @@
       "unanswered_ready": "The supervisor is not ready yet."
     },
     "empty": {
-      "live": "No notes yet. Make one.",
+      "live": "No notes yet.",
       "shared": "No notes are shared with you.",
       "trash": "The trash is empty."
     },

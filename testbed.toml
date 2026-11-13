@@ -7,6 +7,11 @@ name = "bmo-note"
 # The service crate at the root, and the console bundle under client/, whose check script vendors the
 # editor, installs the bundle's locked packages and typechecks the bundle.
 languages = ["cargo", "bun"]
+# A fresh tree (a bench copy, a gate's checkout, the daily run's tree) holds none of the bundle's ignored
+# folders, and the browser files under client/ drive the dev host, which imports the bundle's packages and
+# the editor's copy: the copy is vendored, the locked packages installed and the decorated sources
+# transpiled before any unit runs.
+setup = ["cd client && bun run vendor && bun install --frozen-lockfile && bun run decorators"]
 
 # The console bundle under client/ is a project of its own. Discovery is off: the fork's upstream folders
 # hold many package manifests for tools this unit never runs, and only client/ is a project here.
