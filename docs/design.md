@@ -253,9 +253,9 @@ studied of AFFiNE and under which licence.
     rows standing at its end while they come. The first read of each section reserves its rows with a
     skeleton of the row's shape; an empty section is one line; a section whose read failed says so in one
     line with the key that tries again.
-  - Its foot, outside the scroll: the trash, which opens a popover from the key holding the reader's trashed
-    notes, newest trashed first, with a field that filters them through the layer's list search. A row
-    there opens the note in the note region.
+  - Its foot, outside the scroll: the trash, which opens a popover from the key holding the reader's
+    trashed notes, newest changed first, each with the day it went to the trash, and a field that filters
+    them through the layer's list search. A row there opens the note in the note region.
 - **The note region with no note chosen** stands empty but for one line of guidance, the search mark
   above it, and the keys that act there: the search key and the create key. On a phone the create button
   floats at the screen's bottom right there, the screen's main create, and the drawer key leads the bar.

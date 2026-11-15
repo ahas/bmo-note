@@ -1,18 +1,11 @@
 {
   "note": {
     "title": "Notes",
-    "view": {
-      "live": "Notes",
-      "shared": "Shared with me",
-      "trash": "Trash"
-    },
     "action": {
       "apply": "Apply",
       "apply_all": "Apply all",
-      "back": "To the list",
       "cancel": "Cancel",
       "close": "Close",
-      "delete": "Delete",
       "image": "Image",
       "leave": "Leave",
       "more": "More",
@@ -25,7 +18,22 @@
       "share": "Share",
       "table": "Table",
       "talk": "Talk",
-      "turn_into": "Turn into"
+      "turn_into": "Turn into",
+      "search": "Search",
+      "pin": "Add to favorites",
+      "unpin": "Remove from favorites",
+      "copy_link": "Copy link",
+      "duplicate": "Duplicate",
+      "trash": "Move to trash",
+      "list_open": "Open list",
+      "list_close": "Close list",
+      "sort": "Sort",
+      "filter": "Filter",
+      "add_icon": "Add icon",
+      "change_icon": "Change icon",
+      "remove_icon": "Remove icon",
+      "full_width": "Full width",
+      "details": "Details"
     },
     "label": {
       "conflict": "Conflict",
@@ -38,7 +46,20 @@
       "trashed": "Deleted",
       "untitled": "Untitled",
       "words": "words",
-      "you": "You"
+      "you": "You",
+      "edited": "Edited {time}",
+      "shared_by": "Shared by {name}",
+      "owner": "Owner",
+      "created": "Created",
+      "changed": "Last edited",
+      "size": "Size",
+      "word_count": "Words",
+      "copy_of": "{title} (copy)",
+      "holding": "{words} words · {size}",
+      "in_trash": "This note is in the trash.",
+      "picked_icon": "Icon",
+      "list": "Notes",
+      "width": "List width"
     },
     "mark": {
       "bold": "Bold",
@@ -83,17 +104,23 @@
     "empty": {
       "live": "No notes yet.",
       "shared": "No notes are shared with you.",
-      "trash": "The trash is empty."
+      "trash": "The trash is empty.",
+      "open": "No note is open.",
+      "pinned": "Nothing is in favorites."
     },
     "status": {
       "conflict": "This note was saved from elsewhere.",
       "loading": "loading",
       "missing": "The note cannot be found.",
       "offline": "Not connected, so the save did not go.",
-      "refused": "The save did not go."
+      "refused": "The save did not go.",
+      "copied": "Link copied.",
+      "trashed": "Moved to trash.",
+      "restored": "Restored.",
+      "purged": "Deleted for good.",
+      "duplicated": "Duplicated."
     },
     "question": {
-      "delete": "Delete this note?",
       "leave": "Changes are unsaved. Leave this screen?",
       "leave_effect": "What is not saved is lost.",
       "purge": "Delete this note for good?",
@@ -106,7 +133,9 @@
       "image_failed": "The image could not be added.",
       "list_failed": "The notes could not be read.",
       "read_failed": "This note could not be read.",
-      "too-large": "This note is past the size the store keeps."
+      "too-large": "This note is past the size the store keeps.",
+      "copy_failed": "The link could not be copied.",
+      "section_failed": "These notes could not be read."
     },
     "ask": {
       "key": "Ask AI",
@@ -148,6 +177,38 @@
       "span_forever": "Forever",
       "span_month": "30 days",
       "span_week": "7 days"
+    },
+    "section": {
+      "pinned": "Favorites",
+      "mine": "My notes",
+      "shared": "Shared with me",
+      "trash": "Trash"
+    },
+    "sort": {
+      "changed": "Last edited",
+      "title": "Title",
+      "created": "Created",
+      "best": "Best match"
+    },
+    "search": {
+      "placeholder": "Search notes",
+      "recent": "Recently opened",
+      "results": "Results",
+      "none": "No results.",
+      "failed": "The search did not answer.",
+      "title_only": "Titles only",
+      "in_mine": "My notes",
+      "in_shared": "Shared with me",
+      "in_trash": "Include trash",
+      "span_any": "Any time",
+      "span_today": "Today",
+      "span_7d": "Last 7 days",
+      "span_30d": "Last 30 days",
+      "views": "Where",
+      "span": "Edited",
+      "move": "Move",
+      "open": "Open",
+      "new_tab": "Open in a new tab"
     }
   }
 }

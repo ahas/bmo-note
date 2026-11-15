@@ -1,24 +1,23 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 
 import { chromium } from "playwright-core";
 
-import en from "../../i18n/en.json";
+import ko from "../../i18n/ko.json";
+import { FIXTURE, seeded } from "./fixture";
 import { stoodUp } from "./stack";
 
 import type { Browser, Locator, Page } from "playwright-core";
 import type { Stack } from "./stack";
 
-// The note screens' rows, drawn by a real browser at a desktop's width and a phone's, in both schemes
-// (docs/design.md, 「The console surface」): the list names itself with nothing beside the name; on a desktop its
-// own row under it holds the view switch and the layer's create button at its trailing end, a grey icon naming
-// a new note and its key, and on a phone the row holds the view switch alone while the create button floats at
-// the bottom right with the list's last row clear of it; the open note's format bar
-// holds the way back at its leading end and the talk key at its trailing end, and on a phone both stay in
-// sight while the keys between them scroll. Every key in either row stands centred with room above and below
-// it, its hover filling its own shape and never its cell or the row; every key in the format bar is the
-// library's small button, an icon-only one its small square. The screens are the dev host's, relaying to a
-// throwaway note service. Skipped where the browser build is not on the machine.
+// The notes screen drawn by a real browser at a desktop's width and a phone's, in both schemes
+// (docs/design.md, 「The console surface」, 「Search」): the navigator with every section and the trash at its
+// foot, a note open under its bar, the empty note region, the search dialog before typing, with results and
+// with none, the more menu, a note in the trash under its band, and the phone's drawer. Each state is kept as
+// a picture for a person to read. The keys of the format bar are the library's small button, centred, their
+// hover on their own shape; the talk key stays in sight while the keys scroll on a phone; no state scrolls
+// the page sideways on a phone. The screen is the dev host's, relaying to a throwaway note service, its notes
+// written by the bundle's own document modules. Skipped where the browser build is not on the machine.
 
 const ready = existsSync(chromium.executablePath());
 
@@ -28,15 +27,19 @@ const STACK_MS = 900_000;
 const TEST_MS = 600_000;
 const STANDING_MS = 300_000;
 
-// An open note's address, and how many presses of the create button a reloading dev host may lose.
-const NOTE_PATH = /\/note\/[^/]+$/;
-const MOST_PRESSES = 3;
+// Where the pictures of each state are kept, named `<width>-<scheme>-<state>.png`.
+const SHOTS = process.env.BMO_NOTE_SHOTS ?? "/tmp/note-renewal-shots";
 
-// Transitions are taken out, so a colour read is the one the state settles on.
-const STILL = "*, *::before, *::after { transition: none !important; }";
+// An open note's address.
+const NOTE_PATH = /\/note\/[^/?]+/;
 
-// The cookie the console's screen mode is kept in (bmo-ui's shared screen mode).
+// Transitions are taken out, so a colour read is the one the state settles on and a picture its final frame.
+const STILL = "*, *::before, *::after { transition: none !important; animation-duration: 0s !important; }";
+
+// The cookies the dev host reads: the console's screen mode, the language and the reader.
 const SCHEME_COOKIE = "nuxt-color-mode";
+const LOCALE_COOKIE = "bmo-dev-locale";
+const READER_COOKIE = "bmo-dev-reader";
 
 // The library's small button: an icon-only one is a 28-pixel square, one carrying a word stands on the
 // caption line and is 32 pixels tall.
@@ -45,18 +48,8 @@ const SMALL_WORDED_PX = 32;
 // The least room a key keeps above and below it inside its row.
 const ROOM_PX = 2;
 
-// The create button floating on a phone: the library's largest icon button, its gap from the screen's right
-// and bottom edges, and the key that presses it.
-const FLOATING_PX = 40;
-const FLOATING_GAP_PX = 16;
-const CREATE_KEY = "n";
-
-// Notes of the test's own, enough to make the list scroll on a phone, written straight through the relay with
-// a document of one byte the service holds as opaque; the ids keep a second write of them a no-op.
-const FILLERS = 16;
-const FILLER_DOC = "AA==";
-
-const WORDS = en.note;
+// The screens are read in Korean, as the dev host's language cookie asks.
+const WORDS = ko.note;
 
 const WIDTHS = [
   { name: "a desktop's width", width: 1280, height: 800, narrow: false },
@@ -76,8 +69,6 @@ interface Box {
   height: number;
 }
 
-// One key of a row: its name, where it stands, the row it stands in, whether it says a word and whether it is
-// a mark alone.
 interface Measured {
   name: string;
   box: Box;
@@ -86,7 +77,6 @@ interface Measured {
   iconOnly: boolean;
 }
 
-// What a key, its cell and its row paint, and the key's middle.
 interface Painted {
   own: string;
   cell: string;
@@ -101,9 +91,10 @@ let browser: Browser;
 beforeAll(async () => {
   if (!ready) return;
 
+  mkdirSync(SHOTS, { recursive: true });
   stack = await stoodUp();
   browser = await chromium.launch();
-  await settled();
+  await settledAndSeeded();
 }, STACK_MS);
 
 afterAll(async () => {
@@ -111,89 +102,90 @@ afterAll(async () => {
   await stack?.down();
 }, STACK_MS);
 
-// A page at a width, in a scheme, on one of the dev host's screens.
+// A page at a width, in a scheme, in Korean, on the screen at `path`, standing once its bar does.
 async function opened(width: Width, scheme: Scheme, path: string): Promise<Page> {
   const host = stack!.host;
-  const context = await browser.newContext({ viewport: { width: width.width, height: width.height }, colorScheme: scheme });
+  const context = await browser.newContext({ viewport: { width: width.width, height: width.height }, colorScheme: scheme, isMobile: width.narrow, hasTouch: width.narrow });
 
-  await context.addCookies([{ name: SCHEME_COOKIE, value: scheme, url: host }]);
+  await context.addCookies([
+    { name: SCHEME_COOKIE, value: scheme, url: host },
+    { name: LOCALE_COOKIE, value: "ko", url: host }
+  ]);
 
   const page = await context.newPage();
 
   await page.goto(`${host}${path}`);
+  await page.locator("[data-note-bar]").first().waitFor({ timeout: STANDING_MS });
   await page.addStyleTag({ content: STILL });
 
   return page;
 }
 
-// The list, standing once its create button does.
-async function listOpened(width: Width, scheme: Scheme): Promise<Page> {
-  const page = await opened(width, scheme, "/note");
-
-  await newNoteKey(page).waitFor({ timeout: STANDING_MS });
-
-  return page;
+// The picture of a state, once what it draws has come to rest.
+async function shot(page: Page, width: Width, scheme: Scheme, state: string): Promise<void> {
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(1_000);
+  await page.screenshot({ path: `${SHOTS}/${width.width}-${scheme}-${state}.png` });
 }
 
-// The create button: in the list's row on a desktop, floating over the screen on a phone.
-function newNoteKey(page: Page): Locator {
-  return page.getByRole("button", { name: WORDS.action.new, exact: true });
+// The page never scrolls sideways.
+async function noSidewaysScroll(page: Page): Promise<void> {
+  const room = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
+
+  expect(room.scroll).toBeLessThanOrEqual(room.client);
+}
+
+// The dev host builds the screen's sources and finds the packages they import the first time a screen asks
+// for them, reloading the page as it does. One pass over the screen and an open note lets that happen; then
+// the fixture's notes are written: the reader's own, one another account shares with them, one in their
+// trash, two pinned, and one opened so the search has something it was opened before typing.
+async function settledAndSeeded(): Promise<void> {
+  const once = WIDTHS[0]!;
+  const host = stack!.host;
+
+  for (let pass = 0; pass < 2; pass += 1) {
+    const page = await opened(once, "light", "/note");
+
+    await page.locator("[data-navigator-list]").waitFor({ timeout: STANDING_MS });
+    await page.waitForTimeout(3_000);
+    await page.context().close();
+  }
+
+  const page = await opened(once, "light", "/note");
+  const context = page.context();
+
+  await page.locator("[data-navigator-list]").waitFor({ timeout: STANDING_MS });
+  await seeded(page, FIXTURE.notes);
+  await seeded(page, [FIXTURE.trashed]);
+  await context.addCookies([{ name: READER_COOKIE, value: "2", url: host }]);
+  await seeded(page, [FIXTURE.sharedByOther]);
+  await page.evaluate(async (id) => {
+    await fetch(`/proxy/note/notes/${id}/members`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ users: ["1"], permission: "edit" }) });
+  }, FIXTURE.sharedByOther.id);
+  await context.clearCookies({ name: READER_COOKIE });
+  await page.evaluate(
+    async ({ trashed, pins, read }) => {
+      await fetch(`/proxy/note/notes/${trashed}`, { method: "DELETE" });
+
+      for (const pin of pins) await fetch(`/proxy/note/notes/${pin}/pin`, { method: "PUT" });
+
+      for (const one of read) await fetch(`/proxy/note/notes/${one}?opened=true`);
+    },
+    { trashed: FIXTURE.trashed.id, pins: [FIXTURE.notes[2]!.id, FIXTURE.notes[0]!.id], read: [FIXTURE.notes[1]!.id, FIXTURE.notes[0]!.id] }
+  );
+  await context.close();
+
+  // The screen's states once each, so the icons and the chunks they ask for stand before any picture.
+  for (const path of [`/note/${FIXTURE.notes[0]!.id}`, "/note?search=", `/note/${FIXTURE.trashed.id}?trash=1`]) {
+    const warm = await opened(once, "light", path);
+
+    await warm.waitForTimeout(3_000);
+    await warm.context().close();
+  }
 }
 
 function formatBar(page: Page): Locator {
   return page.getByRole("toolbar", { name: WORDS.label.toolbar });
-}
-
-// Presses the list's create button until the note it makes opens. While the dev host is still finding the
-// packages the screens import it reloads the page, and a press it reloads under is lost with the page; the
-// list then stands again and the key is pressed again, a few times at most.
-async function noteMade(page: Page): Promise<void> {
-  for (let press = 1; press <= MOST_PRESSES; press += 1) {
-    const opened = page.waitForURL(NOTE_PATH, { timeout: STANDING_MS }).then(() => "opened" as const);
-    const reloaded = page.waitForEvent("load", { timeout: STANDING_MS }).then(() => "reloaded" as const);
-
-    await newNoteKey(page).click();
-
-    if ((await Promise.race([opened, reloaded])) === "opened") return;
-
-    await newNoteKey(page).waitFor({ timeout: STANDING_MS });
-  }
-
-  throw new Error(`the list reloaded under each of ${MOST_PRESSES} presses of its create button`);
-}
-
-// A note of the test's own, made through the list's create button and opened, with the caret in its document
-// so the keys that change it stand enabled.
-async function noteOpened(width: Width, scheme: Scheme): Promise<Page> {
-  const page = await listOpened(width, scheme);
-
-  await noteMade(page);
-  await page.locator("[data-bar=ask]:not([disabled])").waitFor({ timeout: STANDING_MS });
-  await page.locator("[data-note-editor] [contenteditable=true]").last().click();
-  await page.locator("[data-bar=bold]:not([disabled])").waitFor({ timeout: STANDING_MS });
-
-  return page;
-}
-
-// A note that is not there, standing once the screen says so: the bar it reads under, which holds the way
-// back too, has given way to the missing note's own row.
-async function missingOpened(width: Width, scheme: Scheme): Promise<Page> {
-  const page = await opened(width, scheme, "/note/no-such-note");
-
-  await page.getByText(WORDS.status.missing).waitFor({ timeout: STANDING_MS });
-
-  return page;
-}
-
-// The dev host builds the screens' sources and finds the packages they import the first time a screen asks
-// for them, reloading the page as it does, which would swallow a key pressed meanwhile. One pass over both
-// screens, each waited for until it stands however often the page reloads, lets that happen before anything
-// is measured.
-async function settled(): Promise<void> {
-  const once = WIDTHS[0]!;
-
-  await (await missingOpened(once, "light")).context().close();
-  await (await noteOpened(once, "light")).context().close();
 }
 
 // Every key showing in a row, each against that row.
@@ -217,8 +209,6 @@ async function keys(row: Locator): Promise<Measured[]> {
   });
 }
 
-// What a key, its cell and its row paint, read off the page, the key brought to the middle of a row that
-// scrolls so neither of the row's held ends stands over it.
 async function painted(row: Locator, key: Locator): Promise<Painted> {
   const rowElement = await row.elementHandle();
 
@@ -238,7 +228,7 @@ async function painted(row: Locator, key: Locator): Promise<Painted> {
 }
 
 // A pointer on the key paints the key's own shape and leaves its cell and its row as they stood.
-async function hoverStaysOnKey(page: Page, row: Locator, key: Locator, name: string, paints: boolean): Promise<void> {
+async function hoverStaysOnKey(page: Page, row: Locator, key: Locator, name: string): Promise<void> {
   const rest = await painted(row, key);
 
   await page.mouse.move(rest.x, rest.y);
@@ -247,11 +237,10 @@ async function hoverStaysOnKey(page: Page, row: Locator, key: Locator, name: str
 
   await page.mouse.move(0, 0);
 
-  if (paints) expect([name, hovered.own !== rest.own]).toEqual([name, true]);
+  expect([name, hovered.own !== rest.own]).toEqual([name, true]);
   expect([name, hovered.cell, hovered.row]).toEqual([name, rest.cell, rest.row]);
 }
 
-// Each key stands inside its row with room above and below it, centred.
 function centred(measured: Measured[]): void {
   for (const one of measured) {
     const above = one.box.top - one.row.top;
@@ -262,7 +251,6 @@ function centred(measured: Measured[]): void {
   }
 }
 
-// Each key is the library's small button: a word on the caption line, a mark alone its small square.
 function small(measured: Measured[]): void {
   for (const one of measured) {
     expect([one.name, one.box.height]).toEqual([one.name, one.worded ? SMALL_WORDED_PX : SMALL_PX]);
@@ -270,194 +258,251 @@ function small(measured: Measured[]): void {
   }
 }
 
-// Whether the way back and the talk key both stand whole inside the bar's own box.
-async function endsInSight(bar: Locator): Promise<{ back: boolean; talk: boolean }> {
-  return bar.evaluate((element, talkName) => {
-    const view = element.getBoundingClientRect();
-    const whole = (one: Element | undefined): boolean => {
-      if (one === undefined) return false;
+// A note of the fixture open, its document drawn.
+async function noteOpened(width: Width, scheme: Scheme, path = `/note/${FIXTURE.notes[0]!.id}`): Promise<Page> {
+  const page = await opened(width, scheme, path);
 
-      const { left, right } = one.getBoundingClientRect();
+  await page.locator("[data-note-head]").waitFor({ timeout: STANDING_MS });
+  await page.locator("[data-note-editor] [contenteditable]").first().waitFor({ timeout: STANDING_MS });
 
-      return left >= view.left - 0.5 && right <= view.right + 0.5;
-    };
-    const buttons = [...element.querySelectorAll("button")];
-
-    return {
-      back: whole(element.querySelector("[data-bar=back]") ?? undefined),
-      talk: whole(buttons.find((one) => (one.textContent ?? "").trim() === talkName))
-    };
-  }, WORDS.action.talk);
+  return page;
 }
 
-describe.skipIf(!ready).each(WIDTHS.flatMap((width) => SCHEMES.map((scheme) => ({ width, scheme }))))(
-  "the note screens at $width.name, $scheme",
-  ({ width, scheme }) => {
-    test.skipIf(width.narrow)(
-      "the list names itself alone, and its own row ends with the create button, a grey icon naming a new note and its key",
-      async () => {
-        const page = await listOpened(width, scheme);
+// The navigator, standing in its drawer on a phone.
+async function navigatorShown(page: Page, width: Width): Promise<Locator> {
+  if (width.narrow) await page.locator("[data-navigator-key]").first().click();
 
-        // The scheme asked for is the one drawn.
-        expect(await page.evaluate(() => document.documentElement.classList.contains("dark"))).toBe(scheme === "dark");
+  const navigator = page.locator("[data-navigator]:visible");
 
-        const title = page.getByRole("heading", { name: WORDS.title, exact: true });
+  await navigator.locator("[data-navigator-list] li").first().waitFor({ timeout: STANDING_MS });
 
-        expect(await title.locator("button, a").count()).toBe(0);
+  return navigator;
+}
 
-        const newNote = newNoteKey(page);
-        const row = page.locator("[data-list-row]");
-        const measured = await keys(row);
-        const end = measured.find((one) => one.name === WORDS.action.new)!;
+describe.skipIf(!ready).each(WIDTHS.flatMap((width) => SCHEMES.map((scheme) => ({ width, scheme }))))("the notes screen at $width.name, $scheme", ({ width, scheme }) => {
+  test(
+    "the navigator holds the favourites, the reader's own notes and the shared ones, and the trash at its foot",
+    async () => {
+      const page = await opened(width, scheme, "/note");
 
-        expect(measured.map((one) => one.name)).toEqual([WORDS.view.live, WORDS.view.shared, WORDS.view.trash, WORDS.action.new]);
-        expect(Math.abs(end.row.right - end.box.right)).toBeLessThanOrEqual(1);
-        expect([end.iconOnly, end.box.width]).toEqual([true, end.box.height]);
-        centred(measured);
+      expect(await page.evaluate(() => document.documentElement.classList.contains("dark"))).toBe(scheme === "dark");
 
-        // A grey icon: it paints nothing at rest, and its hover paints its own shape.
-        expect(await newNote.evaluate((button) => getComputedStyle(button).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+      const navigator = await navigatorShown(page, width);
+      const sections = await navigator.locator("section").evaluateAll((all) => all.map((one) => one.getAttribute("aria-label")));
 
-        for (const name of [WORDS.view.live, WORDS.view.shared, WORDS.view.trash]) {
-          await hoverStaysOnKey(page, row, row.getByRole("tab", { name }), name, false);
-        }
+      expect(sections).toEqual([WORDS.section.pinned, WORDS.section.mine, WORDS.section.shared]);
+      expect(await navigator.locator("[data-navigator-foot]").textContent()).toContain(WORDS.section.trash);
 
-        await hoverStaysOnKey(page, row, newNote, WORDS.action.new, true);
+      // Every row is one line: its icon and its title.
+      const heights = await navigator.locator("[data-navigator-list] li a").evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
 
-        // Its tooltip names what it creates, then the key that presses it.
-        await newNote.hover();
+      expect(new Set(heights)).toEqual(new Set([32]));
+      await noSidewaysScroll(page);
+      await shot(page, width, scheme, width.narrow ? "drawer" : "navigator");
+      await page.context().close();
+    },
+    TEST_MS
+  );
 
-        const tip = page.locator("[data-slot=content]").filter({ hasText: WORDS.action.new });
+  test(
+    "with no note chosen the note region stands empty but for its line and its keys",
+    async () => {
+      const page = await opened(width, scheme, "/note");
 
-        await tip.locator("[data-slot=kbds]").waitFor({ timeout: STANDING_MS });
-        expect(((await tip.locator("[data-slot=kbds]").textContent()) ?? "").trim().toLowerCase()).toBe(CREATE_KEY);
-        await page.mouse.move(0, 0);
+      await page.locator("[data-note-empty]").waitFor({ timeout: STANDING_MS });
 
-        // The key makes a note, as a press does.
-        await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-        await page.keyboard.press(CREATE_KEY);
-        await page.waitForURL(NOTE_PATH, { timeout: STANDING_MS });
-        await page.context().close();
-      },
-      TEST_MS
-    );
+      if (width.narrow) {
+        // The screen's main create floats at the phone's bottom right.
+        const create = page.getByRole("button", { name: WORDS.action.new, exact: true }).or(page.locator("[data-screen-foot] button")).last();
 
-    test.skipIf(!width.narrow)(
-      "the list's row holds the view switch alone, the create button floats at the bottom right, and the list's end stands clear of it",
-      async () => {
-        const page = await listOpened(width, scheme);
+        expect(await create.evaluate((button) => button.closest("[data-screen-foot]") !== null)).toBe(true);
+      }
 
-        expect(await page.evaluate(() => document.documentElement.classList.contains("dark"))).toBe(scheme === "dark");
+      await noSidewaysScroll(page);
+      await shot(page, width, scheme, "empty");
+      await page.context().close();
+    },
+    TEST_MS
+  );
 
-        for (let filler = 0; filler < FILLERS; filler += 1) {
-          const answer = await page.request.post(`${stack!.host}/proxy/note/notes`, {
-            data: { id: `filler-${filler}`, title: `Filler ${filler}`, doc: FILLER_DOC }
-          });
+  test(
+    "a note open: its bar holds its state at the leading end and the star, share and more keys at the trailing end",
+    async () => {
+      const page = await noteOpened(width, scheme);
+      const bar = page.locator("[data-note-bar]");
 
-          expect(answer.ok()).toBe(true);
-        }
+      for (const mark of ["[data-note-state]", "[data-note-pin]", "[data-note-share]", "[data-note-more]"]) expect(await bar.locator(mark).count()).toBe(1);
 
-        await page.reload();
-        await page.addStyleTag({ content: STILL });
-        await page.locator("li[data-note]").nth(FILLERS - 1).waitFor({ timeout: STANDING_MS });
+      const state = (await bar.locator("[data-note-state]").boundingBox())!;
+      const more = (await bar.locator("[data-note-more]").boundingBox())!;
 
-        const row = page.locator("[data-list-row]");
+      expect(state.x).toBeLessThan(more.x);
+      // The page head's icon stands over the title, in the editor's column.
+      expect(await page.locator("[data-note-head]").textContent()).toContain(FIXTURE.notes[0]!.icon);
+      await noSidewaysScroll(page);
+      await shot(page, width, scheme, "note");
+      await page.context().close();
+    },
+    TEST_MS
+  );
 
-        expect((await keys(row)).map((one) => one.name)).toEqual([WORDS.view.live, WORDS.view.shared, WORDS.view.trash]);
+  test(
+    "every key of the format bar is the small button, centred, its hover on its own shape, the talk key in sight",
+    async () => {
+      const page = await noteOpened(width, scheme);
+      const bar = formatBar(page);
 
-        // One button, outside the row, floating at the screen's foot: the library's largest icon button,
-        // filled, its gap the same from the right and the bottom edge.
-        const newNote = newNoteKey(page);
+      // With the caret in the document the keys that change it stand enabled.
+      await page.locator("[data-note-editor] [contenteditable=true]").last().click();
+      await page.locator("[data-bar=bold]:not([disabled])").first().waitFor({ timeout: STANDING_MS });
 
-        expect(await newNote.count()).toBe(1);
-        expect(await newNote.evaluate((button) => [button.closest("header") === null, button.closest("[data-screen-foot]") !== null])).toEqual([true, true]);
+      const measured = await keys(bar);
 
-        const button = (await newNote.boundingBox())!;
+      expect(measured.at(-1)?.name).toBe(WORDS.action.talk);
+      small(measured);
+      centred(measured);
 
-        expect([button.width, button.height]).toEqual([FLOATING_PX, FLOATING_PX]);
-        expect(Math.abs(width.width - FLOATING_GAP_PX - (button.x + button.width))).toBeLessThanOrEqual(1);
-        expect(Math.abs(width.height - FLOATING_GAP_PX - (button.y + button.height))).toBeLessThanOrEqual(1);
-        expect(await newNote.evaluate((one) => getComputedStyle(one).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
+      if (!width.narrow) {
+        for (const name of [WORDS.ask.key, WORDS.action.talk]) await hoverStaysOnKey(page, bar, bar.getByRole("button", { name, exact: true }), name);
+      }
 
-        // The list scrolls, and scrolled to its end, what it ends with stands above the button.
-        const list = await page.locator("li[data-note]").first().evaluate((one) => {
-          const box = one.closest("main")!;
+      const room = await bar.evaluate((element) => ({ scroll: element.scrollWidth, client: element.clientWidth }));
 
-          box.scrollTop = box.scrollHeight;
+      expect(room.scroll > room.client).toBe(width.narrow);
 
-          return { scrolls: box.scrollHeight > box.clientHeight, end: box.firstElementChild!.lastElementChild!.getBoundingClientRect().bottom };
-        });
+      const talkInSight = await bar.evaluate((element, talk) => {
+        element.scrollLeft = element.scrollWidth;
 
-        expect(list.scrolls).toBe(true);
-        expect(list.end).toBeLessThanOrEqual(button.y);
-        await page.context().close();
-      },
-      TEST_MS
-    );
+        const view = element.getBoundingClientRect();
+        const key = [...element.querySelectorAll("button")].find((one) => (one.textContent ?? "").trim() === talk);
+        const box = key?.getBoundingClientRect();
 
-    test(
-      "every key of the format bar is the small button, centred, its hover on its own shape",
-      async () => {
-        const page = await noteOpened(width, scheme);
-        const bar = formatBar(page);
-        const measured = await keys(bar);
+        return box !== undefined && box.left >= view.left - 0.5 && box.right <= view.right + 0.5;
+      }, WORDS.action.talk);
 
-        // The bar was found whole: the way back first, the talk key last, the format keys between them.
-        expect(measured[0]?.name).toBe(WORDS.action.back);
-        expect(measured.at(-1)?.name).toBe(WORDS.action.talk);
-        expect(measured.some((one) => one.name === WORDS.mark.bold)).toBe(true);
-        expect(measured.some((one) => one.name === WORDS.ask.key)).toBe(true);
+      expect(talkInSight).toBe(true);
+      await page.context().close();
+    },
+    TEST_MS
+  );
 
-        small(measured);
-        centred(measured);
+  test(
+    "the more menu offers the link, the copy, full width, the trash and what the note holds",
+    async () => {
+      const page = await noteOpened(width, scheme);
 
-        for (const name of [WORDS.action.back, WORDS.ask.key, WORDS.action.turn_into, WORDS.mark.bold, WORDS.action.image, WORDS.action.table]) {
-          await hoverStaysOnKey(page, bar, bar.getByRole("button", { name, exact: true }), name, true);
-        }
+      await page.locator("[data-note-more]").click();
 
-        await hoverStaysOnKey(page, bar, bar.getByRole("button", { name: WORDS.action.talk, exact: true }), WORDS.action.talk, true);
-        await page.context().close();
-      },
-      TEST_MS
-    );
+      const menu = page.getByRole("menu");
 
-    test(
-      "the way back and the talk key stay in sight at the bar's two ends while the keys scroll",
-      async () => {
-        const page = await noteOpened(width, scheme);
-        const bar = formatBar(page);
-        const room = await bar.evaluate((element) => ({ scroll: element.scrollWidth, client: element.clientWidth }));
+      await menu.waitFor({ timeout: STANDING_MS });
 
-        // A phone's bar is wider than the screen and scrolls; a desktop's fits.
-        expect(room.scroll > room.client).toBe(width.narrow);
-        expect(await endsInSight(bar)).toEqual({ back: true, talk: true });
+      const text = (await menu.textContent()) ?? "";
 
-        const scrolled = await bar.evaluate((element) => {
-          element.scrollLeft = element.scrollWidth;
+      for (const word of [WORDS.action.copy_link, WORDS.action.duplicate, WORDS.action.full_width, WORDS.action.trash]) expect(text).toContain(word);
 
-          return element.scrollLeft;
-        });
+      await noSidewaysScroll(page);
+      await shot(page, width, scheme, "menu");
+      await page.context().close();
+    },
+    TEST_MS
+  );
 
-        expect(scrolled > 0).toBe(width.narrow);
-        expect(await endsInSight(bar)).toEqual({ back: true, talk: true });
-        await page.context().close();
-      },
-      TEST_MS
-    );
+  test(
+    "the search dialog lists what was opened before typing, marks what it finds, and says when it finds nothing",
+    async () => {
+      const page = await opened(width, scheme, "/note?search=");
+      const dialog = page.locator("[data-note-search]");
 
-    test(
-      "a note that is missing keeps the row with the way back alone, the small square",
-      async () => {
-        const page = await missingOpened(width, scheme);
-        const bar = formatBar(page);
-        const measured = await keys(bar);
+      await dialog.locator("[role=option]").first().waitFor({ timeout: STANDING_MS });
+      expect(await dialog.locator("[role=option]").count()).toBeGreaterThan(0);
+      await noSidewaysScroll(page);
+      await shot(page, width, scheme, "search-recent");
 
-        expect(measured.map((one) => one.name)).toEqual([WORDS.action.back]);
-        small(measured);
-        centred(measured);
-        await page.context().close();
-      },
-      TEST_MS
-    );
-  }
-);
+      await dialog.locator("input").fill(FIXTURE.words.search);
+      await dialog.locator("mark").first().waitFor({ timeout: STANDING_MS });
+      expect(page.url()).toContain(`search=${encodeURIComponent(FIXTURE.words.search)}`);
+      expect(await dialog.locator("[role=option]").count()).toBeGreaterThanOrEqual(2);
+      await shot(page, width, scheme, "search-results");
+
+      await dialog.locator("input").fill(FIXTURE.words.none);
+      await dialog.locator("[role=option]").first().waitFor({ state: "detached", timeout: STANDING_MS });
+      await page.waitForTimeout(600);
+      expect(await dialog.locator("[role=option]").count()).toBe(0);
+      await shot(page, width, scheme, "search-none");
+
+      // Escape closes it, and the address carries the search no more.
+      await page.keyboard.press("Escape");
+      await dialog.waitFor({ state: "detached", timeout: STANDING_MS });
+      expect(page.url()).not.toContain("search=");
+      await page.context().close();
+    },
+    TEST_MS
+  );
+
+  test(
+    "a note in the trash opens read only under its band, holding restore and delete for good",
+    async () => {
+      const page = await noteOpened(width, scheme, `/note/${FIXTURE.trashed.id}?trash=1`);
+      const band = page.locator("[data-trash-band]");
+
+      await band.waitFor({ timeout: STANDING_MS });
+      expect(await band.getByRole("button").allTextContents()).toEqual([WORDS.action.restore, WORDS.action.purge]);
+      expect(await page.locator("[data-note-pin], [data-note-share]").count()).toBe(0);
+      await noSidewaysScroll(page);
+      await shot(page, width, scheme, "trashed");
+      await page.context().close();
+    },
+    TEST_MS
+  );
+
+  test(
+    "a missing note keeps the bar with the navigator's key where one stands",
+    async () => {
+      const page = await opened(width, scheme, "/note/no-such-note");
+
+      await page.getByText(WORDS.status.missing).waitFor({ timeout: STANDING_MS });
+      expect(await page.locator("[data-note-bar] [data-navigator-key]").count()).toBe(width.narrow ? 1 : 0);
+      await page.context().close();
+    },
+    TEST_MS
+  );
+});
+
+describe.skipIf(!ready)("the notes screen's keys", () => {
+  test(
+    "the create button closes the navigator's head, names a new note and its key, and the key makes a note",
+    async () => {
+      const width = WIDTHS[0]!;
+      const page = await opened(width, "light", "/note");
+      const create = page.locator("[data-navigator-head]").getByRole("button", { name: WORDS.action.new, exact: true });
+
+      await create.waitFor({ timeout: STANDING_MS });
+
+      const head = (await page.locator("[data-navigator-head]").boundingBox())!;
+      const note = (await page.locator("[data-note-bar]").boundingBox())!;
+
+      // The two regions' head lines are one line.
+      expect(Math.abs(head.y + head.height - (note.y + note.height))).toBeLessThanOrEqual(0.5);
+      expect(await create.evaluate((button) => getComputedStyle(button).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+
+      await create.hover();
+
+      const tip = page.locator("[data-slot=content]").filter({ hasText: WORDS.action.new });
+
+      await tip.locator("[data-slot=kbds]").waitFor({ timeout: STANDING_MS });
+      await page.mouse.move(0, 0);
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      await page.keyboard.press("n");
+      await page.waitForURL(NOTE_PATH, { timeout: STANDING_MS });
+
+      // Ctrl+\ folds the navigator and brings the unfold key to the note's bar.
+      await page.locator("[data-note-bar] [data-note-state]").waitFor({ timeout: STANDING_MS });
+      await page.locator("[data-note-bar]").click({ position: { x: 600, y: 10 } });
+      await page.keyboard.press("Control+Backslash");
+      await page.locator("[data-note-bar] [data-navigator-key]").waitFor({ timeout: STANDING_MS });
+      await page.context().close();
+    },
+    TEST_MS
+  );
+});

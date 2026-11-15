@@ -11,7 +11,7 @@ import type { Stack } from "./stack";
 
 // A note shared through the share dialog, driven in a real browser (docs/design.md, 「Sharing on the
 // screens」): the owner makes a link that opens the note read only on its share page and ends it, and shares
-// the note with a member the people directory finds; the member opens it read only from the shared view, a
+// the note with a member the people directory finds; the member opens it read only from the navigator's shared section, a
 // reader it is not shared with finds no note, and once the member is taken off they find none either. The
 // screens are the dev host's, relaying to a throwaway note service as the reader its cookie names. Skipped
 // where the browser build is not on the machine.
@@ -72,10 +72,10 @@ async function asReader(reader: string, path: string): Promise<Page> {
 }
 
 function newNoteKey(page: Page) {
-  return page.locator("header").getByRole("button", { name: WORDS.action.new });
+  return page.locator("[data-navigator-head]").getByRole("button", { name: WORDS.action.new });
 }
 
-// Presses the list's new-note key until the note it makes opens, a few times at most, since a dev host still
+// Presses the navigator's new-note key until the note it makes opens, a few times at most, since a dev host still
 // finding the packages the screens import reloads the page under a press. Answers the note's id.
 async function noteMade(page: Page): Promise<string> {
   for (let press = 1; press <= MOST_PRESSES; press += 1) {
@@ -89,7 +89,7 @@ async function noteMade(page: Page): Promise<string> {
     if ((await Promise.race([opened, reloaded])) === "opened") return decodeURIComponent(new URL(page.url()).pathname.split("/").at(-1)!);
   }
 
-  throw new Error(`the list reloaded under each of ${MOST_PRESSES} presses of its new-note key`);
+  throw new Error(`the screen reloaded under each of ${MOST_PRESSES} presses of its new-note key`);
 }
 
 // Whether the open document takes no edit: no block of it stands editable.
@@ -141,14 +141,15 @@ describe.skipIf(!ready)("a note shared through the share dialog", () => {
       await dialog.locator("[data-member-share]").click();
       await dialog.locator(`[data-member="${MEMBER}"]`).getByText("Member Tester").waitFor({ timeout: STANDING_MS });
 
-      // The member finds it in the shared view, by the name of who shared it, and reads it read only.
+      // The member finds it in the navigator's shared section, opens it, and reads it read only, named by
+      // who shared it.
       const member = await asReader(MEMBER, "/note");
 
-      await member.getByRole("tab", { name: WORDS.view.shared }).click();
-      await member.getByText(/Owner Tester/).click();
+      await member.locator(`section[aria-label="${WORDS.section.shared}"] li a`).first().click();
       await member.waitForURL(new RegExp(`/note/${id}\\?owner=${OWNER}$`), { timeout: STANDING_MS });
       await member.locator("[data-note-editor]").getByText(LINE).waitFor({ timeout: STANDING_MS });
       await member.getByText(WORDS.label.read_only).waitFor({ timeout: STANDING_MS });
+      await member.locator("[data-note-state]").getByText(/Owner Tester/).waitFor({ timeout: STANDING_MS });
       expect(await editable(member)).toBe(0);
       expect(await member.getByRole("button", { name: WORDS.action.share, exact: true }).count()).toBe(0);
       expect(await member.getByRole("button", { name: WORDS.action.talk, exact: true }).count()).toBe(0);

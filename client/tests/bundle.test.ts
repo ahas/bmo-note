@@ -30,7 +30,7 @@ describe("the words", () => {
 
   test("every key the screens ask for is held", () => {
     // The bar's own names: the marks and kinds reach the packs through template heads, written whole here.
-    const asked = new Set(sources.flatMap((path) => [...readFileSync(path, "utf8").matchAll(/["'`](note\.(?:view|action|label|mark|kind|talk|empty|status|question|error)\.[a-z_0-9]+)["'`]/g)].map((match) => match[1]!)));
+    const asked = new Set(sources.flatMap((path) => [...readFileSync(path, "utf8").matchAll(/["'`](note\.(?:section|sort|search|action|label|mark|kind|talk|empty|status|question|error)\.[a-z_0-9]+)["'`]/g)].map((match) => match[1]!)));
 
     for (const mark of ["bold", "italic", "underline", "strike", "code"]) asked.add(`note.mark.${mark}`);
     for (const kind of ["text", "h1", "h2", "h3", "bulleted", "numbered", "todo", "quote", "code"]) asked.add(`note.kind.${kind}`);
@@ -107,7 +107,8 @@ function slotOf(element: Element, name: string): Element | undefined {
 }
 
 describe("the screens' rows", () => {
-  const page = templateOf("app/pages/note/[noteId].vue");
+  const screen = templateOf("app/pages/note/[[noteId]].vue");
+  const region = templateOf("app/components/NoteOpen.vue");
 
   test("no screen lays anything into the console's title bar", () => {
     for (const path of sources) {
@@ -116,40 +117,31 @@ describe("the screens' rows", () => {
       expect(/screenActions|screenLead/.test(text), path).toBe(false);
     }
 
+    // A screen draws into an element of its own alone: no teleport names a place by a fixed selector.
     for (const path of sources.filter((file) => file.endsWith(".vue"))) {
-      expect(within(templateOf(path.slice(root.length)), "Teleport"), path).toEqual([]);
+      for (const teleport of within(templateOf(path.slice(root.length)), "Teleport")) expect(teleport.attributes.has("to"), path).toBe(false);
     }
   });
 
-  test("the open note's own bar holds its title and no key", () => {
-    const bars = within(page, "div").filter((element) => element.attributes.has("data-screen-bar"));
+  test("the screen's own bar holds the screen's name and no key", () => {
+    const bars = within(screen, "div").filter((element) => element.attributes.has("data-screen-bar"));
 
     expect(bars).toHaveLength(1);
     expect(within(bars[0]!, "UButton")).toEqual([]);
-    expect(within(bars[0]!, "NoteBack")).toEqual([]);
+    expect(within(bars[0]!, "h1")).toHaveLength(1);
   });
 
-  test("the way back leads the format bar in every state of the open note", () => {
+  test("the talk key closes the format bar, and no way back stands in it", () => {
     const bar = within(templateOf("app/components/NoteToolbar.vue"), "ToolBar")[0]!;
+    const editor = within(region, "NoteEditor")[0]!;
 
     expect(within(bar.children[0]!, "slot").map((slot) => slot.attributes.get("name"))).toEqual(["start"]);
-
-    const editors = within(page, "NoteEditor");
-    const reading = within(page, "NoteToolbar");
-    const unread = within(page, "ToolBar");
-
-    expect([editors.length, reading.length, unread.length]).toEqual([1, 1, 1]);
-    expect(within(slotOf(editors[0]!, "barStart")!, "NoteBack")).toHaveLength(1);
-    expect(within(slotOf(reading[0]!, "start")!, "NoteBack")).toHaveLength(1);
-    expect(within(unread[0]!.children[0]!, "NoteBack")).toHaveLength(1);
+    expect(slotOf(editor, "barStart")).toBeUndefined();
+    expect(within(slotOf(editor, "barEnd")!, "UButton")).toHaveLength(1);
   });
 
   test("every key in the format bar is the library's small button at its own size", () => {
-    const groups = [
-      within(within(templateOf("app/components/NoteToolbar.vue"), "ToolBar")[0]!, "UButton"),
-      within(templateOf("app/components/NoteBack.vue"), "UButton"),
-      within(slotOf(within(page, "NoteEditor")[0]!, "barEnd")!, "UButton")
-    ];
+    const groups = [within(within(templateOf("app/components/NoteToolbar.vue"), "ToolBar")[0]!, "UButton"), within(slotOf(within(region, "NoteEditor")[0]!, "barEnd")!, "UButton")];
 
     for (const group of groups) expect(group.length).toBeGreaterThan(0);
 

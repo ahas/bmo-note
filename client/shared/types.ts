@@ -16,6 +16,10 @@ export interface NoteMeta {
   size: number;
   deletedAt: number | null;
   access: NoteAccess;
+  /** The note's icon, one emoji; empty where it has none. */
+  icon: string;
+  /** Whether the service holds the note's plain text for its stored document. */
+  indexed: boolean;
 }
 
 /** A note with its document, base64 of the whole Yjs state. */
@@ -23,7 +27,7 @@ export interface Note extends NoteMeta {
   doc: string;
 }
 
-/** A page of rows, newest changed first. */
+/** A page of rows, in the order the call named. */
 export interface Page<T> {
   items: T[];
   more: boolean;
@@ -31,6 +35,40 @@ export interface Page<T> {
 
 /** The reader's own live notes, the notes other accounts share with the reader, and the reader's trash. */
 export type NotesView = "live" | "shared" | "trash";
+
+/** The order a list stands in: newest changed, newest made, or by title. */
+export type NotesSort = "changed" | "created" | "title";
+
+/** A note the reader opened, with the moment they last did. */
+export interface OpenedNote extends NoteMeta {
+  openedAt: number;
+}
+
+/** A place a term stands, `[start, end)` in UTF-16 code units. */
+export type HitPlace = [number, number];
+
+/** One note a search found: where the terms stand in its title, and a stretch of its text around them. */
+export interface FoundNote extends NoteMeta {
+  titleHits: HitPlace[];
+  snippet: { text: string; hits: HitPlace[] } | null;
+}
+
+/** The views a search reads. */
+export type SearchView = "mine" | "shared" | "trash";
+
+/** The order a search answers in. */
+export type SearchSort = "best" | "changed" | "created";
+
+/** A search as the service takes it. */
+export interface SearchAsk {
+  q: string;
+  views: SearchView[];
+  titleOnly: boolean;
+  since: number | null;
+  sort: SearchSort;
+  after: number;
+  limit: number;
+}
 
 /** A note's share link; its moments in epoch ms, its end null where it never ends. */
 export interface NoteLink {

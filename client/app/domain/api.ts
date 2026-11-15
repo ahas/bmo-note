@@ -2,9 +2,9 @@
 // (`docs/api.md`, 「Notes」). The caller hands the call itself — through the console's relay in the
 // browser, to a stand-in in a test — so this module names no address and no fetcher.
 
-import type { MemberPermission, Note, NoteLink, NoteMember, NoteMeta, NotesView, Page, SharedNote } from "../../shared/types";
+import type { FoundNote, MemberPermission, Note, NoteLink, NoteMember, NoteMeta, NotesSort, NotesView, OpenedNote, Page, SearchAsk, SharedNote } from "../../shared/types";
 
-export type Call = <T>(path: string, options?: { method?: "GET" | "POST" | "PATCH" | "DELETE"; body?: unknown; query?: Record<string, string | undefined> }) => Promise<T>;
+export type Call = <T>(path: string, options?: { method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; body?: unknown; query?: Record<string, string | undefined> }) => Promise<T>;
 
 /** A write the service answered with a refusal: its status and its code (`docs/api.md`, 「Codes」). */
 export class Refusal extends Error {
@@ -52,13 +52,28 @@ export interface NoteKey {
   owner?: string;
 }
 
+/** The key a write reaches a listed note by: its id, and its owner where it is another account's. */
+export function keyOfNote(note: Pick<NoteMeta, "id" | "owner" | "access">): NoteKey {
+  return note.access === "owner" ? { id: note.id } : { id: note.id, owner: note.owner };
+}
+
 export interface NoteApi {
-  list: (view: NotesView, after?: string) => Promise<Page<NoteMeta>>;
-  read: (key: NoteKey) => Promise<Note>;
+  list: (view: NotesView, after?: string, sort?: NotesSort, limit?: number) => Promise<Page<NoteMeta>>;
+  /** One note; `opened` records that the reader opened it, `trashed` reads the reader's own from the trash. */
+  read: (key: NoteKey, how?: { opened?: boolean; trashed?: boolean }) => Promise<Note>;
   create: (write: { id: string; title: string; doc: string }) => Promise<NoteMeta>;
-  save: (key: NoteKey, write: { version: number; title?: string; doc?: string; restore?: boolean }) => Promise<NoteMeta>;
+  save: (key: NoteKey, write: { version: number; title?: string; doc?: string; text?: string; restore?: boolean }) => Promise<NoteMeta>;
+  /** The note's plain text for the version the service stores (`docs/api.md`, 「Notes」). */
+  text: (key: NoteKey, write: { version: number; text: string }) => Promise<NoteMeta>;
+  icon: (key: NoteKey, icon: string) => Promise<NoteMeta>;
+  duplicate: (key: NoteKey, write: { id: string; title: string }) => Promise<NoteMeta>;
   trash: (id: string) => Promise<void>;
   purge: (id: string) => Promise<void>;
+  pinned: () => Promise<NoteMeta[]>;
+  pin: (key: NoteKey) => Promise<void>;
+  unpin: (key: NoteKey) => Promise<void>;
+  recent: (limit: number) => Promise<OpenedNote[]>;
+  search: (ask: SearchAsk) => Promise<Page<FoundNote>>;
   /** The note's live link, or null where none stands. */
   link: (id: string) => Promise<NoteLink | null>;
   makeLink: (id: string, expiresAt: number | null) => Promise<NoteLink>;
@@ -86,15 +101,43 @@ export function createNoteApi(call: Call): NoteApi {
   }
 
   return {
-    list: (view, after) =>
+    list: (view, after, sort, limit = 50) =>
       sent<Page<NoteMeta>>("/notes", {
-        query: { deleted: view === "trash" ? "true" : undefined, shared: view === "shared" ? "true" : undefined, after, limit: "50" }
+        query: {
+          deleted: view === "trash" ? "true" : undefined,
+          shared: view === "shared" ? "true" : undefined,
+          sort: sort === undefined || sort === "changed" ? undefined : sort,
+          after,
+          limit: String(limit)
+        }
       }),
-    read: (key) => sent<Note>(`/notes/${segment(key.id)}`, { query: ownerQuery(key) }),
+    read: (key, how = {}) =>
+      sent<Note>(`/notes/${segment(key.id)}`, {
+        query: { ...ownerQuery(key), opened: how.opened === true ? "true" : undefined, deleted: how.trashed === true ? "true" : undefined }
+      }),
     create: (write) => sent<NoteMeta>("/notes", { method: "POST", body: write }),
     save: (key, write) => sent<NoteMeta>(`/notes/${segment(key.id)}`, { method: "PATCH", body: write, query: ownerQuery(key) }),
+    text: (key, write) => sent<NoteMeta>(`/notes/${segment(key.id)}/text`, { method: "PUT", body: write, query: ownerQuery(key) }),
+    icon: (key, icon) => sent<NoteMeta>(`/notes/${segment(key.id)}/icon`, { method: "PUT", body: { icon }, query: ownerQuery(key) }),
+    duplicate: (key, write) => sent<NoteMeta>(`/notes/${segment(key.id)}/duplicate`, { method: "POST", body: write, query: ownerQuery(key) }),
     trash: (id) => sent<void>(`/notes/${segment(id)}`, { method: "DELETE" }),
     purge: (id) => sent<void>(`/notes/${segment(id)}?purge=true`, { method: "DELETE" }),
+    pinned: async () => (await sent<Page<NoteMeta>>("/notes/pinned")).items,
+    pin: (key) => sent<void>(`/notes/${segment(key.id)}/pin`, { method: "PUT", query: ownerQuery(key) }),
+    unpin: (key) => sent<void>(`/notes/${segment(key.id)}/pin`, { method: "DELETE", query: ownerQuery(key) }),
+    recent: async (limit) => (await sent<Page<OpenedNote>>("/notes/recent", { query: { limit: String(limit) } })).items,
+    search: (ask) =>
+      sent<Page<FoundNote>>("/notes/search", {
+        query: {
+          q: ask.q,
+          in: ask.views.join(","),
+          titleOnly: ask.titleOnly ? "true" : undefined,
+          since: ask.since === null ? undefined : String(ask.since),
+          sort: ask.sort,
+          after: String(ask.after),
+          limit: String(ask.limit)
+        }
+      }),
     link: async (id) => {
       try {
         return await sent<NoteLink>(`/notes/${segment(id)}/link`);
