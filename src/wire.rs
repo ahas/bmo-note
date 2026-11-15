@@ -22,6 +22,10 @@ pub struct NoteMeta {
   pub deleted_at: Option<i64>,
   /// What the caller holds of the note.
   pub access: Access,
+  /// The note's icon, one emoji; empty where it has none.
+  pub icon: String,
+  /// Whether the service holds the note's plain text for its stored document.
+  pub indexed: bool,
 }
 
 /// What a caller holds of a note: the note's own account, or a member's share (`docs/design.md`, 「Who
@@ -159,9 +163,25 @@ pub struct NoteSave {
   pub title: Option<String>,
   #[serde(default)]
   pub doc: Option<String>,
+  /// The note's plain text, read out of the `doc` it rides with; it stands only with one.
+  #[serde(default)]
+  pub text: Option<String>,
   /// Moves a trashed note back to life; writes nothing else on a live note.
   #[serde(default)]
   pub restore: Option<bool>,
+}
+
+/// The order a list stands in (`docs/api.md`, 「Notes」).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ListOrder {
+  /// Newest changed first.
+  #[default]
+  Changed,
+  /// Newest made first.
+  Created,
+  /// By title, without regard to case, untitled notes last.
+  Title,
 }
 
 /// The list page a call takes.
@@ -174,7 +194,10 @@ pub struct NotesQuery {
   /// Answers the live notes other accounts share with the caller.
   #[serde(default)]
   pub shared: Option<bool>,
-  /// The cursor: `changedAt:id` of the last row of the page before, `changedAt:id:owner` in the shared view.
+  /// The order the rows stand in; newest changed first where none is named.
+  #[serde(default)]
+  pub sort: Option<ListOrder>,
+  /// The cursor: the last row's key in the order named, its id, and its owner in the shared view.
   #[serde(default)]
   pub after: Option<String>,
   /// The most rows one page holds, 50 where none is given, at most 200.
@@ -192,6 +215,126 @@ pub struct NoteQuery {
   /// The account a service-token call acts for; on a console call, the account whose note it reaches.
   #[serde(default)]
   pub owner: Option<String>,
+}
+
+/// A read of one note.
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadQuery {
+  /// The account a service-token call acts for; on a console call, the account whose note it reaches.
+  #[serde(default)]
+  pub owner: Option<String>,
+  /// Records that the caller opened the note.
+  #[serde(default)]
+  pub opened: Option<bool>,
+  /// Answers the caller's own note where it rests in the trash.
+  #[serde(default)]
+  pub deleted: Option<bool>,
+}
+
+/// The plain text supplied for a note's stored document.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteText {
+  /// The version the text was read from; it must be the stored one.
+  pub version: i64,
+  pub text: String,
+}
+
+/// A note's icon set or cleared.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteIcon {
+  /// Empty clears it.
+  pub icon: String,
+}
+
+/// A copy to make of a note.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewCopy {
+  /// 1 to 64 letters, digits, `-` and `_`; one is made where none is given.
+  #[serde(default)]
+  pub id: Option<String>,
+  pub title: String,
+}
+
+/// A note the caller opened, with the moment it last did.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenedNote {
+  #[serde(flatten)]
+  pub meta: NoteMeta,
+  pub opened_at: i64,
+}
+
+/// The read of what was opened.
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecentQuery {
+  #[serde(default)]
+  pub limit: Option<i64>,
+  /// The account a service-token call answers for.
+  #[serde(default)]
+  pub owner: Option<String>,
+}
+
+/// The order a search answers in (`docs/api.md`, 「Search」).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SearchOrder {
+  /// Relevance, a title match weighing more and a recent change ahead.
+  #[default]
+  Best,
+  Changed,
+  Created,
+}
+
+/// A search.
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchQuery {
+  #[serde(default)]
+  pub q: Option<String>,
+  /// The views searched, comma-separated: `mine`, `shared`, `trash`.
+  #[serde(default, rename = "in")]
+  pub within: Option<String>,
+  #[serde(default)]
+  pub title_only: Option<bool>,
+  /// Epoch ms: the notes changed at or after it.
+  #[serde(default)]
+  pub since: Option<i64>,
+  #[serde(default)]
+  pub sort: Option<SearchOrder>,
+  /// How many rows of the same search were already read.
+  #[serde(default)]
+  pub after: Option<i64>,
+  #[serde(default)]
+  pub limit: Option<i64>,
+  /// The account a service-token call answers for.
+  #[serde(default)]
+  pub owner: Option<String>,
+}
+
+/// A stretch of a note's text around a match, and the places the terms stand in it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Snippet {
+  pub text: String,
+  /// `[start, end)` in UTF-16 code units.
+  pub hits: Vec<[usize; 2]>,
+}
+
+/// One note a search found.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchHit {
+  #[serde(flatten)]
+  pub meta: NoteMeta,
+  /// The places the terms stand in the title, `[start, end)` in UTF-16 code units.
+  pub title_hits: Vec<[usize; 2]>,
+  /// Null where no term stands in the text, or the search read titles alone.
+  pub snippet: Option<Snippet>,
 }
 
 /// A cancellation of a note.

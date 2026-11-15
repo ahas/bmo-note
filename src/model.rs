@@ -7,6 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use base64::Engine;
 
 use crate::error::ApiError;
+use crate::wire::ListOrder;
 
 /// The most characters a title holds.
 pub const TITLE_MAX: usize = 300;
@@ -79,17 +80,81 @@ pub fn encode_doc(bytes: &[u8]) -> String {
   base64::engine::general_purpose::STANDARD.encode(bytes)
 }
 
-/// The cursor an `after` query names, where it reads.
-pub fn parse_cursor(after: &str) -> Option<(i64, String)> {
-  let (moment, id) = after.split_once(':')?;
-  Some((moment.parse().ok()?, id.to_owned()))
+/// Where a list page starts: the last row's key in the order named, its id, and, in the shared view, its
+/// owner (`docs/api.md`, 「Notes」).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ListCursor {
+  pub key: CursorKey,
+  pub id: String,
+  pub owner: Option<String>,
 }
 
-/// The shared view's cursor, `changedAt:id:owner`, where it reads; an owner key may itself hold colons.
-pub fn parse_shared_cursor(after: &str) -> Option<(i64, String, String)> {
-  let (moment, rest) = parse_cursor(after)?;
-  let (id, owner) = rest.split_once(':')?;
-  Some((moment, id.to_owned(), owner.to_owned()))
+/// The ordering key a cursor carries.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CursorKey {
+  /// A moment, epoch ms: the change or the creation.
+  Moment(i64),
+  /// A title.
+  Title(String),
+}
+
+/// The cursor an `after` query names for `order`, where it reads: `<key>:id`, and `:owner` after it in the
+/// shared view, the key a moment or, by title, the title's unpadded base64url. An owner key may itself hold
+/// colons; an id never does.
+pub fn parse_list_cursor(order: ListOrder, after: &str, shared: bool) -> Option<ListCursor> {
+  let (head, rest) = after.split_once(':')?;
+  let key = match order {
+    ListOrder::Changed | ListOrder::Created => CursorKey::Moment(head.parse().ok()?),
+    ListOrder::Title => {
+      let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(head).ok()?;
+      CursorKey::Title(String::from_utf8(bytes).ok()?)
+    }
+  };
+  let (id, owner) = if shared {
+    let (id, owner) = rest.split_once(':')?;
+    (id, Some(owner.to_owned()))
+  } else {
+    (rest, None)
+  };
+  if id.is_empty() {
+    return None;
+  }
+  Some(ListCursor {
+    key,
+    id: id.to_owned(),
+    owner,
+  })
+}
+
+/// The words a note id never is, since they name routes standing under `/notes`.
+pub const RESERVED_IDS: [&str; 3] = ["search", "pinned", "recent"];
+
+/// Whether an id may name a note a write makes: a valid id that names no route.
+pub fn makeable_id(id: &str) -> bool {
+  valid_id(id) && !RESERVED_IDS.contains(&id)
+}
+
+/// The most characters an icon holds.
+pub const ICON_MAX: usize = 16;
+
+/// An icon as it is stored: its ends trimmed, at most `ICON_MAX` characters, no control character.
+pub fn clean_icon(icon: &str) -> Result<String, ApiError> {
+  let icon = icon.trim();
+  if icon.chars().any(char::is_control) {
+    return Err(ApiError::bad_request("The icon holds control characters."));
+  }
+  if icon.chars().count() > ICON_MAX {
+    return Err(ApiError::bad_request(format!("The icon is over {ICON_MAX} characters.")));
+  }
+  Ok(icon.to_owned())
+}
+
+/// A note's plain text as it is stored, at most `max` bytes.
+pub fn clean_text(text: &str, max: usize) -> Result<String, ApiError> {
+  if text.len() > max {
+    return Err(ApiError::too_large(max));
+  }
+  Ok(text.to_owned())
 }
 
 /// The bytes of randomness a link's token is made of.

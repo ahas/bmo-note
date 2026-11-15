@@ -13,7 +13,7 @@ use axum::extract::{Path, Query, Request, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::sse::{Event as Sent, KeepAlive, Sse};
 use axum::response::{IntoResponse, Json, Response};
-use axum::routing::get;
+use axum::routing::{get, post, put};
 use bmo_console_face::{ConsoleFace, OWNER_KEY_HEADER};
 use futures_util::{StreamExt, stream};
 use serde::de::DeserializeOwned;
@@ -22,14 +22,15 @@ use crate::app::App;
 use crate::error::ApiError;
 use crate::events::Record;
 use crate::model::{
-  KEY_MAX, clean_title, decode_doc, encode_doc, fresh_id, now_ms, parse_cursor, parse_shared_cursor,
-  valid_blob_id, valid_id,
+  KEY_MAX, clean_icon, clean_text, clean_title, decode_doc, encode_doc, fresh_id, makeable_id, now_ms,
+  parse_list_cursor, valid_blob_id,
 };
+use crate::own;
 use crate::share;
-use crate::store::Saved;
+use crate::store::{Copied, Saved, Written};
 use crate::wire::{
-  Access, DeleteQuery, EventsQuery, Health, NewNote, Note, NoteEvent, NoteMeta, NoteQuery, NoteSave,
-  NotesQuery, Page, StreamEvent,
+  Access, DeleteQuery, EventsQuery, Health, NewCopy, NewNote, Note, NoteEvent, NoteIcon, NoteMeta,
+  NoteQuery, NoteSave, NoteText, NotesQuery, Page, ReadQuery, StreamEvent,
 };
 
 /// The most rows and events one page holds.
@@ -68,16 +69,20 @@ fn screens() -> Router<Arc<App>> {
     .route("/notes", get(list_notes).post(create_note))
     .route("/notes/{noteId}", get(read_note).patch(save_note).delete(delete_note))
     .route("/notes/{noteId}/blobs/{blobId}", get(read_blob).put(put_blob))
+    .route("/notes/{noteId}/text", put(write_text))
+    .route("/notes/{noteId}/icon", put(write_icon))
+    .route("/notes/{noteId}/duplicate", post(duplicate_note))
+    .merge(own::routes())
     .merge(share::routes())
 }
 
 /// Who calls.
 #[derive(Clone, Debug)]
-struct Caller {
+pub(crate) struct Caller {
   /// The service token's caller, rather than the console's.
-  service: bool,
+  pub service: bool,
   /// The account the call answers for: the reader's key, or the service token's `owner`.
-  owner: String,
+  pub owner: String,
 }
 
 fn bearer(headers: &HeaderMap) -> Option<&str> {
@@ -109,7 +114,7 @@ pub(crate) fn credential(app: &App, headers: &HeaderMap) -> Answer<bool> {
 
 /// The account a route of the screens answers for: the reader's key on a console call, the named
 /// `owner` on a service-token call.
-fn caller(app: &App, headers: &HeaderMap, owner: Option<String>) -> Answer<Caller> {
+pub(crate) fn caller(app: &App, headers: &HeaderMap, owner: Option<String>) -> Answer<Caller> {
   if credential(app, headers)? {
     let owner = owner.map(|owner| owner.trim().to_owned()).filter(|owner| !owner.is_empty());
     let owner = owner.ok_or_else(ApiError::no_owner)?;
@@ -136,7 +141,10 @@ fn caller(app: &App, headers: &HeaderMap, owner: Option<String>) -> Answer<Calle
 /// The note a route of one note reaches: the account it belongs to, and what the caller holds of it.
 #[derive(Clone, Debug)]
 pub(crate) struct Reach {
+  /// The account the note belongs to.
   pub owner: String,
+  /// The account the call answers for: the reader, or the service token's `owner`.
+  pub account: String,
   pub access: Access,
 }
 
@@ -177,6 +185,7 @@ pub(crate) fn reach(app: &App, headers: &HeaderMap, owner: Option<String>, note:
   let caller = caller(app, headers, owner)?;
   let own = Reach {
     owner: caller.owner.clone(),
+    account: caller.owner.clone(),
     access: Access::Owner,
   };
   let Some(named) = named.filter(|named| !caller.service && *named != caller.owner) else {
@@ -185,6 +194,7 @@ pub(crate) fn reach(app: &App, headers: &HeaderMap, owner: Option<String>, note:
   match app.store.permission(&named, note, &caller.owner).map_err(ApiError::failed)? {
     Some(permission) => Ok(Reach {
       owner: named,
+      account: caller.owner,
       access: permission.access(),
     }),
     None => Err(ApiError::not_found(format!("No note {note} stands."))),
@@ -260,30 +270,25 @@ async fn list_notes(
   let caller = caller(&app, &headers, given.owner)?;
   let limit = limit_of(given.limit)?;
   let deleted = given.deleted.unwrap_or(false);
-  if given.shared.unwrap_or(false) {
-    if deleted {
-      return Err(ApiError::bad_request(
-        "The shared view holds no trash: name deleted or shared, not both.",
-      ));
-    }
-    let after = match given.after.as_deref().map(parse_shared_cursor) {
-      None => None,
-      Some(None) => {
-        return Err(ApiError::bad_request("after is the changedAt:id:owner of a row, joined by colons."));
-      }
-      Some(Some(cursor)) => Some(cursor),
-    };
-    let (items, more) = app.store.list_shared(&caller.owner, after, limit).map_err(ApiError::failed)?;
-    return Ok(Json(Page { items, more }));
+  let shared = given.shared.unwrap_or(false);
+  if shared && deleted {
+    return Err(ApiError::bad_request(
+      "The shared view holds no trash: name deleted or shared, not both.",
+    ));
   }
-  let after = match given.after.as_deref().map(parse_cursor) {
+  let order = given.sort.unwrap_or_default();
+  let after = match given.after.as_deref() {
     None => None,
-    Some(None) => {
-      return Err(ApiError::bad_request("after is the changedAt:id of a row, joined by one colon."));
-    }
-    Some(Some(cursor)) => Some(cursor),
+    Some(after) => Some(parse_list_cursor(order, after, shared).ok_or_else(|| {
+      ApiError::bad_request("after is the last row's key in the order named and its id, joined by colons.")
+    })?),
   };
-  let (items, more) = app.store.list(&caller.owner, deleted, after, limit).map_err(ApiError::failed)?;
+  let (items, more) = if shared {
+    app.store.list_shared(&caller.owner, order, after.as_ref(), limit)
+  } else {
+    app.store.list(&caller.owner, deleted, order, after.as_ref(), limit)
+  }
+  .map_err(ApiError::failed)?;
   Ok(Json(Page { items, more }))
 }
 
@@ -296,8 +301,12 @@ async fn create_note(
   let caller = caller(&app, &headers, query(given_query)?.owner)?;
   let given: NewNote = body(&bytes)?;
   let id = match given.id.as_deref() {
-    Some(id) if valid_id(id) => id.to_owned(),
-    Some(_) => return Err(ApiError::bad_request("The id is not 1 to 64 letters, digits, - and _..")),
+    Some(id) if makeable_id(id) => id.to_owned(),
+    Some(_) => {
+      return Err(ApiError::bad_request(
+        "The id is not 1 to 64 letters, digits, - and _, or names a route.",
+      ));
+    }
     None => fresh_id(),
   };
   let title = clean_title(&given.title)?;
@@ -315,14 +324,25 @@ async fn read_note(
   State(app): State<Arc<App>>,
   headers: HeaderMap,
   Path(id): Path<String>,
-  given: Result<Query<NoteQuery>, QueryRejection>,
+  given: Result<Query<ReadQuery>, QueryRejection>,
 ) -> Answer<Json<Note>> {
-  let reach = reach(&app, &headers, query(given)?.owner, &id)?;
+  let given = query(given)?;
+  let reach = reach(&app, &headers, given.owner, &id)?;
+  let deleted = given.deleted.unwrap_or(false);
+  if deleted && reach.access != Access::Owner {
+    return Err(ApiError::not_found(format!("No note {id} stands in the trash.")));
+  }
   let row = app
     .store
-    .note(&reach.owner, &id, Some(false))
+    .note(&reach.owner, &id, Some(deleted))
     .map_err(ApiError::failed)?
-    .ok_or_else(|| ApiError::not_found(format!("No note {id} stands live.")))?;
+    .ok_or_else(|| ApiError::not_found(format!("No note {id} stands where it was asked for.")))?;
+  if given.opened.unwrap_or(false) && !deleted {
+    app
+      .store
+      .record_opened(&reach.account, &reach.owner, &id, now_ms())
+      .map_err(ApiError::failed)?;
+  }
   Ok(Json(Note {
     doc: encode_doc(&row.doc),
     meta: reach.held(row.meta),
@@ -347,15 +367,25 @@ async fn save_note(
     reach.owns()?;
   }
   let title = given.title.as_deref().map(clean_title).transpose()?;
-  let doc = given
-    .doc
-    .as_deref()
-    .map(|doc| decode_doc(doc, app.settings.notes.max_doc_bytes))
-    .transpose()?;
+  let max = app.settings.notes.max_doc_bytes;
+  let doc = given.doc.as_deref().map(|doc| decode_doc(doc, max)).transpose()?;
+  if given.text.is_some() && doc.is_none() {
+    return Err(ApiError::bad_request("A text stands only with the doc it was read from."));
+  }
+  let text = given.text.as_deref().map(|text| clean_text(text, max)).transpose()?;
   let at = now_ms();
   let saved = app
     .store
-    .save(&reach.owner, &id, title.as_deref(), doc.as_deref(), given.version, restore, at)
+    .save(
+      &reach.owner,
+      &id,
+      title.as_deref(),
+      doc.as_deref(),
+      text.as_deref(),
+      given.version,
+      restore,
+      at,
+    )
     .map_err(ApiError::failed)?;
   let published =
     |kind: &str| publish_note(&app, kind, &reach.owner, &id, audience(&app, &reach.owner, &id));
@@ -369,17 +399,7 @@ async fn save_note(
       published("note.restored");
       Ok(json_answer(StatusCode::OK, reach.held(meta)))
     }
-    Saved::Conflict(meta) => {
-      let error = ApiError::version_conflict(format!("The note stands at version {}.", meta.version));
-      let mut response = Json(serde_json::json!({
-        "code": error.code,
-        "error": error.error,
-        "note": reach.held(meta),
-      }))
-      .into_response();
-      *response.status_mut() = StatusCode::CONFLICT;
-      Ok(response)
-    }
+    Saved::Conflict(meta) => Ok(conflict_answer(&reach, meta)),
     Saved::Missing => Err(ApiError::not_found(format!("No note {id} stands."))),
     Saved::Trashed => Err(ApiError::trashed(&id)),
   }
@@ -419,6 +439,95 @@ async fn delete_note(
       Ok(StatusCode::NO_CONTENT.into_response())
     }
     None => Err(ApiError::not_found(format!("No note {id} stands."))),
+  }
+}
+
+/// A conflict answered with the note as it stands, as a save's is.
+fn conflict_answer(reach: &Reach, meta: NoteMeta) -> Response {
+  let error = ApiError::version_conflict(format!("The note stands at version {}.", meta.version));
+  let mut response = Json(serde_json::json!({
+    "code": error.code,
+    "error": error.error,
+    "note": reach.held(meta),
+  }))
+  .into_response();
+  *response.status_mut() = StatusCode::CONFLICT;
+  response
+}
+
+/// A write beside the document answered: the note as it stands, or why it did not land.
+fn written_answer(reach: &Reach, id: &str, written: Written) -> Answer<Response> {
+  match written {
+    Written::Done(meta) => Ok(json_answer(StatusCode::OK, reach.held(meta))),
+    Written::Conflict(meta) => Ok(conflict_answer(reach, meta)),
+    Written::Missing => Err(ApiError::not_found(format!("No note {id} stands."))),
+    Written::Trashed => Err(ApiError::trashed(id)),
+  }
+}
+
+async fn write_text(
+  State(app): State<Arc<App>>,
+  headers: HeaderMap,
+  Path(id): Path<String>,
+  given_query: Result<Query<NoteQuery>, QueryRejection>,
+  bytes: Bytes,
+) -> Answer<Response> {
+  let reach = reach(&app, &headers, query(given_query)?.owner, &id)?;
+  reach.writes()?;
+  let given: NoteText = body(&bytes)?;
+  let text = clean_text(&given.text, app.settings.notes.max_doc_bytes)?;
+  let written = app.store.set_text(&reach.owner, &id, given.version, &text).map_err(ApiError::failed)?;
+  written_answer(&reach, &id, written)
+}
+
+async fn write_icon(
+  State(app): State<Arc<App>>,
+  headers: HeaderMap,
+  Path(id): Path<String>,
+  given_query: Result<Query<NoteQuery>, QueryRejection>,
+  bytes: Bytes,
+) -> Answer<Response> {
+  let reach = reach(&app, &headers, query(given_query)?.owner, &id)?;
+  reach.writes()?;
+  let given: NoteIcon = body(&bytes)?;
+  let icon = clean_icon(&given.icon)?;
+  let written = app.store.set_icon(&reach.owner, &id, &icon).map_err(ApiError::failed)?;
+  if matches!(written, Written::Done(_)) {
+    publish_note(&app, "note.saved", &reach.owner, &id, audience(&app, &reach.owner, &id));
+  }
+  written_answer(&reach, &id, written)
+}
+
+async fn duplicate_note(
+  State(app): State<Arc<App>>,
+  headers: HeaderMap,
+  Path(id): Path<String>,
+  given_query: Result<Query<NoteQuery>, QueryRejection>,
+  bytes: Bytes,
+) -> Answer<Response> {
+  let reach = reach(&app, &headers, query(given_query)?.owner, &id)?;
+  let given: NewCopy = body(&bytes)?;
+  let copy = match given.id.as_deref() {
+    Some(copy) if makeable_id(copy) => copy.to_owned(),
+    Some(_) => {
+      return Err(ApiError::bad_request(
+        "The id is not 1 to 64 letters, digits, - and _, or names a route.",
+      ));
+    }
+    None => fresh_id(),
+  };
+  let title = clean_title(&given.title)?;
+  let copied = app
+    .store
+    .duplicate(&reach.owner, &id, &reach.account, &copy, &title, now_ms())
+    .map_err(ApiError::failed)?;
+  match copied {
+    Copied::Made(meta) => {
+      publish_note(&app, "note.saved", &reach.account, &copy, vec![reach.account.clone()]);
+      Ok(json_answer(StatusCode::CREATED, meta))
+    }
+    Copied::Missing => Err(ApiError::not_found(format!("No note {id} stands live."))),
+    Copied::Taken => Err(ApiError::bad_request(format!("The caller already holds a note at {copy}."))),
   }
 }
 

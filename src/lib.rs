@@ -7,6 +7,8 @@ pub mod console;
 pub mod error;
 pub mod events;
 pub mod model;
+pub mod own;
+pub mod search;
 pub mod settings;
 pub mod share;
 pub mod store;
