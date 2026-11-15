@@ -25,9 +25,16 @@ studied of AFFiNE and under which licence.
   client serialises it with `Y.encodeStateAsUpdate` and loads it back with `Y.applyUpdate`; the service
   never parses blocks, only stores the byte blob with its metadata.
 - Metadata the service does read: an id, a title, a version, creation and change moments, a deleted
-  mark, and the byte size. The title is written by the client on each save: the document's own title
-  where it stands, else the first line of its content, so the list answers titles without opening the
-  bytes.
+  mark, the byte size and an icon. The title is written by the client on each save: the document's own
+  title where it stands, else the first line of its content, so the list answers titles without opening
+  the bytes. The icon is one emoji the reader picked, or none; it stands beside the document, not in it.
+- **The note's plain text is the client's to supply.** The service cannot read the document, so the
+  client reads the text out of it — the editor's own reading of its blocks, one line a block, the marks
+  the talk protocol wears taken off — and hands it with each save. The service keeps it beside the
+  document for search alone and answers it to nobody. A document saved without its text stands
+  unindexed until one comes; the screen supplies it quietly for a note saved before the text was asked
+  for, as the navigator lists it or the reader opens it, through a route that writes the text for the
+  stored version and moves nothing else.
 - The document's own format belongs to BlockSuite. An upgrade of the editor may read documents the old
   one wrote (the schema carries its versions); the unit adds no format of its own.
 
@@ -84,20 +91,39 @@ studied of AFFiNE and under which licence.
 - What the undo takes back is the change as the reader made it: one keystroke run, one bar action,
   one insert, and each change the talk applies — an anchored patch, a whole-body rewrite, a rename —
   land as one transaction, so one press undoes one change. An undone change rides the document's
-  update events like any other, so autosave, the head's title and the list all follow it.
+  update events like any other, so autosave, the page head's title and the navigator all follow it.
 
 ## Storage
 
-- One SQLite file under the unit's data directory holds four tables: each note's owner, id, title, doc
-  bytes, version, timestamps, and deleted mark; each attachment's note, id, type and bytes; each share
-  link's token, note, moment made and end; and each member share's note, member key, permission and
-  moment shared. A note is named by its owner and its id together, since ids are each account's own. An
+- One SQLite file under the unit's data directory holds the unit's tables: each note's owner, id, title,
+  doc bytes, version, timestamps, deleted mark and icon; each attachment's note, id, type and bytes; each
+  share link's token, note, moment made and end; each member share's note, member key, permission and
+  moment shared; each note's search text — its title and the plain text the client supplied, with
+  whether that text stands for the stored document — and the full-text index over it; each account's
+  pins, the note and the moment pinned; and each account's record of the notes it opened, the latest
+  moment each. A note is named by its owner and its id together, since ids are each account's own. An
   attachment is an image only: the editor uploads one to its note's blob route before an image block
   stands, and reads it back through the same route, so no block ever stands on bytes the service does
   not hold. The document itself never carries image bytes; the cap on one stored document leaves the
   document's own text and structure.
-- A purge takes the note with its blobs, its link and its member shares. A save that drops an image leaves its bytes standing
-  until the note goes: the store collects no garbage of its own.
+- A purge takes the note with its blobs, its link, its member shares, its search text, every account's
+  pin of it and every account's record of opening it. A save that drops an image leaves its bytes
+  standing until the note goes: the store collects no garbage of its own.
+- **Pins and what was opened are the reader's, not the note's.** Each is kept by the account that made
+  it, so a member pins and opens a note shared with them as the owner does their own, and nobody reads
+  another's. They are answered only for what the account reads at the moment of the read — a share
+  taken back or a note trashed drops out without its row being touched — and the record of what was
+  opened keeps each account's latest hundred.
+- **The search index.** The search text stands in a table of its own, one row a note keyed by an integer
+  of its own that SQLite never renumbers, and an FTS5 table indexes its title and text under the trigram
+  tokenizer, kept in step with the rows by the table's own triggers. A search joins the index back to
+  the notes by owner and id, and the access clause is laid on the notes, so the index decides only what
+  matches, never who may read it (`docs/api.md`, 「Search」).
+- **The store upgrades itself in place as it opens.** There is no migration ladder: every table, index
+  and trigger is made where it does not stand, each column a later version added is added where the
+  table lacks it (read from the table's own column list), and every note without a search row is given
+  one holding its title and no text — all in one transaction, so a store from before any of it opens
+  whole and a store already upgraded opens unchanged, however often it is opened.
 - A deletion moves the note to a trash list; a restore moves it back; a purge deletes the row and is
   open for a trashed note only. Nothing else deletes a note.
 - A stored document is capped at a setting (`[notes] max_doc_bytes`); a save past the cap is refused
@@ -110,7 +136,7 @@ studied of AFFiNE and under which licence.
   same in-memory ring every platform service keeps and answered over the common stream route.
 - An event reaches the note's owner and the members the note is shared with as it is published; a
   share's own two events reach its owner and that member. The console bundle subscribes through the
-  console and refreshes the open list, so a note shared with a reader appears in their shared view
+  console and reads the navigator again, so a note shared with a reader appears in their shared section
   without a reload. A restart loses the ring, as every unit's does.
 
 ## The AI talk panel
@@ -192,53 +218,96 @@ studied of AFFiNE and under which licence.
   service under `calls`, the receiver, which the AI talk panel speaks through; the bundle calls nothing
   else beside its own service, and reads the console's people directory for the share dialog's members.
   `docs/api.md`, 「Console」, names the rest of what the note chooses.
-- Three screens stand under `/note`: the list, the editor (`/note/<id>`, and `/note/<id>?owner=<key>`
-  for a note another account shared), and the share page a link opens (`/note/share/<token>`).
-  - The list's head names the screen where the console draws no bar, and carries the view switch
-    between the live notes, the notes shared with the reader and the trash, with the layer's one create
-    button (bmo-ui `docs/components.md`, "Creating") at the row's right end: a grey icon whose tooltip
-    names a new note and its key, `n`. On a phone that button floats at the screen's bottom right
-    instead, the row holds the view switch alone, and the list's scrolling end keeps the layer's create
-    room, so its last row scrolled to the end stands clear of the button. A press makes the note and
-    opens it; a note that could not be made says so and the list stands. A row of the shared view
-    names under its title the account that shared it, by the name
-    the people directory answers, and carries no actions: the trash is the owner's. Its rows stand newest
-    changed first, each with the note's title on its own line and, under it, what the note holds —
-    its stored size — and the moment it changed (the moment it went to the trash, in the trash
-    view), with its actions at the trailing edge. The first fetch reserves the rows with a skeleton
-    of their shape; an empty view stands as one line saying so, with no key of its own beside the
-    create button; a read that failed stands as its own state, in one line with the key that tries
-    again; a re-read that failed keeps the rows that stand and says so above them.
-    Opening a note marks the visit; coming back finds the list where it was left — the scroll stands
-    where it stood when the note was opened, the note just read is brought into sight and marked for
-    a breath, and where that row no longer stands (trashed meanwhile, or past the rows held) the
-    scroll is put back on its own. The visit is held in the screen's memory alone.
-  - The open note lays nothing into the console's title bar, which names the screen alone; the note
-    is named by the document's own title. Where the console draws no bar, the screen draws its own,
-    holding the note's title alone, as the editor holds it, cut to the bar with its whole value in a
-    tooltip. The way back to the list stands at the leading end of the screen's own row under the bar,
-    which is the format bar, under the console's bar and the screen's own alike. While the note is
-    read the format bar already stands, its keys disabled; where the note is missing or could not be
-    read, the row stands with the way back alone.
-- Neither screen reads the places the console's title bar offers for a screen's actions and way back:
-  the list's view switch and create button stand in its own row under the bar, and the open note's way
-  back stands at the leading end of its format bar, its share key and talk key at the trailing end.
-
-- The list stands in the console's content width — at most its `--ui-container` across, centred — as
-  every console screen does, its rows reaching that width with only their own inner room. The open
-  note is the screen that releases that width in its own panel: its page fills the console's content
-  area, with no cap of its own.
+- Two screens stand under `/note`: the notes screen, and the share page a link opens
+  (`/note/share/<token>`).
+- **The notes screen is one screen of two regions:** a navigator of the reader's notes beside the open
+  note. It answers `/note`, with no note chosen, and `/note/<id>` — `/note/<id>?owner=<key>` for a note
+  another account shared, `/note/<id>?trash=1` for the reader's own note in the trash — as one route
+  whose screen stays standing while the address changes. Choosing a note changes the note region and
+  the address, one step of the browser's history, and the navigator stands where it was: its scroll, its
+  folded sections and the rows it has read. Back steps through the notes chosen.
+- **On a wide screen the two regions stand side by side behind the component library's splitter,** its
+  handle the layer's one-pixel line with a wide grab room drawn over the regions' edges. The reader drags
+  the navigator between 200 and 480 pixels, 260 at first, and folds it away whole; both are kept in that
+  browser. Ctrl+\ (⌘\) folds and unfolds it, and so do the fold key at its head's trailing end and, while
+  it is folded, the key that leads the note region's bar. Each region scrolls on its own.
+- **On a phone the note region owns the screen.** The navigator rises from the bottom edge as a drawer
+  from one key at the leading end of the note region's bar, and choosing a note there closes it.
+- **The navigator, top to bottom:**
+  - Its head, a row the height of the note region's bar, their bottom lines one line: the search entry,
+    a field-shaped key showing the search mark, the word for search and its key (Ctrl+K, ⌘K), which opens the
+    search dialog; then the layer's one create button, a grey icon naming a new note and its key, `n`
+    (on a phone, inside the drawer, it is the head's contained add); then the fold key on a wide screen.
+  - One scrolling list of sections, each headed by its name, which folds and unfolds the section: the favourites,
+    standing only while the reader has pinned something, in pin order; the reader's own notes; and the notes shared with the reader. The two
+    last carry a sort key at their head's trailing end, a dropdown of last edited (the default), title
+    and created, each kept in that browser with whether each section is folded.
+  - A row is the note's icon — its emoji, or the note mark where it has none — and its title, on one
+    line, cut with the shared tooltip where it does not fit; an untitled note says the pack's word for untitled in the dimmed
+    tone. The open note's row stands chosen. A row is pressed to open its note; Ctrl- or ⌘-pressing it
+    opens it in a new tab. Its actions stand in one menu: a `…` key at the row's trailing end, shown while
+    the pointer is on the row or the keyboard's focus is in it and always under a finger, and the same menu
+    on a right press and a held finger. The menu offers adding to or taking from the favourites, share (the owner's
+    alone), copy link, duplicate and move to the trash (the owner's alone).
+  - A section reads thirty rows at first and the next thirty as its end comes into sight, a skeleton of
+    rows standing at its end while they come. The first read of each section reserves its rows with a
+    skeleton of the row's shape; an empty section is one line; a section whose read failed says so in one
+    line with the key that tries again.
+  - Its foot, outside the scroll: the trash, which opens a popover from the key holding the reader's trashed
+    notes, newest trashed first, with a field that filters them through the layer's list search. A row
+    there opens the note in the note region.
+- **The note region with no note chosen** stands empty but for one line of guidance, the search mark
+  above it, and the keys that act there: the search key and the create key. On a phone the create button
+  floats at the screen's bottom right there, the screen's main create, and the drawer key leads the bar.
+- **The open note's bar** is the row under the console's title bar, 48 pixels tall, its bottom line one
+  with the navigator's head. At its leading end stands the key that brings the navigator — the drawer key
+  on a phone, the unfold key while it is folded on a wide screen — and then the note's state as one key:
+  whose note it is where it is shared (the name the people directory answers), when it was last edited,
+  and the save state with that state's own icon and tone, the one place the save state stands. That key
+  opens the note's properties in a popover: owner, made, last edited, words and size. At its trailing
+  end stand three icon keys, each named in its tooltip: the pin star (adding to and taking from the favourites), the
+  share key, the owner's alone, which opens bmo-ui's share dialog, and the more key, a menu of copy link
+  (Ctrl+L, ⌘L), duplicate, full width as a checked choice, move to the trash (the owner's alone), and, last, a line
+  of what the note holds — its words and its size. The title is not on the bar: the bar is the status and
+  the actions, and the title heads the page under it.
+- **The page head** stands at the top of the document's own scroll, in the editor's column: the note's
+  icon, large, over the title the editor draws large as the document's own. A note with no icon shows
+  a key to add one there while the pointer is over the head or the keyboard's focus is in it; the icon key opens a
+  popover of a small set of emoji and a key that removes the icon. A reader who cannot write the note sees the icon and
+  nothing to press. There is no cover.
+- **Full width** releases the editor's column to the region's width, for that note in that browser.
+- **The note is saved as the editor writes it** (「Editing and saving」): a moment after each edit, and at
+  once on Ctrl+S (⌘S) wherever the focus stands on the screen, in place of the browser's own save, each
+  save carrying the note's plain text. Where a reader must act (a refused save, a conflict) a band above
+  the document says so, with the key that acts on it. Choosing another note or leaving the screen with a
+  change unsent sends it first, and asks before throwing it away where it cannot land.
+- **A note in the trash** opens read only under one band that says so, holding restore and delete for good; delete for good
+  asks first in the shared question dialog, naming that it cannot be taken back. Moving a note to the trash asks
+  nothing, since it is taken back, and the message pill that says it was moved offers restore.
+- **A missing note** — never made, purged, or a share taken back — keeps the bar with the navigator's
+  key and says so in one line; a note whose read failed says so with the key that tries again.
+- The screen draws nothing into the console's title bar, which names the screen. Where the console draws
+  no bar, the screen draws its own, holding the screen's name alone.
+- **The keys of the screen:** Ctrl+K or Ctrl+P (⌘K, ⌘P) opens the search, Ctrl+K only where no field or
+  the document holds the typing, since the editor keeps it for a link; Ctrl+\ (⌘\) folds the navigator;
+  Ctrl+L (⌘L) copies the open note's link; `n` makes a note (the create button's own); Ctrl+S (⌘S) saves.
+  Each control a key presses names it in its tooltip.
+- **The navigator follows the service's events** (「Events」): a note saved, trashed, restored, purged,
+  shared or unshared reads the sections again in place, with no skeleton, and the open note's row with
+  them.
+- The notes screen fills the console's content area, with no cap of its own: the navigator is a list
+  reaching its region's edges, and the note region releases its width to the editor, whose column the
+  document itself caps unless the note stands at full width.
 - The editor stands under a format bar of the bundle's own: inline marks, block types, lists, quote
   and code, an image upload and a table insert, each driving the vendored editor's own command chain,
   so the bar, the hotkeys and the slash menu all ride one mechanism. The bar and the editor stand as
-  one column filling the page; the bar spans that column, but its controls stand in one gathered,
-  centred row of their own width, never spread edge to edge. The way back stands apart at the bar's
-  leading edge and the talk key at its trailing edge, since it acts on the whole note rather than the
-  selection. Where the bar is wider than the screen, as on a phone, the way back and the talk key hold
-  to the bar's two ends and the format keys scroll sideways between them, so both stand in sight at
-  every width. Every key in the bar is the library's small button at its own size, an icon-only key its
-  small square, centred in the row with its hover and press filling its own shape, never a cell
-  stretched to the row's height. Slash commands stay a shortcut, never
+  one column filling the note region; the bar spans that column, but its controls stand in one gathered,
+  centred row of their own width, never spread edge to edge. The talk key stands apart at its trailing
+  edge, since it acts on the whole note rather than the selection. Where the bar is wider than the
+  screen, as on a phone, the talk key holds to the bar's end and the format keys scroll sideways before
+  it, so it stands in sight at every width. Every key in the bar is the library's small button at its own
+  size, an icon-only key its small square, centred in the row with its hover and press filling its own
+  shape, never a cell stretched to the row's height. Slash commands stay a shortcut, never
   the way in. The image key opens a file input of the bundle's own: it carries the native hidden
   attribute, and the bundle's stylesheet holds it hidden with an `!important` rule. The selection toolbar,
   the drag handle and the floating format menu are the fork's own and stand as it drew them, but for one
@@ -246,15 +315,18 @@ studied of AFFiNE and under which licence.
   bar, and the phone lays its own selection menu over the words; the bar does its work there.
 - **The screens' browser test holds them to these rows.** It builds the note service from the checkout,
   starts it on a settings folder and a store of its own, starts the bundle's dev host relaying to it as
-  the console would, and drives both screens in a real browser at 1,280 and 360 pixels wide, in the light
-  and the dark scheme: the list names itself with nothing beside the name; on a wide screen its own row
-  ends with the create button, a grey icon whose tooltip names a new note and its key, and the key makes
-  a note; on a phone the row holds the view switch alone, the create button floats at the bottom right,
-  and the last row scrolled to the end stands clear of it; every key of the format bar is the library's small button, an icon-only one its small
-  square; every key of either row stands centred with room above and below it, its hover filling its own
-  shape and never its cell or the row; the way back and the talk key stay in sight while the keys scroll on
-  a phone; and a missing note keeps the row with the way back alone. It runs in the suite's browser lane,
-  apart from the client's own check, and is skipped where the browser build is not on the machine.
+  the console would, writes a few notes of realistic Korean titles and text through the relay, and drives
+  the screen in a real browser at 1,280 and 360 pixels wide, in the light and the dark scheme: the
+  navigator with every section and the trash at its foot; a note open, its bar holding the state at its
+  leading end and the star, the share key and the more key at its trailing end; the empty note region;
+  the search dialog before typing, with results whose matches are marked and with none; the more menu;
+  a note in the trash under its band; and, on a phone, the navigator risen in its drawer. On a wide screen
+  the create button closes the navigator's head, a grey icon whose tooltip names a new note and its key,
+  and the key makes a note; every key of the format bar is the library's small button, an icon-only one
+  its small square, centred with room above and below it and its hover on its own shape; the talk key
+  stays in sight while the keys scroll on a phone; a missing note keeps the bar with the navigator's key;
+  and no screen scrolls sideways on a phone. It keeps a picture of each state, and runs in the suite's
+  browser lane, apart from the client's own check, skipped where the browser build is not on the machine.
 - **The editor's styles stay in the editor.** The vendored editor lays its stylesheets on the page as plain
   style elements, unlayered, which beat every layered rule of the console; and a few of its rules name nothing
   of the editor's own — a bare `input`, a `.truncate` — so once a note is opened they would reach every screen
@@ -263,11 +335,6 @@ studied of AFFiNE and under which licence.
   editor lays and holds every rule whose selector names no element, class or attribute of the editor's own to
   the editor's host. Rules that name the editor's own, and the page-wide ones (`:root`, `html`, `body`), which
   carry the editor's variables, stand as laid.
-- The status line at the screen's foot tells what the document holds — its word count and its size —
-  beside the save state, drawn with that state's own icon and tone; it is the one place the save state
-  stands. The note saves itself a moment after each edit, and Ctrl+S (⌘S) saves at once, in place of the
-  browser's own save, wherever the focus stands on the open note's screen. Where a reader must act (a
-  refused save, a conflict) the banner above the document says so, with the key that acts on it.
 - An image an editor inserts is held on the service before its block stands: the editor's blob store
   is the note's own blob routes, so uploads and read-backs cross the console's relay like every other
   call, and a note reads back its images wherever it is opened.
@@ -283,8 +350,9 @@ studied of AFFiNE and under which licence.
 
 ## Sharing on the screens
 
-- **The share key opens bmo-ui's share dialog,** on the owner's own open note alone, titled by the
-  note. The bundle hands the dialog its roads; the dialog calls nothing itself.
+- **The share key opens bmo-ui's share dialog,** on the owner's own note alone, from the open note's bar
+  or a row's menu, titled by the note. The bundle hands the dialog its roads; the dialog calls nothing
+  itself.
   - The link road is the note's link on the service: read, made for a span and ended there, and the
     page it opens is the share page under the console's own address. The spans offered are a day,
     a week, a month and for good, a week offered first.
@@ -293,20 +361,56 @@ studied of AFFiNE and under which licence.
     service, each member drawn by the name the directory answers for the key, or the key itself where
     it answers none. Found without the directory, the dialog shares by link alone.
 - **A shared note opens as its permission allows.** Opened by a `read` member, the document stands
-  read only: the format bar keeps its keys disabled, the talk key, Ask AI and the share key do not
-  stand, nothing is saved, and the status line says the note is read only where it would tell the
-  save state. Opened by an `edit` member, the screen is the owner's but for the share key.
+  read only: the format bar keeps its keys disabled, the talk key, Ask AI, the share key and the icon key
+  do not stand, nothing is saved, and the bar's state says the note is read only where it would tell the
+  save state. Opened by an `edit` member, the screen is the owner's but for the share key and moving the
+  note to the trash. Either member pins, copies the link of and duplicates the note as their own.
 - **The share page stands with no frame of the console's,** its own bar holding the note's title, and
   under it the document read only, its images read through the link. A link that opens nothing stands
   as its own state, one line saying the note is not shared.
 - **The sharing browser test holds the screens to this.** On the same throwaway service and dev host as
   the screens' test, it drives the share dialog in a real browser: the owner makes a link and the share
   page opens the note read only with no format bar; the owner finds a member in the people directory and
-  shares the note; the member finds it in the shared view and opens it read only, with no share, talk or
-  AI key; a reader it is not shared with finds no note; and once the owner takes the member off, the member
-  finds no note either. The dev host stands in for the console's people directory with a few made-up
-  people, and a browser names the reader the relay presents by a cookie of the dev host's own, so one
-  test acts as each of the three accounts.
+  shares the note; the member finds it in the navigator's shared section and opens it read only, with no
+  share, talk or AI key; a reader it is not shared with finds no note; and once the owner takes the
+  member off, the member finds no note either. The dev host stands in for the console's people directory
+  with a few made-up people, and a browser names the reader the relay presents by a cookie of the dev
+  host's own, so one test acts as each of the three accounts.
+
+## Search
+
+- **Search is one dialog over the screen,** the component library's command palette in a modal, opened
+  from the navigator's search entry, Ctrl+K and Ctrl+P (⌘K, ⌘P). It stays a centred modal on a phone.
+  It belongs to the note screen: what it searches, sorts and filters is the note service's, so it is
+  built in the bundle from the library's palette rather than in the shared layer.
+- **Before anything is typed** it lists the notes the reader opened most recently, newest first.
+- **While typing,** a moment after the typing stops, it asks the service's search (`docs/api.md`,
+  「Search」) and lists what it answers: each row the note's icon, its title with the match marked, whose
+  note it is where it is shared, when it was last edited, and under them one line of the text around the
+  match, marked. The marks are the layer's list-search marking, handed the term the service found first.
+  A search that finds nothing says so in one line.
+- **Inside the dialog, under the list,** a sort dropdown of best match (the default), last edited and created, and a
+  filter dropdown: titles only; the reader's own notes, the notes shared with them and the trash, the first two on at first; and a date of
+  last edit: any, today, the last 7 days or the last 30 days. A phrase in double quotes is matched exactly.
+- The arrow keys walk the rows and Enter opens one, as a press does; Ctrl- or ⌘-pressing a row opens it
+  in a new tab and leaves the dialog standing. Opening a note closes the dialog.
+- **The search lives in the address while the dialog stands,** under `search`, with `sort`, `in`, `title`
+  and `since` beside it where they are not the defaults, so a search is linked whole. Opening the dialog
+  is one step of the history, as choosing a note is, and the dialog takes no step of its own for the back
+  gesture: back closes it by stepping back over that one, typing and filtering rewrite that step in place,
+  and opening a note from it takes its place, so a search and the note it found are one step from where
+  the reader stood.
+
+## Present limits
+
+- Notes do not nest, and there are no folders: every note stands in one list per view.
+- A note has no cover picture, no version history and no comments.
+- Rows are not dragged to reorder: the own and the shared sections sort by last edited, title or created, and
+  the pins keep the order they were pinned in.
+- Search reads titles and the text of text blocks; the words inside an image are not searched, and a
+  table's cells stand outside the text the client supplies.
+- A member's own client supplies no text for a note it holds to read only, so a shared note saved before
+  the text was asked for is found by its title until its owner or an editor opens it.
 
 ## Deployment shape
 

@@ -38,20 +38,25 @@ directly through the console's relay, on the manifest's `calls` (below).
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/notes?deleted=&shared=&after=&limit=` | The caller's notes, newest changed first — `{items, more}`; `deleted=true` answers the trash, `shared=true` the live notes other accounts share with the caller |
+| GET | `/notes?deleted=&shared=&sort=&after=&limit=` | The caller's notes in the order `sort` names, newest changed first where it names none — `{items, more}`; `deleted=true` answers the trash, `shared=true` the live notes other accounts share with the caller |
 | POST | `/notes` | Makes a note: `id?`, `title`, `doc` (base64) — 201, or 200 with the note as it stands where the id is already held (idempotent by id; stored bytes unchanged) |
-| GET | `/notes/{noteId}?owner=` | One note with its document |
-| PATCH | `/notes/{noteId}?owner=` | Saves: `version` (required), `title?`, `doc?`, `restore?` — 200, or 409 `version-conflict` answering the current metadata |
-| DELETE | `/notes/{noteId}?purge=` | Moves the note to the trash, or, with `purge=true`, deletes it for good where it stands trashed, its stored images with it — 204 |
+| GET | `/notes/{noteId}?owner=&opened=&deleted=` | One note with its document; `opened=true` records that the caller opened it (「What was opened」); `deleted=true` answers the caller's own note where it rests in the trash |
+| PATCH | `/notes/{noteId}?owner=` | Saves: `version` (required), `title?`, `doc?`, `text?`, `restore?` — 200, or 409 `version-conflict` answering the current metadata |
+| DELETE | `/notes/{noteId}?purge=` | Moves the note to the trash, or, with `purge=true`, deletes it for good where it stands trashed, its stored images, its text, its pins and the record of who opened it with it — 204 |
+| PUT | `/notes/{noteId}/text?owner=` | Supplies the note's plain text for its stored document: `version` (required), `text` — 200 the metadata; 409 `version-conflict` where `version` is not the stored one. The document, the version and `changedAt` stay as they stand |
+| PUT | `/notes/{noteId}/icon?owner=` | Sets the note's icon: `icon` (empty clears it) — 200 the metadata. The version and `changedAt` stay as they stand |
+| POST | `/notes/{noteId}/duplicate?owner=` | Makes a note of the caller's own from one the caller reads: `id?`, `title` — 201 the copy's metadata |
 | PUT | `/notes/{noteId}/blobs/{blobId}?owner=` | Stores one image with the live note: the body is its bytes, `content-type` its image type — 204; an id already held keeps the bytes it was first given (a re-upload answers the same 204 whatever it carries) |
 | GET | `/notes/{noteId}/blobs/{blobId}?owner=` | One stored image: its bytes with the type it was stored under, `cache-control: private, max-age=31536000, immutable`; 404 where none stands |
 
 A note metadata is `id`, `owner` (the account key the note belongs to), `title` (may be empty; the
 screen names an empty one by its own word), `version` (a whole number from 1, held up on each save),
-`createdAt`, `changedAt`, `size` (stored doc bytes), `deletedAt` (null while the note lives), and
-`access`, what the caller holds of it: `owner`, or the member's `edit` or `read`. A note read adds
-`doc`. A write's `id` is 1 to 64
-letters, digits, `-` and `_`; one is made where none is given (lowercase hexadecimal). A `doc` that is
+`createdAt`, `changedAt`, `size` (stored doc bytes), `deletedAt` (null while the note lives),
+`access`, what the caller holds of it: `owner`, or the member's `edit` or `read`, `icon`, the note's
+icon (a short string, empty where it has none), and `indexed`, whether the service holds the note's
+plain text for its stored document (「Search」). A note read adds `doc`. A write's `id` is 1 to 64
+letters, digits, `-` and `_`, never one of the words `search`, `pinned` and `recent`, which name routes
+under `/notes`; one is made where none is given (lowercase hexadecimal). A `doc` that is
 not base64 for at least one byte is 422 `bad-doc`; a `title` over 300 characters, a `version` below 1
 or a body that is not one object is 400 `bad-request`; a decoded `doc` over `[notes] max_doc_bytes` is
 413 `too-large`; a note the account does not hold live is 404 `not-found`; a `restore` or `doc` write
@@ -59,9 +64,34 @@ on a trashed note is 422 `trashed`; a `purge` of a live note is 422 `not-trashed
 `version` is below the stored one answers 409 `version-conflict`; one at or above it saves (a writer
 who read ahead of the service loses nothing it did not already hold). `restore=true` with no `doc`
 moves a trashed note back to life and writes nothing else; on a live note it changes nothing.
-`deleted=true` with `shared=true` is 400 `bad-request`. The shared view's cursor is
-`changedAt:id:owner` of its last row, since two accounts may each hold a note at one id; the own
-views' is `changedAt:id`.
+`deleted=true` with `shared=true` is 400 `bad-request`.
+
+A list's `sort` is `changed` (newest changed first, the default), `created` (newest made first) or
+`title` (by title, letters compared without regard to case, untitled notes last, then by id). Its
+cursor is the last row's key in that order: `changedAt:id`, `createdAt:id`, or `<title>:id` with the
+title written as unpadded base64url of its UTF-8, so a title's own colons never part the cursor; the
+shared view's adds `:owner`, since two accounts may each hold a note at one id. A cursor that does not
+read for the sort named is 400 `bad-request`.
+
+A read with `deleted=true` answers the caller's own note where it rests in the trash and nothing else: a
+live note, another account's note and one naming a member's `owner` are 404 `not-found`. A read with
+`opened=true` answers as a read does and records the moment (「What was opened」); a trashed note's read
+records nothing.
+
+A save's `text` is the note's plain text as the client reads it out of the `doc` it rides with, at most
+`[notes] max_doc_bytes` bytes of UTF-8 (413 `too-large` past it), and stands only with a `doc` (400
+`bad-request` without one). A `doc` saved without a `text` leaves the note unindexed (`indexed` false)
+until a text is supplied for it. The text route writes a text for the document as it stands: it needs
+the note live and the caller's writes (the owner, or a member holding `edit`), and its `version` must be
+the stored one, so a text read from an older document never lands over a newer one.
+
+An `icon` is at most 16 characters with no control character, its ends trimmed; it needs the note live
+and the caller's writes, and publishes `note.saved`. A duplicate is a new note of the caller's own: the
+source's document, images, icon and text copied, its `title` the one the call gives (the screen marks it
+as a copy in the reader's language); the source is any note the caller reads live, their own or one
+shared with them at either permission, and anything else is 404 `not-found` as a read is. Its `id` is
+chosen as a creation's is, and one the caller already holds is 400 `bad-request`; it publishes
+`note.saved` to the caller, as a creation does.
 
 The blob routes stand under the note: a `PUT` needs the note live (a trashed note is 422 `trashed`, no
 note 404), its `content-type` must name an image, its `blobId` must be a BlockSuite blob key (1 to
@@ -72,6 +102,69 @@ lives (「Sharing」); a purge has taken the blobs.
 
 A service-token call on these routes answers for the `owner` it names; one naming none is 422
 `no-owner`.
+
+### Pins
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/notes/pinned` | The notes the caller pinned, first pinned first — `{items, more}`, `more` always false |
+| PUT | `/notes/{noteId}/pin?owner=` | Pins the note for the caller — 204; a note already pinned keeps its place |
+| DELETE | `/notes/{noteId}/pin?owner=` | Takes the caller's pin off — 204, whether it stood or not |
+
+A pin is the caller's own, kept by their account, so a member pins a note shared with them as its owner
+pins their own, and neither sees the other's. Pinning needs a note the caller reads live (404
+`not-found` otherwise, 422 `trashed` for the caller's own note in the trash). The list answers only
+what the caller reads live at the moment of the read: a pinned note trashed, a share taken back or a
+note purged drops out of it, and comes back with a restore or a new share while its pin stands. A purge
+takes every pin of the note.
+
+### What was opened
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/notes/recent?limit=` | The notes the caller opened most recently, newest first — `{items, more}`, each row the note's metadata and `openedAt` |
+
+A read with `opened=true` records, for the caller's account, the moment it opened the note; the store
+keeps each account's latest 100 and lets older ones go. `limit` is 1 to 50, 20 where none is given. As
+the pins, the list answers only what the caller reads live at the moment of the read.
+
+### Search
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/notes/search?q=&in=&titleOnly=&since=&sort=&after=&limit=` | The notes the caller reads whose title or text holds what `q` asks — `{items, more}` |
+
+- **What it finds.** `q` is 1 to 200 characters. It is read as terms parted by spaces, a run between two
+  double quotes standing as one term, its spaces and all; every term must stand in the note, each as a
+  run of characters inside a word or across words, letters compared without regard to case. A term
+  that is a quoted phrase therefore matches exactly that run. The title and the plain text the client
+  supplied (「Notes」) are searched; a note with no text supplied is found by its title alone. A `q`
+  with no term is 400 `bad-request`.
+- **The index and its least length.** The store indexes the title and the text with SQLite's full-text
+  search under its trigram tokenizer, which finds a run of three characters or more anywhere in a word,
+  Korean included. A term shorter than three characters cannot be read from that index: where every
+  term is that short, the route finds the notes whose title holds each term as a plain substring, and
+  reads no text; where a short term stands beside a longer one, the longer ones are read from the index
+  and the short one must stand as a substring of the title or the text.
+- **Where it looks.** `in` names the views searched, comma-separated: `mine`, the caller's own live
+  notes; `shared`, the live notes shared with the caller; `trash`, the caller's own notes in the trash.
+  `mine,shared` where none is given; any other word is 400 `bad-request`. Nothing else is ever answered:
+  another account's note only while it lives and is shared with the caller, at the permission it is
+  shared at, and a note in the trash to its owner alone.
+- **Filters.** `titleOnly=true` searches the titles alone. `since` (epoch ms) keeps the notes changed at
+  or after it.
+- **Order.** `sort` is `best` (the default), `changed` (newest changed first) or `created` (newest made
+  first). The best match ranks the index's relevance with a title match weighing ten times a text match,
+  and a note changed in the last seven days ahead of one as relevant changed before; a search of short
+  terms alone has no relevance and stands newest changed first.
+- **Pages.** `limit` is 1 to 50, 20 where none is given; `after` is how many rows of the same search were
+  already read, 0 where none is given.
+- **A row** is the note's metadata — `owner` says whose note it is — with `titleHits`, the places in the
+  title where a term stands, and `snippet`: a stretch of the text around the first place a term stands,
+  `text`, with `hits`, the places a term stands in it; null where no term stands in the text, or where
+  the search read titles alone. A place is `[start, end)` in UTF-16 code units, the way a browser's
+  string counts, and the stretch is cut at most 40 characters before its first hit and runs to at most
+  160 characters, its line breaks laid flat.
 
 ## Sharing
 
@@ -104,9 +197,11 @@ the note stands.
 A console call naming the owner with `owner` on the routes of one note reaches a live note shared with
 the reader:
 
-- with `read`: `GET /notes/{noteId}` and `GET /notes/{noteId}/blobs/{blobId}`;
-- with `edit`: those, and `PATCH /notes/{noteId}` without `restore` and
-  `PUT /notes/{noteId}/blobs/{blobId}`, as the owner's own;
+- with `read`: `GET /notes/{noteId}` (without `deleted`), `GET /notes/{noteId}/blobs/{blobId}`, the
+  reader's own pin of it and a duplicate of it;
+- with `edit`: those, and `PATCH /notes/{noteId}` without `restore`,
+  `PUT /notes/{noteId}/blobs/{blobId}`, `PUT /notes/{noteId}/text` and `PUT /notes/{noteId}/icon`, as the
+  owner's own;
 - with either, nothing else: a write a `read` share does not open, a trash, a purge, a restore and the
   sharing routes are 403 `forbidden`.
 
@@ -150,7 +245,8 @@ The note uses the contract's share page and its sharing with members; the people
 are the console's people directory, which the bundle reads in the browser, so the service calls no
 unit for them.
 
-The screens' routes are the notes, their blobs, their sharing, the share reads and the event stream. Where the credential is empty, or
+The screens' routes are the notes, their blobs, their text and icon, their pins, what was opened, the
+search, their sharing, the share reads and the event stream. Where the credential is empty, or
 the folder cannot be served, no face stands, the reason is written to the service's log, and the
 console's routes answer 404 `no-route`; the service's own routes are answered as ever.
 
@@ -206,4 +302,4 @@ deployment's root, where `settings.local.toml` links to the data root's `env/not
 | `console` | `token` | the console credential; empty, the console reaches nothing |
 | `console` | `folder` | the console bundle's built folder (`client/dist` where none is set; a relative one read from where the process starts) |
 | `store` | `path` | the SQLite file; a relative one is read under the data root's `note/` folder |
-| `notes` | `max_doc_bytes` | the cap on one stored document, in bytes |
+| `notes` | `max_doc_bytes` | the cap on one stored document, in bytes, and on one note's plain text |
