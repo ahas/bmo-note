@@ -23,7 +23,7 @@ paths = ["client"]
 # The shared versions the unit's manifests, lock and vendored packages hold to. This fork carries upstream
 # manifests by design, so the sweep that reads every manifest in the tree (`dependencies`) and the one that
 # rewrites the root Cargo profiles upstream owns (`cargo-profile`) do not run; the unit's own folders stand
-# under the checks the steps below and the test suite run, and `docs/affine.md` states the licence line the
+# under the testbed's Cargo checks, the client's check and the test suite, and `docs/affine.md` states the licence line the
 # fork holds to.
 quick = ["shared-versions"]
 # The one base library the crate takes; the repository's own check of its dependencies reads this list.
@@ -35,19 +35,9 @@ base_libraries = ["bmo-console-face"]
 repository = "bmo-chat"
 exclude = ["packages/**"]
 
-[[check.step]]
-id = "check"
-command = "cargo check --workspace --all-targets"
-lane = "wide"
-
-[[check.step]]
-id = "clippy"
-command = "cargo clippy --workspace --all-targets -- -D warnings"
-lane = "wide"
-
-[[check.step]]
-id = "fmt"
-command = "cargo fmt --all --check"
+# No static step is declared for the crate. The testbed's own Cargo workspace check formats and lints it, every
+# target compiled, through its Cargo verb in the shared build directory wherever a change marks the crate, and
+# the change check compiles every crate a change marks; a change that marks none has no Rust to judge.
 
 [build]
 # The service's binary.

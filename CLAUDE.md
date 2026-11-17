@@ -20,9 +20,10 @@ Community Edition, kept so the unit can follow upstream. `docs/design.md` states
   `bun run vendor` before install, transpiles every decorated copied source in place with
   `bun run decorators` after install, and builds with `bun run bundle`; the copy is never tracked
   (`docs/affine.md`, 「The client's build path to the vendored editor」).
-- **Tests live in `tests/`,** one harness `tests/main.rs`; checks: `cargo check --workspace --all-targets`,
-  `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --all --check`, `cargo test` through
-  the testbed; the client's `bun run check`; the screens' browser test under `client/tests/browser/`,
+- **Tests live in `tests/`,** one harness `tests/main.rs`; checks: the testbed's own Cargo checks, which
+  `bmo check` runs wherever a change marks the crate (the change check compiles it, the workspace check
+  formats it and lints every target with warnings denied), so `testbed.toml` declares no Cargo step;
+  `cargo test` through the testbed; the client's `bun run check`; the screens' browser test under `client/tests/browser/`,
   which `client/package.json` declares to the suite's browser lane and the client's check leaves out.
 - **English only** in code, documents, tests and commits; Korean in the bundle's `ko` words alone.
 - **No personal data, no names of agents, owners or hosts** in code, documents or commits. A note
