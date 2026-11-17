@@ -118,5 +118,4 @@ storageState.json
 /client/dev-app/.nuxt
 /client/dev-app/dist
 /client/dev-app/tsconfig.tsbuildinfo
-.graph/*
-!.graph/settings.toml
+.graph/

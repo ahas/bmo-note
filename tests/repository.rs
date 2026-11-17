@@ -16,7 +16,7 @@ use serde_json::Value;
 const ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
 /// The folders the unit owns wholly, as this test and `PERSONAL-DATA.md` scope them.
-const UNIT_FOLDERS: [&str; 4] = ["src", "client", "deploy", ".graph"];
+const UNIT_FOLDERS: [&str; 3] = ["src", "client", "deploy"];
 
 /// The files under the fork's own `docs/` and `tests/` that belong to the unit.
 const UNIT_LOOSE_FILES: [&str; 11] = [
