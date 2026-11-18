@@ -10,6 +10,7 @@
 
 import { computed, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import ChoiceSelect from "bmo-ui/app/components/ChoiceSelect.vue";
 import SearchText from "bmo-ui/app/components/SearchText.vue";
 import { countLocale } from "bmo-ui/app/domain/numbers";
 import { OFF_HISTORY } from "bmo-ui/app/domain/overlays";
@@ -22,7 +23,7 @@ import { asksNewTab } from "../domain/navigator";
 import type { CommandPaletteGroup, CommandPaletteItem, DropdownMenuItem, ModalProps } from "@nuxt/ui";
 import type { NoteApi } from "../domain/api";
 import type { Finding, SearchSpan } from "../domain/finding";
-import type { FoundNote, NoteMeta, SearchView } from "../../shared/types";
+import type { FoundNote, NoteMeta, SearchSort, SearchView } from "../../shared/types";
 
 const props = defineProps<{
   finding: Finding | null;
@@ -210,16 +211,7 @@ const empty = computed(() => {
   return failed.value ? i18n.t("note.search.failed") : i18n.t("note.search.none");
 });
 
-const sortLabel = computed(() => i18n.t(`note.sort.${held.value.sort}`));
-
-const sortItems = computed<DropdownMenuItem[][]>(() => [
-  SEARCH_SORTS.map((sort) => ({
-    label: i18n.t(`note.sort.${sort}`),
-    type: "checkbox" as const,
-    checked: held.value.sort === sort,
-    onSelect: () => emit("change", { ...held.value, sort })
-  }))
-]);
+const sortChoices = computed(() => SEARCH_SORTS.map((sort) => ({ label: i18n.t(`note.sort.${sort}`), value: sort })));
 
 function toggledView(view: SearchView, on: boolean): Finding {
   const views = held.value.views.filter((one) => one !== view);
@@ -327,9 +319,16 @@ function readMore(): void {
 
         <template #footer>
           <div class="flex items-center gap-2">
-            <UDropdownMenu :items="sortItems" :content="{ align: 'start', side: 'top' }">
-              <UButton color="neutral" variant="ghost" size="sm" icon="i-material-symbols-sort" :label="sortLabel" />
-            </UDropdownMenu>
+            <ChoiceSelect
+              :model-value="held.sort"
+              :items="sortChoices"
+              value-key="value"
+              variant="ghost"
+              size="sm"
+              icon="i-material-symbols-sort"
+              :aria-label="$t('note.action.sort')"
+              @update:model-value="(sort: SearchSort) => emit('change', { ...held, sort })"
+            />
             <UDropdownMenu :items="filterItems" :content="{ align: 'start', side: 'top' }">
               <UButton color="neutral" variant="ghost" size="sm" icon="i-material-symbols-filter-list" :label="filtersOn > 0 ? `${$t('note.action.filter')} ${filtersOn}` : $t('note.action.filter')" />
             </UDropdownMenu>

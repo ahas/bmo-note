@@ -240,8 +240,8 @@ studied of AFFiNE and under which licence.
     (on a phone, inside the drawer, it is the head's contained add); then the fold key on a wide screen.
   - One scrolling list of sections, each headed by its name, which folds and unfolds the section: the favourites,
     standing only while the reader has pinned something, in pin order; the reader's own notes; and the notes shared with the reader. The two
-    last carry a sort key at their head's trailing end, a dropdown of last edited (the default), title
-    and created, each kept in that browser with whether each section is folded.
+    last carry a sort key at their head's trailing end, bmo-ui's one select (bmo-ui's `docs/components.md`,
+    「Choosing a value」) of last edited (the default), title and created, each kept in that browser with whether each section is folded.
   - A row is the note's icon — its emoji, or the note mark where it has none — and its title, on one
     line, cut with the shared tooltip where it does not fit; an untitled note says the pack's word for untitled in the dimmed
     tone. The open note's row stands chosen. A row is pressed to open its note; Ctrl- or ⌘-pressing it
@@ -298,8 +298,9 @@ studied of AFFiNE and under which licence.
 - The notes screen fills the console's content area, with no cap of its own: the navigator is a list
   reaching its region's edges, and the note region releases its width to the editor, whose column the
   document itself caps unless the note stands at full width.
-- The editor stands under a format bar of the bundle's own: inline marks, block types, lists, quote
-  and code, an image upload and a table insert, each driving the vendored editor's own command chain,
+- The editor stands under a format bar of the bundle's own: inline marks, the kind of the block under the caret
+  chosen from bmo-ui's one select among text, three headings, three lists, quote and code, an image upload and a
+  table insert, each driving the vendored editor's own command chain,
   so the bar, the hotkeys and the slash menu all ride one mechanism. The bar and the editor stand as
   one column filling the note region; the bar spans that column, but its controls stand in one gathered,
   centred row of their own width, never spread edge to edge. The talk key stands apart at its trailing
@@ -389,8 +390,8 @@ studied of AFFiNE and under which licence.
   note it is where it is shared, when it was last edited, and under them one line of the text around the
   match, marked. The marks are the layer's list-search marking, handed the term the service found first.
   A search that finds nothing says so in one line.
-- **Inside the dialog, under the list,** a sort dropdown of best match (the default), last edited and created, and a
-  filter dropdown: titles only; the reader's own notes, the notes shared with them and the trash, the first two on at first; and a date of
+- **Inside the dialog, under the list,** a sort select, bmo-ui's one select, of best match (the default), last edited
+  and created, and a filter menu: titles only; the reader's own notes, the notes shared with them and the trash, the first two on at first; and a date of
   last edit: any, today, the last 7 days or the last 30 days. A phrase in double quotes is matched exactly.
 - The arrow keys walk the rows and Enter opens one, as a press does; Ctrl- or ⌘-pressing a row opens it
   in a new tab and leaves the dialog standing. Opening a note closes the dialog.

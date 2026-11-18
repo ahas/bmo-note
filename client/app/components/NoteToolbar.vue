@@ -10,6 +10,7 @@
 
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import ChoiceSelect from "bmo-ui/app/components/ChoiceSelect.vue";
 import HintTip from "bmo-ui/app/components/HintTip.vue";
 import ToolBar from "bmo-ui/app/components/ToolBar.vue";
 import { BlockSelection, TextSelection } from "@blocksuite/affine/std";
@@ -18,6 +19,7 @@ import { activeConversion, activeMarks, barConversions, barMarks, convert, conve
 
 import type { BarConversion } from "../domain/format";
 import type { BlockStdScope } from "@blocksuite/affine/std";
+import type { BaseSelection } from "@blocksuite/affine/store";
 import type { Subscription } from "rxjs";
 
 const props = withDefaults(
@@ -43,14 +45,7 @@ const picked = shallowRef<HTMLInputElement | null>(null);
 
 let stop: Subscription | null = null;
 
-const kindItems = computed(() =>
-  barConversions.map((item) => ({
-    label: i18n.t(`note.kind.${kindKey(item)}`),
-    icon: item.icon,
-    disabled: !writable.value,
-    onSelect: () => turn(item)
-  }))
-);
+const kindChoices = computed(() => barConversions.map((item, at) => ({ label: i18n.t(`note.kind.${kindKey(item)}`), icon: item.icon, value: at })));
 
 const kindIcon = computed(() => (conversion.value < 0 ? "i-material-symbols-text-fields" : (barConversions[conversion.value]?.icon ?? "i-material-symbols-text-fields")));
 
@@ -131,9 +126,34 @@ function toggle(id: string): void {
   refresh();
 }
 
+// The editor's selection as the kind list opened, which a kind chosen there is laid on. As the list closes
+// the editor takes the focus back with that selection standing, so the caret stays in the block it was in;
+// the list then leaves the focus where it is rather than handing it back to its control.
+let heldSelection: BaseSelection[] = [];
+
+function holdSelection(open: boolean): void {
+  const std = props.std;
+
+  if (std === null) return;
+
+  if (open) {
+    heldSelection = std.selection.value;
+
+    return;
+  }
+
+  const kept = heldSelection;
+
+  heldSelection = [];
+  std.host.querySelector<HTMLElement>("[contenteditable='true']")?.focus({ preventScroll: true });
+  if (kept.length > 0) std.selection.set(kept);
+  refresh();
+}
+
 function turn(item: BarConversion): void {
   if (props.std === null) return;
 
+  if (heldSelection.length > 0) props.std.selection.set(heldSelection);
   convert(props.std, item);
   refresh();
 }
@@ -207,18 +227,28 @@ function addTable(): void {
       <div v-if="props.ask" class="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden="true" />
 
       <HintTip :text="$t('note.action.turn_into')" press>
-        <UDropdownMenu :items="[kindItems]" :disabled="!writable" :content="{ align: 'start' }">
-          <UButton
-            size="sm"
-            color="neutral"
-            variant="ghost"
-            :icon="kindIcon"
-            trailing-icon="i-material-symbols-expand-more"
-            :disabled="!writable"
-            :aria-label="$t('note.action.turn_into')"
-            data-bar="kind"
-          />
-        </UDropdownMenu>
+        <!-- The kind the block under the caret takes is a value chosen from a list, so it is the layer's one
+             select, its control the bar's small key showing the standing kind's icon. The list's search
+             takes the focus, and the editor lets its selection go with it, so the selection standing as
+             the list opens is the one the kind chosen lands on. -->
+        <ChoiceSelect
+          :model-value="conversion < 0 ? undefined : conversion"
+          :items="kindChoices"
+          value-key="value"
+          variant="ghost"
+          size="sm"
+          trailing-icon="i-material-symbols-expand-more"
+          :ui="{ base: 'ps-2.5' }"
+          :disabled="!writable"
+          :aria-label="$t('note.action.turn_into')"
+          data-bar="kind"
+          @update:open="holdSelection"
+          @update:model-value="(at: number) => turn(barConversions[at]!)"
+        >
+          <template #default>
+            <UIcon :name="kindIcon" class="size-4 shrink-0" />
+          </template>
+        </ChoiceSelect>
       </HintTip>
 
       <div class="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden="true" />

@@ -7,6 +7,7 @@
 
 import { computed, onBeforeUnmount, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import ChoiceSelect from "bmo-ui/app/components/ChoiceSelect.vue";
 import IconButton from "bmo-ui/app/components/IconButton.vue";
 
 import NoteRow from "./NoteRow.vue";
@@ -45,14 +46,7 @@ const i18n = useI18n();
 // A few rows stand for a section's first read; the real section is often shorter.
 const RESERVED_ROWS = 3;
 
-const sortItems = computed<DropdownMenuItem[][]>(() => [
-  SORTS.map((sort) => ({
-    label: i18n.t(`note.sort.${sort}`),
-    type: "checkbox" as const,
-    checked: props.sort === sort,
-    onSelect: () => emit("sort", sort)
-  }))
-]);
+const sortChoices = computed(() => SORTS.map((sort) => ({ label: i18n.t(`note.sort.${sort}`), value: sort })));
 
 // The section's end: in sight, it asks for the next page.
 const end = useTemplateRef<HTMLElement>("end");
@@ -92,9 +86,25 @@ onBeforeUnmount(() => watching?.disconnect());
         @click="emit('fold', !props.folded)"
       />
       <span v-if="props.sort !== undefined" class="ms-auto flex">
-        <UDropdownMenu :items="sortItems" :content="{ align: 'end' }">
-          <IconButton :label="$t('note.action.sort')" icon="i-material-symbols-sort" size="xs" />
-        </UDropdownMenu>
+        <!-- The sort is a value chosen from a list, so it is the layer's one select, its control the
+             section head's extra-small icon key named by its tooltip. -->
+        <UTooltip :text="$t('note.action.sort')">
+          <ChoiceSelect
+            :model-value="props.sort"
+            :items="sortChoices"
+            value-key="value"
+            variant="ghost"
+            size="xs"
+            :trailing="false"
+            :ui="{ base: 'p-1' }"
+            :aria-label="$t('note.action.sort')"
+            @update:model-value="(sort: NotesSort) => emit('sort', sort)"
+          >
+            <template #default>
+              <UIcon name="i-material-symbols-sort" class="size-4 shrink-0" />
+            </template>
+          </ChoiceSelect>
+        </UTooltip>
       </span>
     </div>
 

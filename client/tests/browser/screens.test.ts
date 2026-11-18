@@ -506,3 +506,69 @@ describe.skipIf(!ready)("the notes screen's keys", () => {
     TEST_MS
   );
 });
+
+// A select of the screen opened, the list it stands, and whether that list stands with a search field.
+async function choicesOpened(page: Page, select: Locator): Promise<{ list: Locator; searches: boolean }> {
+  await select.click();
+
+  const list = page.locator('[data-slot="content"][data-side]:has([role="listbox"])');
+
+  await list.waitFor({ timeout: STANDING_MS });
+
+  return { list, searches: (await list.locator("input").count()) > 0 };
+}
+
+// The values the screen chooses from a list, each bmo-ui's one select (docs/design.md, 「The navigator」, 「Search」
+// and 「The editor」): a section's sort and the search's sort, three each, open on no search, and the kind of the
+// block under the caret, nine, opens on one; the value chosen is the one the select then stands on. Whether a list
+// searches is the layer's own rule and its own tests; this holds the screen's lists to it.
+describe.skipIf(!ready).each(WIDTHS)("the notes screen's selects at $name", (width) => {
+  test(
+    "a section's sort and the search's sort open their three on no search, and the sort chosen is the one standing",
+    async () => {
+      const page = await opened(width, "light", "/note");
+      const navigator = await navigatorShown(page, width);
+      const sort = navigator.locator(`section[aria-label="${WORDS.section.mine}"] button[aria-label="${WORDS.action.sort}"]`);
+
+      let shown = await choicesOpened(page, sort);
+
+      expect([await shown.list.getByRole("option").count(), shown.searches]).toEqual([3, false]);
+      await shown.list.getByRole("option", { name: WORDS.sort.title, exact: true }).click();
+      await shown.list.waitFor({ state: "detached", timeout: STANDING_MS });
+
+      shown = await choicesOpened(page, sort);
+      expect(await shown.list.getByRole("option", { name: WORDS.sort.title, exact: true }).getAttribute("aria-selected")).toBe("true");
+      await page.keyboard.press("Escape");
+      await page.context().close();
+
+      const searching = await opened(width, "light", "/note?search=");
+      const found = await choicesOpened(searching, searching.getByRole("dialog").locator(`button[aria-label="${WORDS.action.sort}"]`));
+
+      expect([await found.list.getByRole("option").count(), found.searches]).toEqual([3, false]);
+      await searching.context().close();
+    },
+    TEST_MS
+  );
+
+  test(
+    "the block kind opens its nine on a search, and the kind found and chosen there is the block's",
+    async () => {
+      const page = await noteOpened(width, "light");
+
+      await page.locator("[data-note-editor] affine-paragraph").last().click();
+
+      const kind = formatBar(page).locator("[data-bar=kind]");
+      let shown = await choicesOpened(page, kind);
+
+      expect([await shown.list.getByRole("option").count(), shown.searches]).toEqual([9, true]);
+      await shown.list.locator("input").fill(WORDS.kind.h2);
+      await shown.list.getByRole("option", { name: WORDS.kind.h2, exact: true }).click();
+      await shown.list.waitFor({ state: "detached", timeout: STANDING_MS });
+
+      shown = await choicesOpened(page, kind);
+      expect(await shown.list.getByRole("option", { name: WORDS.kind.h2, exact: true }).getAttribute("aria-selected")).toBe("true");
+      await page.context().close();
+    },
+    TEST_MS
+  );
+});
