@@ -89,3 +89,15 @@ refreshes the copy. `bun run check` runs the same chain up to the tests; the dep
 step runs it whole. A fresh tree the testbed tests in (a bench copy, a gate's checkout, the daily run's
 tree) runs the chain up to the bundle as its declared setup, before any unit, since the screens' browser
 tests drive a dev host that imports the copy and the installed packages.
+
+The client installs `@nuxt/ui` at exactly the version the vendored bmo-ui release names, and carries
+that release's patches for the same `@nuxt/ui` and for the `reka-ui` it brings under `client/patches/`,
+each named in the manifest's `patchedDependencies`. A patch applies only to the exact version it names,
+so a looser range, or a second copy of either package in the lock, installs the components without the
+layer's fixes; a bmo-ui release that names other versions moves the pin and the patches with it. The
+client also takes `zod` at the version bmo-ui resolves, which none of its own code imports: `@nuxt/ui`
+names `zod` as an optional peer, and the installer links one `@nuxt/ui` for each `zod` its dependents
+see, so the editor's older `zod`, standing at the top of the client, would give the screens and the
+layer a `@nuxt/ui` each, whose portal and form keys do not meet. The editor's packages keep their own
+`zod`. The lock holds one `@nuxt/icon`, at a version that writes an icon under the name it was loaded
+for, so the client carries no icon patch.
