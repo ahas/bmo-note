@@ -66,7 +66,7 @@ async function asReader(reader: string, path: string): Promise<Page> {
 
   const page = await context.newPage();
 
-  await page.goto(`${host}${path}`);
+  await page.goto(`${host}${path}`, { timeout: STANDING_MS });
 
   return page;
 }

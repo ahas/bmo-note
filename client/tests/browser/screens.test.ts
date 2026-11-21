@@ -114,7 +114,7 @@ async function opened(width: Width, scheme: Scheme, path: string): Promise<Page>
 
   const page = await context.newPage();
 
-  await page.goto(`${host}${path}`);
+  await page.goto(`${host}${path}`, { timeout: STANDING_MS });
   await page.locator("[data-note-bar]").first().waitFor({ timeout: STANDING_MS });
   await page.addStyleTag({ content: STILL });
 

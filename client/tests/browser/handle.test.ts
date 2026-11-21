@@ -88,7 +88,7 @@ async function opened(width: Width, path: string): Promise<Page> {
 
   const page = await context.newPage();
 
-  await page.goto(`${stack!.host}${path}`);
+  await page.goto(`${stack!.host}${path}`, { timeout: STANDING_MS });
 
   return page;
 }
@@ -303,6 +303,13 @@ async function keysOnTop(page: Page, labels: string[]): Promise<Record<string, b
   }, labels);
 }
 
+// The picture of a state, once the fonts it draws in have come; the dev host may still be serving them on a
+// loaded machine, so the picture is given the time a page is given to stand.
+async function picture(page: Page, name: string): Promise<void> {
+  await page.evaluate(() => document.fonts.ready);
+  await page.screenshot({ path: `${SHOTS}/${name}.png`, timeout: STANDING_MS });
+}
+
 const nearTop = (box: Box) => ({ x: box.left + box.width / 2, y: box.top + Math.min(12, box.height / 2) });
 const inCell = (box: Box) => ({ x: box.left + box.width * 0.3, y: box.top + box.height * 0.7 });
 
@@ -365,7 +372,7 @@ for (const width of WIDTHS) {
         const keys = [WORDS.block.copy, WORDS.block.duplicate, WORDS.block.delete];
 
         expect(await keysOnTop(page, keys)).toEqual(Object.fromEntries(keys.map((key) => [key, true])));
-        await page.screenshot({ path: `${SHOTS}/${width.width}-table-toolbar.png` });
+        await picture(page, `${width.width}-table-toolbar`);
       },
       TEST_MS
     );
@@ -403,7 +410,7 @@ for (const width of WIDTHS) {
         const id = await firstTable();
 
         await handleOf(page, id, nearTop);
-        await page.screenshot({ path: `${SHOTS}/${width.width}-table-handle.png` });
+        await picture(page, `${width.width}-table-handle`);
       },
       TEST_MS
     );
