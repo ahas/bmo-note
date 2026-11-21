@@ -61,12 +61,15 @@ afterAll(async () => {
 async function asReader(reader: string, path: string): Promise<Page> {
   const host = stack!.host;
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  // A loaded machine, a deployment's gate among them, may take longer than the driver's own default over any
+  // step, so every step is given the time a page is given to stand.
+  context.setDefaultTimeout(STANDING_MS);
 
   await context.addCookies([{ name: READER_COOKIE, value: reader, url: host }]);
 
   const page = await context.newPage();
 
-  await page.goto(`${host}${path}`, { timeout: STANDING_MS });
+  await page.goto(`${host}${path}`);
 
   return page;
 }

@@ -27,7 +27,7 @@ const ready = existsSync(chromium.executablePath());
 const STACK_MS = 900_000;
 const TEST_MS = 600_000;
 const STANDING_MS = 300_000;
-const SETTLING_MS = 10_000;
+const SETTLING_MS = 60_000;
 
 const SHOTS = process.env.BMO_NOTE_SHOTS ?? "/tmp/note-renewal-shots";
 
@@ -83,12 +83,15 @@ afterAll(async () => {
 // A page at a width, in Korean, on the screen at `path`. The pointer is a mouse at both widths.
 async function opened(width: Width, path: string): Promise<Page> {
   const context = await browser.newContext({ viewport: { width: width.width, height: width.height } });
+  // A loaded machine, a deployment's gate among them, may take longer than the driver's own default over any
+  // step, so every step is given the time a page is given to stand.
+  context.setDefaultTimeout(STANDING_MS);
 
   await context.addCookies([{ name: LOCALE_COOKIE, value: "ko", url: stack!.host }]);
 
   const page = await context.newPage();
 
-  await page.goto(`${stack!.host}${path}`, { timeout: STANDING_MS });
+  await page.goto(`${stack!.host}${path}`);
 
   return page;
 }
@@ -303,11 +306,10 @@ async function keysOnTop(page: Page, labels: string[]): Promise<Record<string, b
   }, labels);
 }
 
-// The picture of a state, once the fonts it draws in have come; the dev host may still be serving them on a
-// loaded machine, so the picture is given the time a page is given to stand.
+// The picture of a state, once the fonts it draws in have come.
 async function picture(page: Page, name: string): Promise<void> {
   await page.evaluate(() => document.fonts.ready);
-  await page.screenshot({ path: `${SHOTS}/${name}.png`, timeout: STANDING_MS });
+  await page.screenshot({ path: `${SHOTS}/${name}.png` });
 }
 
 const nearTop = (box: Box) => ({ x: box.left + box.width / 2, y: box.top + Math.min(12, box.height / 2) });

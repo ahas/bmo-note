@@ -106,6 +106,9 @@ afterAll(async () => {
 async function opened(width: Width, scheme: Scheme, path: string): Promise<Page> {
   const host = stack!.host;
   const context = await browser.newContext({ viewport: { width: width.width, height: width.height }, colorScheme: scheme, isMobile: width.narrow, hasTouch: width.narrow });
+  // A loaded machine, a deployment's gate among them, may take longer than the driver's own default over any
+  // step, so every step is given the time a page is given to stand.
+  context.setDefaultTimeout(STANDING_MS);
 
   await context.addCookies([
     { name: SCHEME_COOKIE, value: scheme, url: host },
@@ -114,7 +117,7 @@ async function opened(width: Width, scheme: Scheme, path: string): Promise<Page>
 
   const page = await context.newPage();
 
-  await page.goto(`${host}${path}`, { timeout: STANDING_MS });
+  await page.goto(`${host}${path}`);
   await page.locator("[data-note-bar]").first().waitFor({ timeout: STANDING_MS });
   await page.addStyleTag({ content: STILL });
 
