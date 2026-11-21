@@ -209,6 +209,12 @@
       "move": "이동",
       "open": "열기",
       "new_tab": "새 탭에서 열기"
+    },
+    "block": {
+      "copy": "복사",
+      "duplicate": "복제",
+      "delete": "삭제",
+      "copied": "클립보드에 복사했습니다."
     }
   }
 }

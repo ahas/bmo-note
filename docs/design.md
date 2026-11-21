@@ -322,8 +322,11 @@ studied of AFFiNE and under which licence.
   toolbar of its own, or for text, lists, code and images; a table, a divider, an equation and a database
   declare none, so the bundle declares for each of them a toolbar holding copy, duplicate and delete, the
   three the other blocks carry in their more menu, standing as keys of their own since the block offers
-  nothing else. These keys wear the format bar's icon set, each with a tooltip naming it. A kind the fork
-  adds later that declares no toolbar is one more entry in that declaration.
+  nothing else. These keys wear the format bar's icon set, each with a tooltip naming it in the console's
+  language from the bundle's pack, and the line the copy key says comes from the pack as well. A kind the
+  fork adds later that declares no toolbar is one more entry in that declaration. The fork's own keys, its
+  menus and its lines are written in English inside the fork, which offers no seam to name them otherwise,
+  so they stand in English.
 - The press on the handle lands inside the editable page, so the browser lays a caret in the nearest line
   as well, which the editor would read a moment later as a text selection over the block; the bundle drops
   that caret as the press is let go, so the block stays selected whole however briefly or long the press
@@ -354,7 +357,7 @@ studied of AFFiNE and under which licence.
   toolbar」 at both widths with a pointer: a note holding a block of every kind the editor's menus make,
   each block's handle in view beside it and its press selecting it whole under its toolbar, which reaches
   delete at a desktop's width; a table's handle pressed while the caret stands in one of its cells, the
-  table's copy, duplicate and delete keys on top of what they stand over; the toolbar's duplicate and
+  table's copy, duplicate and delete keys, named in Korean, on top of what they stand over; the toolbar's duplicate and
   delete, and Delete and Backspace, each acting on a table selected whole; and a picture of the table's
   handle and its toolbar.
 - **The editor's styles stay in the editor.** The vendored editor lays its stylesheets on the page as plain

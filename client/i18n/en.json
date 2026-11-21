@@ -209,6 +209,12 @@
       "move": "Move",
       "open": "Open",
       "new_tab": "Open in a new tab"
+    },
+    "block": {
+      "copy": "Copy",
+      "duplicate": "Duplicate",
+      "delete": "Delete",
+      "copied": "Copied to clipboard."
     }
   }
 }

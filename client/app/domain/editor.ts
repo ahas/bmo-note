@@ -43,6 +43,16 @@ export interface EditorNotice {
   confirm: (title: string) => Promise<boolean>;
   ask: (() => void) | null;
   askLabel: string;
+  blockWords: BlockWords;
+}
+
+/** The words of the toolbar over a block selected whole that declares none of its own, in the console's
+ * language: its three keys and the line its copy says. */
+export interface BlockWords {
+  copy: string;
+  duplicate: string;
+  delete: string;
+  copied: string;
 }
 
 // The sparkle the Ask AI key wears, drawn as the format bar's own icon set draws it.
@@ -86,7 +96,7 @@ export function pageExtensions(notice: EditorNotice): ExtensionType[] {
     FontConfigExtension(CommunityCanvasTextFonts),
     // Ask AI leads the toolbar the editor floats over a text selection (`docs/design.md`, 「Ask AI」).
     ...(ask === null ? [] : [askModule(notice.askLabel, ask)]),
-    ...KINDS_WITHOUT_TOOLBAR.map(blockModule),
+    ...KINDS_WITHOUT_TOOLBAR.map((flavour) => blockModule(flavour, blockActions(notice.blockWords))),
     HandlePressKeepsBlock,
     {
       setup: (di: Container) => {
@@ -122,42 +132,44 @@ function askModule(label: string, ask: () => void): ExtensionType {
 const SELECTED_WHOLE = { types: ["block" as const], mode: "highest" as const };
 
 /** The keys of a block selected whole that declares no toolbar of its own: copy, duplicate and delete, the
- * three every other block carries in its more menu, run through the same commands. */
-const BLOCK_ACTIONS: ToolbarAction[] = [
-  {
-    id: "a.copy",
-    tooltip: "Copy",
-    icon: COPY_ICON,
-    run: ({ chain, host }) => {
-      const [copied] = chain.pipe(getSelectedModelsCommand, SELECTED_WHOLE).pipe(draftSelectedModelsCommand).pipe(copySelectedModelsCommand).run();
+ * three every other block carries in its more menu, run through the same commands, named in `words`. */
+function blockActions(words: BlockWords): ToolbarAction[] {
+  return [
+    {
+      id: "a.copy",
+      tooltip: words.copy,
+      icon: COPY_ICON,
+      run: ({ chain, host }) => {
+        const [copied] = chain.pipe(getSelectedModelsCommand, SELECTED_WHOLE).pipe(draftSelectedModelsCommand).pipe(copySelectedModelsCommand).run();
 
-      if (copied) toast(host, "Copied to clipboard");
+        if (copied) toast(host, words.copied);
+      }
+    },
+    {
+      id: "b.duplicate",
+      tooltip: words.duplicate,
+      icon: DUPLICATE_ICON,
+      run: ({ chain, store }) => {
+        store.captureSync();
+        chain.pipe(getSelectedModelsCommand, SELECTED_WHOLE).pipe(duplicateSelectedModelsCommand).run();
+      }
+    },
+    {
+      id: "c.delete",
+      tooltip: words.delete,
+      icon: DELETE_ICON,
+      run: ({ chain }) => {
+        chain.pipe(getSelectedModelsCommand, SELECTED_WHOLE).pipe(deleteSelectedModelsCommand).run();
+      }
     }
-  },
-  {
-    id: "b.duplicate",
-    tooltip: "Duplicate",
-    icon: DUPLICATE_ICON,
-    run: ({ chain, store }) => {
-      store.captureSync();
-      chain.pipe(getSelectedModelsCommand, SELECTED_WHOLE).pipe(duplicateSelectedModelsCommand).run();
-    }
-  },
-  {
-    id: "c.delete",
-    tooltip: "Delete",
-    icon: DELETE_ICON,
-    run: ({ chain }) => {
-      chain.pipe(getSelectedModelsCommand, SELECTED_WHOLE).pipe(deleteSelectedModelsCommand).run();
-    }
-  }
-];
+  ];
+}
 
-/** The toolbar of a block of `flavour` selected whole. */
-function blockModule(flavour: string): ExtensionType {
+/** The toolbar of a block of `flavour` selected whole, holding `actions`. */
+function blockModule(flavour: string, actions: ToolbarAction[]): ExtensionType {
   return ToolbarModuleExtension({
     id: BlockFlavourIdentifier(flavour),
-    config: { actions: BLOCK_ACTIONS }
+    config: { actions }
   });
 }
 

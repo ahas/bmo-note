@@ -72,7 +72,13 @@ const notice: EditorNotice = {
   confirm: async (title: string) =>
     (await overlay.create(QuestionDialog, { props: { title, confirm: i18n.t("note.action.apply"), leaving: true }, destroyOnClose: true }).open()) === true,
   ask: props.readonly ? null : () => openAsk(),
-  askLabel: i18n.t("note.ask.key")
+  askLabel: i18n.t("note.ask.key"),
+  blockWords: {
+    copy: i18n.t("note.block.copy"),
+    duplicate: i18n.t("note.block.duplicate"),
+    delete: i18n.t("note.block.delete"),
+    copied: i18n.t("note.block.copied")
+  }
 };
 
 // Ask AI (`docs/design.md`, 「Ask AI」): the passage is taken as the key is pressed — the blocks the

@@ -15,7 +15,7 @@ import type { Stack } from "./stack";
 // and each one's handle stands in view beside it, its press selecting the block whole under its toolbar; at a
 // desktop's width that toolbar reaches delete, while at a phone's the fork's toolbar over a text block is wider
 // than the screen. A table's handle is pressed while the caret stands in one of its cells, and the table's own
-// toolbar keys stand on top; that toolbar duplicates and deletes the table, and Delete and Backspace each remove
+// toolbar keys, named in Korean, stand on top; that toolbar duplicates and deletes the table, and Delete and Backspace each remove
 // a table selected whole. The handle follows the pointer, so both widths are driven with one. Pictures of the
 // table's handle and its toolbar are kept for a person to read. Skipped where the browser build is not on the
 // machine.
@@ -242,9 +242,10 @@ async function pressHandle(page: Page, id: string, at: (box: Box) => { x: number
   return handle;
 }
 
-// The toolbar's delete: a key of its own, or the last entry of its more menu.
+// The toolbar's delete: a key of the bundle's own, named in Korean, or the last entry of the fork's more menu,
+// which names it in the fork's English.
 async function reachesDelete(page: Page): Promise<boolean> {
-  const own = page.locator(`${TOOLBAR} editor-icon-button[aria-label="Delete"]`);
+  const own = page.locator(`${TOOLBAR} editor-icon-button[aria-label="${WORDS.block.delete}"]`);
 
   if ((await own.count()) > 0) return own.first().isVisible();
 
@@ -361,7 +362,9 @@ for (const width of WIDTHS) {
         await page.locator("affine-table affine-table-cell rich-text").first().click();
         await pressHandle(page, id, inCell);
 
-        expect(await keysOnTop(page, ["Copy", "Duplicate", "Delete"])).toEqual({ Copy: true, Duplicate: true, Delete: true });
+        const keys = [WORDS.block.copy, WORDS.block.duplicate, WORDS.block.delete];
+
+        expect(await keysOnTop(page, keys)).toEqual(Object.fromEntries(keys.map((key) => [key, true])));
         await page.screenshot({ path: `${SHOTS}/${width.width}-table-toolbar.png` });
       },
       TEST_MS
@@ -376,12 +379,12 @@ for (const width of WIDTHS) {
 
         await nothingChosen(page);
         await pressHandle(page, await firstTable(), inCell);
-        await page.locator(`${TOOLBAR} editor-icon-button[aria-label="Duplicate"]`).click();
+        await page.locator(`${TOOLBAR} editor-icon-button[aria-label="${WORDS.block.duplicate}"]`).click();
         await tablesStanding(page, before + 1);
 
         await nothingChosen(page);
         await pressHandle(page, await firstTable(), inCell);
-        await page.locator(`${TOOLBAR} editor-icon-button[aria-label="Delete"]`).click();
+        await page.locator(`${TOOLBAR} editor-icon-button[aria-label="${WORDS.block.delete}"]`).click();
         await tablesStanding(page, before);
 
         for (const key of ["Delete", "Backspace"]) {
