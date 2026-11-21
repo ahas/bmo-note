@@ -249,6 +249,16 @@ defineExpose({
   background: var(--affine-background-primary-color, var(--ui-bg));
 }
 
+/* The editor's column keeps a gutter for the drag handle, but a heading over a section or a list holding others
+   carries its handle a toggle's width further out than that gutter; where the column meets the editor's edge,
+   on a phone or at full width, the viewport's own leading room keeps that handle inside what it shows, and the
+   head standing over the document moves with it (`docs/design.md`, 「Every block has its handle and its
+   toolbar」). The room is the viewport's padding, since the viewport clips what stands outside it. */
+.note-editor-host :deep(.affine-page-viewport),
+.note-editor-host > :deep([data-note-head-place]) {
+  padding-inline-start: 16px;
+}
+
 /* On a touch screen the editor's floating format menu stands down: the bar does its work, and the phone lays its
    own selection menu over the words (`docs/design.md`, 「The console surface」). The editor lays its styles
    unlayered, so the rule holds by importance. */
