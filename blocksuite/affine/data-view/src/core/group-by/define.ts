@@ -1,3 +1,4 @@
+import { translate } from '@blocksuite/affine-components/translate';
 import hash from '@emotion/hash';
 import {
   addDays,
@@ -38,8 +39,12 @@ export const ungroups = {
 const WEEK_OPTS_MON = { weekStartsOn: 1 } as const;
 const WEEK_OPTS_SUN = { weekStartsOn: 0 } as const;
 
+// A date a group is named by is written in the form the reader's language gives the fork's own form, which the
+// seam answers as it answers a word.
+const named = (date: Date, form: string) => fmt(date, translate(form));
+
 const rangeLabel = (a: Date, b: Date) =>
-  `${fmt(a, 'MMM d yyyy')} – ${fmt(b, 'MMM d yyyy')}`;
+  `${named(a, 'MMM d yyyy')} – ${named(b, 'MMM d yyyy')}`;
 
 function buildDateCfg(
   name: string,
@@ -103,7 +108,7 @@ const dateRelativeCfg = buildDateCfg(
       if (daysDiff <= 7) return 'Next 7 days';
       if (daysDiff <= 30) return 'Next 30 days';
       // Show month/year for future dates beyond 30 days
-      return fmt(new Date(v), 'MMM yyyy');
+      return named(new Date(v), 'MMM yyyy');
     }
 
     // Handle past dates
@@ -111,7 +116,7 @@ const dateRelativeCfg = buildDateCfg(
     if (daysAgo <= 7) return 'Last 7 days';
     if (daysAgo <= 30) return 'Last 30 days';
     // Show month/year for past dates beyond 30 days
-    return fmt(new Date(v), 'MMM yyyy');
+    return named(new Date(v), 'MMM yyyy');
   }
 );
 
@@ -122,7 +127,7 @@ const dateDayCfg = buildDateCfg(
     const d = startOfDay(new Date(v));
     return [{ key: `${+d}`, value: +d }];
   },
-  v => (v ? fmt(new Date(v), 'MMM d yyyy') : '')
+  v => (v ? named(new Date(v), 'MMM d yyyy') : '')
 );
 
 const dateWeekSunCfg = buildDateCfg(
@@ -152,7 +157,7 @@ const dateMonthCfg = buildDateCfg(
     const m = startOfMonth(new Date(v));
     return [{ key: `${+m}`, value: +m }];
   },
-  v => (v ? fmt(new Date(v), 'MMM yyyy') : '')
+  v => (v ? named(new Date(v), 'MMM yyyy') : '')
 );
 
 const dateYearCfg = buildDateCfg(
@@ -162,7 +167,7 @@ const dateYearCfg = buildDateCfg(
     const y = startOfYear(new Date(v));
     return [{ key: `${+y}`, value: +y }];
   },
-  v => (v ? fmt(new Date(v), 'yyyy') : '')
+  v => (v ? named(new Date(v), 'yyyy') : '')
 );
 
 export const groupByMatchers: GroupByConfig[] = [

@@ -77,6 +77,7 @@ const COLUMN_TYPE = ".affine-database-column-type-icon";
 const ADD_COLUMN = ".header-add-column-button";
 const SELECT_CELL = "affine-database-select-cell";
 const DATE_CELL = "affine-database-date-cell";
+const DATE_PICKER = "date-picker";
 const ROW = "data-view-table-row";
 const STATS_CELL = "affine-database-column-stats-cell";
 const KANBAN_GROUP = "affine-data-view-kanban-group";
@@ -621,6 +622,7 @@ describe.skipIf(!ready)("the database block's own words", () => {
         await block.locator(DATE_CELL).first().press("Enter");
         await shownAnywhere(page, SAID["TODAY"]!);
         await read("a date's picker");
+        await page.locator(`${DATE_PICKER} .today`).first().dispatchEvent("click");
         await popupsClosed(page);
 
         // The figures under a column, and each group of them.
@@ -635,6 +637,19 @@ describe.skipIf(!ready)("the database block's own words", () => {
           await read(`the figures' ${group}`);
         }
         await popupsClosed(page);
+
+        // The table grouped by that date, by month: each group is named by its month in the reader's form.
+        const today = new Date();
+        const month = SAID["MMM yyyy"]!.replace("yyyy", String(today.getFullYear())).replace("M", String(today.getMonth() + 1));
+
+        await menuOpened(page, () => tool(block, "view-options"));
+        await settingsPage(page, "Group");
+        await menuRow(page, `${SAID["Column"]} 2`).dispatchEvent("click");
+        await subMenuOpened(page, SAID["Date by"]!);
+        await menuRow(page, SAID["Month"]!).dispatchEvent("click");
+        await popupsClosed(page);
+        await shownAnywhere(page, month);
+        await read("the table grouped by month");
 
         expect(Object.fromEntries(left)).toEqual({});
         await picture(page, `database-table-${width.width}`);
@@ -1151,6 +1166,6 @@ async function englishOver(page: Page, block: Locator): Promise<string[]> {
 
       return [...found].sort();
     },
-    { roots: `${DATABASE}, ${MENU}, affine-tooltip, affine-multi-tag-select, date-picker`, kept: [...ENGLISH_KEPT, ...KEY_NAMES], id }
+    { roots: `${DATABASE}, ${MENU}, affine-tooltip, affine-multi-tag-select, ${DATE_PICKER}`, kept: [...ENGLISH_KEPT, ...KEY_NAMES], id }
   );
 }

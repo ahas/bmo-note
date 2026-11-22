@@ -84,7 +84,7 @@ matches what the reader types against the answered words as well as the fork's o
 views read the seam where they draw a word outside a menu, at each literal: the search field and the hint of
 its clear key, the bar of views and its count, the view settings' counts and layout, the filter and sort bars,
 the titles of their groups, the figures under a column, a select's tags, the detail of a row, and the date
-picker's days and months. A line the fork builds around a value is asked through the seam's second door,
+picker's days and months, and the date form a group of dates is named by. A line the fork builds around a value is asked through the seam's second door,
 which takes the line with each value as a named mark, `{n}` or `{property}`, and fills the answer, so Korean
 places the value where it reads; and where the fork writes a name for the reader — a new view's, a new
 property's, the status property a kanban view adds and its three options — it writes the answered word, so

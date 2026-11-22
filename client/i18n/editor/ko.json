@@ -520,5 +520,8 @@
   "clear": "삭제",
   "Mobile database editing is not supported yet. You can open it in experimental features, or edit it in desktop mode.": "모바일에서는 아직 데이터베이스를 편집할 수 없습니다. 데스크톱 모드에서 편집해 주세요",
   "previous month": "이전 달",
-  "next month": "다음 달"
+  "next month": "다음 달",
+  "MMM d yyyy": "yyyy년 M월 d일",
+  "MMM yyyy": "yyyy년 M월",
+  "yyyy": "yyyy년"
 }

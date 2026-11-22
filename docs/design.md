@@ -419,8 +419,9 @@ studied of AFFiNE and under which licence.
   a reader opens there: the view's menu, the search with its clear key's room, a filter and its condition, a
   sort and its rule, the view's settings and each of their pages, a new column with its menu, its types and
   its type key, a select's tags, a date's picker, a row's menu, the figures under a column and each group of
-  them, a kanban group's menu, and a card's menu with where it moves to. Nothing the block or those menus and rooms show is
-  left in English beside the product names the wording guide keeps and the names on a keyboard's keys.
+  them, the table grouped by that date by month, a kanban group's menu, and a card's menu with where it
+  moves to. Nothing the block or those menus and rooms show is left in English beside the product names the
+  wording guide keeps and the names on a keyboard's keys.
 - **The same file holds 「The editor speaks on the console's message pill」,** in Korean at 1,280 and 360
   pixels wide, on a dev host that stands the console's pill up and its library's toaster down as the console
   does. It copies a line with the slash menu's copy, which the fork says through its toast helper, and reads
@@ -491,8 +492,11 @@ studied of AFFiNE and under which licence.
     kind's name, a new property its type's name or the word for a column, and a new kanban view, finding no
     property to group by, adds a status property with three options; each is written answered, so the
     reader meets the word table's Korean names rather than the fork's English. Once written, a name is the
-    reader's own and is drawn as it stands. A date a group or a cell shows keeps the form the fork gives
-    it.
+    reader's own and is drawn as it stands.
+  - **A date a group is named by takes the reader's form.** The fork names a group of dates by a date-fns
+    form of its own, a month's short English name before the year; the form itself is asked of the seam, so
+    the table answers it with the year before the month in Korean and the group reads as the reader writes
+    a date. A date a cell shows keeps the numeric form the fork gives it.
   - **A hover room answers its words once it stands drawn.** The words of a room a pointer's hover brings
     up live inside a template, where markup and words stand together, so no word of one can be asked
     before the room is drawn. The room asks them, line by line, of the same seam at the moment its content
