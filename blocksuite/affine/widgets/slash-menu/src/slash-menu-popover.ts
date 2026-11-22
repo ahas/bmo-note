@@ -23,7 +23,7 @@ import {
   translate,
   translateValue,
 } from '@blocksuite/affine-components/translate';
-import { autoPlacement, offset } from '@floating-ui/dom';
+import { flip, offset, shift } from '@floating-ui/dom';
 import { html, LitElement, nothing, type PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { ifDefined } from 'lit/directives/if-defined.js';
@@ -326,13 +326,24 @@ export class SlashMenu extends WithDisposable(LitElement) {
         return;
       }
 
-      // Handle position
+      // Handle position. The menu's own panel is what must fit the screen, so
+      // it is measured once it stands drawn; the element itself, measured
+      // before that, has no width to keep in.
+      const innerMenu = () =>
+        this.shadowRoot?.querySelector<InnerSlashMenu>('inner-slash-menu');
       const updatePosition = throttle(() => {
-        this._position = getPopperPosition(this, currRage);
+        const panel =
+          innerMenu()?.shadowRoot?.querySelector<HTMLElement>('.slash-menu') ??
+          this;
+        this._position = getPopperPosition(panel, currRage);
       }, 10);
 
       this.disposables.addFromEvent(window, 'resize', updatePosition);
       updatePosition();
+      this.updateComplete
+        .then(() => innerMenu()?.updateComplete)
+        .then(updatePosition)
+        .catch(console.error);
     }
   }
 
@@ -420,11 +431,16 @@ export class InnerSlashMenu extends WithDisposable(LitElement) {
       computePosition: {
         referenceElement: itemElement,
         autoUpdate: true,
+        placement: 'right-start',
         middleware: [
           offset(12),
-          autoPlacement({
-            allowedPlacements: ['right-start', 'right-end'],
+          // Where the screen holds no room beside the menu, as on a phone, the
+          // sub menu stands under the item that opened it, clear of the finger
+          // that pressed it, and is kept inside the screen.
+          flip({
+            fallbackPlacements: ['right-end', 'bottom-start', 'top-start'],
           }),
+          shift({ padding: 8 }),
         ],
       },
       abortController: this._subMenuAbortController,

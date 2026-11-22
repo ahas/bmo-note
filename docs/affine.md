@@ -49,6 +49,21 @@ runs.
 | The storage mechanism: whole documents kept as binary Yjs state with metadata rows beside them | studied from AFFiNE server's stored shape, re-implemented | mechanism, not code | `src/store.rs` |
 | The fork itself as the editor's source of truth, with `upstream/canary` for later merges | upstream | per path, as the split above | this repository |
 
+The page view is mounted as the preset registers it but for one provider: the phone's keyboard toolbar, which
+the fork registers for the page view under a phone's user agent and draws behind a feature flag of its own. The
+console bundle builds its view extensions without that provider, by the provider's own class, so the editor
+never mounts the bar whatever the agent or the flag (`docs/design.md`, 「On a phone the format bar is the one
+bar」). No source of the fork's is changed for it: a merge that keeps the provider needs nothing, and one that
+renames or moves it fails the client's check at the import, where the choice is made again.
+
+Beside the seams, the fork carries this unit's own placement of its slash menu, so the menu a phone reaches
+the further kinds by stands inside the screen. The menu is held inside the page by the width of its drawn
+panel, measured once the panel stands, since the element that holds it has no width of its own; and a menu of
+its further items, placed beside it, goes under the item that opened it where the screen holds no room beside
+it, clear of the finger that opened it, and is held inside the screen. Both are a few lines of the slash
+menu's own placement. A merge that rewrites that placement drops them, and the phone's browser file, which
+reads both menus inside a phone's screen and clear of the finger, fails where either stands past the edge.
+
 What is not borrowed, and why: the AFFiNE server and its native addon (EE licence, and a stack this
 platform does not run); the sync gateway (no realtime collaboration in the unit's v1, one writer per
 note is the truth the design states); the GraphQL metadata API (this unit's routes state their own

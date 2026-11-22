@@ -23,6 +23,7 @@ import {
   ToolbarModuleExtension
 } from "@blocksuite/affine/shared/services";
 import { BlockFlavourIdentifier, LifeCycleWatcher } from "@blocksuite/affine/std";
+import { KeyboardToolbarViewExtension } from "@blocksuite/affine/widgets/keyboard-toolbar/view";
 import { svg } from "lit";
 import { Subscription } from "rxjs";
 
@@ -84,7 +85,10 @@ function forkBarHasRoom(ctx: ToolbarContext): boolean {
   return ctx.host.getBoundingClientRect().width >= ROOM_FOR_THE_FORK_BAR_PX;
 }
 
-const manager = new ViewExtensionManager(getInternalViewExtensions());
+/// The fork's page view, but for its phone keyboard bar: on a phone the format bar above the document is the
+/// one bar the marks and the kinds stand on, so the fork's second row over the on-screen keyboard is never
+/// mounted, whatever agent the browser names or flag the fork sets (`docs/design.md`, 「The console surface」).
+const manager = new ViewExtensionManager(getInternalViewExtensions().filter((extension) => extension !== KeyboardToolbarViewExtension));
 
 /** The page-mode view extensions, with the host services the preset reads overridden. */
 export function pageExtensions(notice: EditorNotice): ExtensionType[] {

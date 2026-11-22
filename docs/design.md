@@ -317,6 +317,17 @@ studied of AFFiNE and under which licence.
   toolbar over a block chosen whole stands on a touch screen all the same, since a chosen block is what a
   phone holds to act on (below). Every block chosen whole, by the handle or by a held finger, raises the
   selection toolbar (below). And the toolbar never stands wider than the screen it is drawn on (below).
+- **On a phone the format bar is the one bar.** Under a phone's own user agent the fork's page view lays a
+  keyboard bar of its own over the on-screen keyboard, a second row of marks, kinds and inserts; the bundle
+  mounts the fork's page view without it, so no agent, no flag of the fork's and no merge raises it beside
+  the format bar. A phone reaches the marks and the kinds the way every screen does: the bar's marks and its
+  select of kinds, standing above the document where the keyboard never hides them, and the kinds the bar
+  does not carry (the further headings, the divider, the callout, the equation and the rest the fork offers)
+  through the slash menu, typed on the phone's own keyboard. The slash menu stands inside the screen, and a
+  menu of its further items, which stands beside it where the screen holds the room, stands under the item
+  that opened it where the screen does not, clear of the finger that pressed it (`docs/affine.md`, the
+  fork's placement of its slash menu). The floating format menu, which reaches the same further kinds under
+  a pointer, stands down there as on every touch screen.
 - **Every block has its handle and its toolbar.** The drag handle stands beside whichever top-level block
   the pointer is over, whatever its kind; pressing it selects that block whole, and the selection toolbar
   rises over it with what the block offers, its copy, duplicate and delete among them. Delete or Backspace
@@ -362,7 +373,8 @@ studied of AFFiNE and under which licence.
   lives in the shadow room of the fork's own widget, which no rule of the bundle reaches, so the bundle lays
   a sheet of its own in that room, and past the width a screen leaves it a bar wraps its keys into further
   centred rows rather than stand past the edge. Either way the bar keeps its place over the block it acts
-  on.
+  on, but under a phone's own user agent, where the fork lays it at the screen's foot, centred and kept
+  above the on-screen keyboard, with the keys the fold leaves it.
 - **The screens' browser test holds them to these rows.** It builds the note service from the checkout,
   starts it on a settings folder and a store of its own, starts the bundle's dev host relaying to it as
   the console would, writes a few notes of realistic Korean titles and text through the relay, and drives
@@ -414,6 +426,14 @@ studied of AFFiNE and under which licence.
   while that line stands and reads the pill still saying the one line with nothing waiting behind it; and
   reads that the helper's own box never stands in the page. A picture of the pill over the note and of the
   refused form is kept at each width.
+- **A browser file of its own holds 「On a phone the format bar is the one bar」** on the same stack, with the
+  browser naming itself a phone, at 360 pixels wide, by a finger, in Korean. While a line is written the
+  format bar stands with every key, the fork reads the agent as a phone's, and neither the fork's keyboard
+  bar nor its floating format menu stands; each mark the bar carries lands on the words chosen, each kind its
+  select offers turns the line, and the slash menu typed at a line's end stands inside the screen, offers the
+  divider, the callout and the equation, lays its further headings inside the screen too and clear of the
+  finger that opened them, and turns the line into a fourth heading from them; a line held in the gutter raises Ask AI and the block's three keys at the
+  screen's foot, inside it. A picture of the phone writing and of a block chosen is kept.
 - **The editor's styles stay in the editor.** The vendored editor lays its stylesheets on the page as plain
   style elements, unlayered, which beat every layered rule of the console; and a few of its rules name nothing
   of the editor's own — a bare `input`, a `.truncate` — so once a note is opened they would reach every screen
