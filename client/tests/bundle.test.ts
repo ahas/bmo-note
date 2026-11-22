@@ -70,6 +70,17 @@ describe("the words", () => {
   });
 });
 
+describe("the messages", () => {
+  test("every line reaches the console's one message pill, never a toaster or the editor's own box", () => {
+    // The console stands the library's toaster down, so a line told through it is lost; the fork's toast
+    // helper is the editor's road, which hands its lines to the service the screen provides.
+    const roads = /@nuxt\/ui\/composables\/useToast|\buseToast\(|@blocksuite\/affine\/components\/toast|\bwindow\.(?:alert|confirm|prompt)\(/;
+    const second = sources.filter((path) => roads.test(readFileSync(path, "utf8")));
+
+    expect(second).toEqual([]);
+  });
+});
+
 describe("the inputs", () => {
   test("every input a note screen draws is hidden by the native attribute", () => {
     const drawn = sources

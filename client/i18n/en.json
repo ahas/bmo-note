@@ -213,8 +213,7 @@
     "block": {
       "copy": "Copy",
       "duplicate": "Duplicate",
-      "delete": "Delete",
-      "copied": "Copied to clipboard."
+      "delete": "Delete"
     },
     "editor": {
       "words": {
@@ -354,6 +353,8 @@
         "Equation": "Equation",
         "Expand code": "Expand code",
         "Failed to download image!": "Failed to download image!",
+        "Failed to read image size, please try another image": "Failed to read image size, please try another image",
+        "File name cannot be empty": "File name cannot be empty",
         "For example, one user’s edits to a": "For example, one user’s edits to a",
         "For example, one user’s edits to a document might be on": "For example, one user’s edits to a document might be on",
         "For Google Drive, and more.": "For Google Drive, and more.",
@@ -413,6 +414,7 @@
         "Insert Right": "Insert Right",
         "Insert to page": "Insert to page",
         "Insert today’s date": "Insert today’s date",
+        "Invalid link": "Invalid link",
         "Invalid URL": "Invalid URL",
         "Italic": "Italic",
         "kaleidoscopic complexity to our data.": "kaleidoscopic complexity to our data.",
@@ -467,7 +469,9 @@
         "Paste or type a link": "Paste or type a link",
         "Photo": "Photo",
         "Plain Text": "Plain Text",
+        "Please enter a valid URL": "Please enter a valid URL",
         "Please enter the link you want to paste.": "Please enter the link you want to paste.",
+        "Please set a link to the block": "Please set a link to the block",
         "Purple": "Purple",
         "purple": "purple",
         "Quote": "Quote",
@@ -511,6 +515,7 @@
         "their laptop on an airplane; when the plane lands and the": "their laptop on an airplane; when the plane lands and the",
         "those changes to their version of the document.": "those changes to their version of the document.",
         "Title": "Title",
+        "Title can not be empty": "Title can not be empty",
         "To-do List": "To-do List",
         "Today": "Today",
         "Todo": "Todo",
@@ -543,6 +548,7 @@
         "yellow": "yellow",
         "Yesterday": "Yesterday",
         "yesterday’s": "yesterday’s",
+        "You can click undo to recovery block content": "You can click undo to recovery block content",
         "You can list your plans such as this": "You can list your plans such as this",
         "YouTube Video": "YouTube Video"
       }

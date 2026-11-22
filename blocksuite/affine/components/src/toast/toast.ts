@@ -1,4 +1,5 @@
 import type { EditorHost } from '@blocksuite/std';
+import { NotificationProvider } from '@blocksuite/affine-shared/services';
 import { translate } from '../translate';
 import { baseTheme } from '@toeverything/theme';
 import { html } from 'lit';
@@ -9,6 +10,10 @@ import { htmlToElement } from './html-to-element.js';
 let ToastContainer: HTMLDivElement | null = null;
 
 /**
+ * Says a line of notice. Where the editor's host provides a notification service, the line is handed to
+ * it as written and nothing is drawn here, so whoever mounts the editor hears every line on one road; the
+ * box drawn over the editor's viewport stands only where no service is provided.
+ *
  * @example
  * ```ts
  * toast('Hello World');
@@ -19,6 +24,12 @@ export const toast = (
   message: string,
   duration = 2500
 ) => {
+  const notification = editorHost.std.getOptional(NotificationProvider);
+  if (notification) {
+    notification.toast(message, { duration });
+    return null;
+  }
+
   if (!ToastContainer) {
     ToastContainer = createToastContainer(editorHost);
   }

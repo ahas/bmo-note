@@ -22,8 +22,11 @@ import type { Stack } from "./stack";
 // the pack's word for that thing, read out of the pack by the file itself, never written as letters in the file,
 // and nothing standing in that chrome is left in the fork's English beside the product names the console's wording
 // guide keeps in their own. The English a room still holds is what the pack answers with nothing — the sample data
-// and the dates a card pictures, a file's name, a formula, code — and the file names it card by card. Skipped
-// where the browser build is not on the machine.
+// and the dates a card pictures, a file's name, a formula, code — and the file names it card by card. It also holds
+// that the editor speaks on the console's message pill (docs/design.md, 「The editor speaks on the console's message
+// pill」) at a desktop's width and a phone's: a copy said through the editor's notification service and one said
+// through the fork's toast helper both stand on the pill in the pack's words, the same line said again replaces
+// itself, and the helper's own box never stands. Skipped where the browser build is not on the machine.
 
 const ready = existsSync(chromium.executablePath());
 
@@ -51,6 +54,17 @@ const HINT = ".affine-paragraph-placeholder";
 const CODE = "affine-code";
 const CODE_BAR = "editor-toolbar.code-toolbar-container";
 const CAPTION = "textarea.block-caption-editor";
+// The console's one message pill, and the box the fork's toast helper draws where no host hears its lines.
+const PILL = ".bmo-island";
+const HELPER_BOX = ".toast-container";
+// The gutter the content keeps from the screen's edges on a phone, which the pill keeps as well.
+const GUTTER_PX = 16;
+
+// The widths the pill is read at: a desktop's, with room for the editor's whole bar, and a phone's.
+const WIDTHS = [
+  { name: "a desktop's width", width: 1280, height: 900 },
+  { name: "a phone's width", width: 360, height: 780 }
+] as const;
 
 // The words that stand in English wherever the console's wording guide keeps a product, a format or a
 // protocol name: none of them a word the fork owed the reader.
@@ -397,11 +411,58 @@ describe.skipIf(!ready)("the editor's own words", () => {
     TEST_MS
   );
 
+  for (const width of WIDTHS) {
+    test(
+      `at ${width.name} the editor's copies stand on the console's pill in its words, and its own box never stands`,
+      async () => {
+        const page = await note(FIXTURE.notes[0]!.id, width);
+        const copied = SAID["Copied to clipboard"];
+        const copyCode = page.locator(`${CODE_BAR} editor-icon-button[aria-label="${SAID["Copy code"]}"]`);
+
+        // A line's copy from the slash menu, said through the fork's toast helper.
+        await intoEmptyLine(page);
+        await page.keyboard.type("/");
+        await page.locator(`${SLASH}[data-testid="Copy"]`).click();
+        expect(await pillSays(page, copied)).toBe(copied);
+        await picture(page, `words-pill-${width.width}`);
+
+        // It stands at the top of the screen, centred, inside the content's gutter.
+        const box = await page.locator(PILL).evaluate((pill: Element) => {
+          const { left, right, top } = pill.getBoundingClientRect();
+
+          return { left, right, top, screen: document.documentElement.clientWidth };
+        });
+
+        expect(Math.abs((box.left + box.right) / 2 - box.screen / 2)).toBeLessThanOrEqual(1);
+        expect(box.left).toBeGreaterThanOrEqual(GUTTER_PX);
+        expect(box.screen - box.right).toBeGreaterThanOrEqual(GUTTER_PX);
+        expect(box.top).toBeLessThanOrEqual(GUTTER_PX);
+
+        // Pressed away, the pill goes.
+        await page.locator(`${PILL} button`).first().click();
+        await page.locator(PILL).waitFor({ state: "detached", timeout: SETTLING_MS });
+
+        // A code block's copy, said through the notification service the screen provides.
+        await inCodeBlock(page);
+        await copyCode.click();
+        expect(await pillSays(page, copied)).toBe(copied);
+
+        // The same line said again while it stands replaces it: one line, nothing waiting behind it.
+        await copyCode.click();
+        expect(await pillSays(page, copied)).toBe(copied);
+        expect(await page.locator(HELPER_BOX).count()).toBe(0);
+
+        await page.context().close();
+      },
+      TEST_MS
+    );
+  }
 });
 
-// A page of the console's own, in Korean, at a desktop's width: room enough for the editor's whole bar.
-async function opened(path: string): Promise<Page> {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+// A page of the console's own, in Korean, at a desktop's width unless another is named: room enough for the
+// editor's whole bar.
+async function opened(path: string, width: { width: number; height: number } = WIDTHS[0]): Promise<Page> {
+  const context = await browser.newContext({ viewport: { width: width.width, height: width.height } });
 
   // A loaded machine may take longer than the driver's own default over any step.
   context.setDefaultTimeout(STANDING_MS);
@@ -417,8 +478,8 @@ async function opened(path: string): Promise<Page> {
 }
 
 // The note open, with its first line standing.
-async function note(id: string): Promise<Page> {
-  const page = await opened(`/note/${id}`);
+async function note(id: string, width?: { width: number; height: number }): Promise<Page> {
+  const page = await opened(`/note/${id}`, width);
 
   await page.locator(PARAGRAPH).first().waitFor({ timeout: STANDING_MS });
 
@@ -614,6 +675,16 @@ async function named(page: Page, root: string): Promise<string[]> {
 /** The words of the editor's chrome that stand in the fork's English: none, beside the names kept. */
 function nothingEnglish(words: Drawn): string[] {
   return [...words.texts, ...words.names].filter((one) => /[A-Za-z]{2,}/.test(one) && !ENGLISH_KEPT.some((kept) => one.includes(kept)));
+}
+
+// What the pill says once it stands saying `wanted`: its whole text, so a count of lines waiting behind it, or
+// a second line beside it, is read with it.
+async function pillSays(page: Page, wanted: string): Promise<string> {
+  const pill = page.locator(PILL);
+
+  await pill.filter({ hasText: wanted }).waitFor({ timeout: SETTLING_MS });
+
+  return ((await pill.textContent()) ?? "").replace(/\s+/g, " ").trim();
 }
 
 async function picture(page: Page, name: string): Promise<void> {

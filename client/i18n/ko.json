@@ -213,8 +213,7 @@
     "block": {
       "copy": "복사",
       "duplicate": "복제",
-      "delete": "삭제",
-      "copied": "클립보드에 복사했습니다."
+      "delete": "삭제"
     },
     "editor": {
       "words": {
@@ -354,6 +353,8 @@
         "Equation": "수식",
         "Expand code": "코드 확장",
         "Failed to download image!": "이미지를 다운로드하지 못했습니다.",
+        "Failed to read image size, please try another image": "이미지를 읽지 못했습니다.",
+        "File name cannot be empty": "파일 이름을 입력해 주세요.",
         "For example, one user’s edits to a": "받아들일지가 다를 수 있다.",
         "For example, one user’s edits to a document might be on": "다를 수 있다. 예를 들어 한 사용자가",
         "For Google Drive, and more.": "Google Drive 등을 넣을 때 씁니다.",
@@ -413,6 +414,7 @@
         "Insert Right": "오른쪽 열 추가",
         "Insert to page": "페이지에 삽입",
         "Insert today’s date": "오늘 날짜 삽입",
+        "Invalid link": "잘못된 링크입니다.",
         "Invalid URL": "잘못된 주소입니다.",
         "Italic": "기울임",
         "kaleidoscopic complexity to our data.": "우리 데이터가 다채롭게",
@@ -467,7 +469,9 @@
         "Paste or type a link": "링크를 붙여넣거나 입력해 주세요",
         "Photo": "사진",
         "Plain Text": "평문",
+        "Please enter a valid URL": "올바른 주소를 입력해 주세요.",
         "Please enter the link you want to paste.": "붙여넣을 링크를 입력해 주세요.",
+        "Please set a link to the block": "블록에 링크를 설정해 주세요.",
         "Purple": "보라",
         "purple": "보라",
         "Quote": "인용",
@@ -511,6 +515,7 @@
         "their laptop on an airplane; when the plane lands and the": "문서에서 한 수정이 비행 중인 노트북에",
         "those changes to their version of the document.": "전혀 받아들이지 않을 수 있다.",
         "Title": "제목",
+        "Title can not be empty": "제목을 입력해 주세요.",
         "To-do List": "할 일 목록",
         "Today": "오늘",
         "Todo": "할 일",
@@ -543,6 +548,7 @@
         "yellow": "노랑",
         "Yesterday": "어제",
         "yesterday’s": "어제",
+        "You can click undo to recovery block content": "실행 취소로 블록 내용을 되돌릴 수 있습니다.",
         "You can list your plans such as this": "계획을 이렇게 적어 볼 수 있습니다",
         "YouTube Video": "YouTube 영상"
       }

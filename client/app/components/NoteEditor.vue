@@ -6,12 +6,12 @@
 // the reader to read, or on its share page — stands with its edits refused, the bar's keys disabled and
 // no Ask AI (`docs/design.md`, 「Sharing on the screens」).
 
-import { onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
+import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useOverlay } from "@nuxt/ui/composables/useOverlay";
-import { useToast } from "@nuxt/ui/composables/useToast";
 
 import QuestionDialog from "bmo-ui/app/components/QuestionDialog.vue";
+import { islandState, useIsland } from "bmo-ui/app/domain/island";
 import { useLongPress } from "bmo-ui/app/domain/longpress";
 
 import "@toeverything/theme/style.css";
@@ -26,6 +26,7 @@ import { countHolding } from "../domain/count";
 import { passageElement, passageModels } from "../domain/format";
 import { asOneStep, historyDirectionOf, stepHistory } from "../domain/history";
 import { chooseWhole, gutterBlock } from "../domain/gutter";
+import { editorMessages } from "../domain/notices";
 import { linesOf, opaqueRow } from "../domain/text";
 import { followScreenMode } from "../domain/theme";
 import { writeNoteTitle } from "../domain/title";
@@ -60,7 +61,9 @@ const host = shallowRef<HTMLElement | null>(null);
 const scope = shallowRef<BlockStdScope | null>(null);
 const i18n = useI18n();
 const overlay = useOverlay();
-const toast = useToast();
+// The console's one message pill: what the editor says and what this screen says of it both stand there
+// (`docs/design.md`, 「The editor speaks on the console's message pill」).
+const island = useIsland((key: string) => i18n.t(key));
 
 // The editor reads its colours off the document element, so the console's mode stands there before
 // the container is mounted.
@@ -69,19 +72,22 @@ followScreenMode();
 let held: NoteDoc | null = null;
 let stopChange: (() => void) | null = null;
 
+const messages = editorMessages({
+  pill: island,
+  ask: async (title: string) =>
+    (await overlay.create(QuestionDialog, { props: { title, confirm: i18n.t("note.action.apply"), leaving: true }, destroyOnClose: true }).open()) === true
+});
+// The fork hears of a notice it asked about once the pill is done with it.
+watch(islandState(), (state) => messages.heard(state));
+
 const notice: EditorNotice = {
-  toast: () => {
-    // The editor's own failure lines; the save state carries what must reach the reader's attention.
-  },
-  confirm: async (title: string) =>
-    (await overlay.create(QuestionDialog, { props: { title, confirm: i18n.t("note.action.apply"), leaving: true }, destroyOnClose: true }).open()) === true,
+  messages: messages.service,
   ask: props.readonly ? null : () => openAsk(),
   askLabel: i18n.t("note.ask.key"),
   blockWords: {
     copy: i18n.t("note.block.copy"),
     duplicate: i18n.t("note.block.duplicate"),
-    delete: i18n.t("note.block.delete"),
-    copied: i18n.t("note.block.copied")
+    delete: i18n.t("note.block.delete")
   }
 };
 
@@ -118,7 +124,7 @@ function placeAsked(how: "replace" | "below", lines: string[]): void {
   try {
     applyOps(held.store, [how === "replace" ? { at: taken.at, del: taken.count, insert: lines } : { at: taken.at + taken.count, del: 0, insert: lines }]);
   } catch {
-    toast.add({ title: i18n.t("note.talk.apply_failed"), color: "error" });
+    island.say({ tone: "error", title: i18n.t("note.talk.apply_failed") });
   }
 }
 
@@ -266,7 +272,7 @@ defineExpose({
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col">
-    <NoteToolbar v-if="props.toolbar" :std="props.readonly ? null : scope" :ask="!props.readonly" @failed="toast.add({ title: $t('note.error.image_failed'), color: 'error' })" @ask="openAsk">
+    <NoteToolbar v-if="props.toolbar" :std="props.readonly ? null : scope" :ask="!props.readonly" @failed="island.say({ tone: 'error', title: $t('note.error.image_failed') })" @ask="openAsk">
       <template v-if="$slots.barStart" #start>
         <slot name="barStart" />
       </template>

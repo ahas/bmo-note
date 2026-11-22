@@ -2,7 +2,6 @@
 // services the preset asks the host for answered by the screen (docs/design.md, 「The console
 // surface」). What the preset expects from its app shell, it gets here in the smallest shape.
 
-import { toast } from "@blocksuite/affine/components/toast";
 import { getInternalViewExtensions } from "@blocksuite/affine/extensions/view";
 import { ViewExtensionManager } from "@blocksuite/affine/ext-loader";
 import { DatabaseBlockSchema, DividerBlockSchema, LatexBlockSchema, TableBlockSchema } from "@blocksuite/affine/model";
@@ -19,6 +18,7 @@ import {
   DocModeProvider,
   FileSizeLimitProvider,
   FontConfigExtension,
+  NotificationExtension,
   NotificationProvider,
   ToolbarModuleExtension
 } from "@blocksuite/affine/shared/services";
@@ -26,7 +26,7 @@ import { BlockFlavourIdentifier, LifeCycleWatcher } from "@blocksuite/affine/std
 import { svg } from "lit";
 import { Subscription } from "rxjs";
 
-import { answered } from "./words";
+import { COPIED } from "./notices";
 
 import type { Container } from "@blocksuite/affine/global/di";
 import type { NotificationService, ToolbarAction, ToolbarContext } from "@blocksuite/affine/shared/services";
@@ -37,24 +37,22 @@ import type { ExtensionType } from "@blocksuite/affine/store";
 /// uploading a file it already knows the store will send back.
 const MAX_BLOB_BYTES = 8 * 1024 * 1024;
 
-/** What the editor can ask the screen to say: a line, and a question with an answer; and what the
- * selection toolbar's Ask AI key opens, under the word it wears, or none where the note stands read
- * only and the key does not stand. */
+/** What the editor is given by the screen: the notification service its lines of notice and its questions
+ * reach the screen by (`./notices`); and what the selection toolbar's Ask AI key opens, under the word it
+ * wears, or none where the note stands read only and the key does not stand. */
 export interface EditorNotice {
-  toast: (message: string) => void;
-  confirm: (title: string) => Promise<boolean>;
+  messages: NotificationService;
   ask: (() => void) | null;
   askLabel: string;
   blockWords: BlockWords;
 }
 
 /** The words of the toolbar over a block selected whole that declares none of its own, in the console's
- * language: its three keys and the line its copy says. */
+ * language: its three keys. */
 export interface BlockWords {
   copy: string;
   duplicate: string;
   delete: string;
-  copied: string;
 }
 
 // The sparkle the Ask AI key wears, drawn as the format bar's own icon set draws it.
@@ -98,16 +96,6 @@ export function pageExtensions(notice: EditorNotice): ExtensionType[] {
     setPrimaryMode: () => {},
     togglePrimaryMode: () => "page"
   };
-  // The lines the editor asks the screen to say are the fork's words: they answer to the console's
-  // language here, where the screen draws them rather than the editor's own chrome doing it.
-  const messages: NotificationService = {
-    toast: (message) => notice.toast(answered(String(message ?? ""))),
-    confirm: async (options) => notice.confirm(answered(String(options.title ?? ""))),
-    prompt: async () => null,
-    notify: (options) => notice.toast(answered(String(options.title ?? ""))),
-    notifyWithUndoAction: (options) => notice.toast(answered(String(options.title ?? "")))
-  };
-
   return [
     ...(manager.get("page") as ExtensionType[]),
     FontConfigExtension(CommunityCanvasTextFonts),
@@ -115,10 +103,12 @@ export function pageExtensions(notice: EditorNotice): ExtensionType[] {
     ...KINDS_WITHOUT_TOOLBAR.map((flavour) => blockModule(flavour, blockActions(notice.blockWords))),
     HandlePressKeepsBlock,
     ToolbarKeptOnScreen,
+    // The fork's own wrapping of the service, which offers an undo with a notice that asks for one and takes
+    // the notice back once the undo is taken another way.
+    NotificationExtension(notice.messages),
     {
       setup: (di: Container) => {
         di.override(DocModeProvider, () => mode);
-        di.override(NotificationProvider, () => messages);
         di.override(FileSizeLimitProvider, () => ({ maxFileSize: MAX_BLOB_BYTES }));
       }
     }
@@ -170,10 +160,10 @@ function blockActions(words: BlockWords, when?: (ctx: ToolbarContext) => boolean
       when,
       tooltip: words.copy,
       icon: COPY_ICON,
-      run: ({ chain, host }) => {
+      run: ({ chain, std }) => {
         const [copied] = chain.pipe(getSelectedModelsCommand, SELECTED_WHOLE).pipe(draftSelectedModelsCommand).pipe(copySelectedModelsCommand).run();
 
-        if (copied) toast(host, words.copied);
+        if (copied) std.get(NotificationProvider).toast(COPIED);
       }
     },
     {

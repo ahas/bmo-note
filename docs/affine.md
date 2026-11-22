@@ -54,8 +54,10 @@ platform does not run); the sync gateway (no realtime collaboration in the unit'
 note is the truth the design states); the GraphQL metadata API (this unit's routes state their own
 shape); the app shells, Electron packaging and copilot paths (a console bundle is the surface).
 
-The fork's tree is not untouched: it carries one seam of this unit's own, the translator `docs/design.md`
-names 「The editor's own words follow the console's language」. It is a module of the preset's component
+The fork's tree is not untouched: it carries two seams of this unit's own, both in the preset's component
+layer.
+
+The first is the translator `docs/design.md` names 「The editor's own words follow the console's language」. It is a module of the preset's component
 layer, read by the renderers of that layer and of the blocks and widgets the page view mounts, at the point
 where a word of the editor's own chrome is drawn, and it answers nothing by itself: whoever mounts the
 editor installs the answers, which is why the words live in the console bundle's pack and not in the fork's
@@ -66,6 +68,16 @@ merge of `upstream/canary` keeps the module and those reads; a renderer the merg
 line it adds to a renderer the seam already reads, needs no change, and one the merge rebuilds elsewhere is
 untranslated until it is read the same way. The words' browser file fails on exactly that case, and the
 client's check builds the copy the same way the deployment does.
+
+The second is the toast helper, the road by which most of the fork's blocks and widgets say a line of notice
+beside the notification service its host may provide. Where the editor's host provides that service, the
+helper hands the line to it as the fork wrote it and draws nothing; only where none is provided does it draw
+its own box over the editor's viewport. So a mounter that provides the service hears every line the editor
+says on one road, which is what `docs/design.md`, 「The editor speaks on the console's message pill」, stands
+on. The seam is one branch at the head of the helper; a merge keeps it, and a call to the helper the merge
+adds needs no change, while a line a merge says by some third road of its own is not heard until it is sent
+down one of the two. The pill's browser file reads the lines of both roads on the pill and reads that the
+helper's box never stands.
 
 ## The client's build path to the vendored editor
 

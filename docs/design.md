@@ -325,7 +325,8 @@ studied of AFFiNE and under which licence.
   declare none, so the bundle declares for each of them a toolbar holding copy, duplicate and delete, the
   three the other blocks carry in their more menu, standing as keys of their own since the block offers
   nothing else. These keys wear the format bar's icon set, each with a tooltip naming it in the console's
-  language from the bundle's pack, and the line the copy key says comes from the pack as well. A kind the
+  language from the bundle's pack, and the copy key says the fork's own line for a copy on the console's
+  message pill, answered from the pack as every copy is. A kind the
   fork adds later that declares no toolbar is one more entry in that declaration. The fork's own keys,
   menus and lines answer to the console's language through the seam named below.
 - The press on the handle lands inside the editable page, so the browser lays a caret in the nearest line
@@ -402,6 +403,14 @@ studied of AFFiNE and under which licence.
   the file.
   Every other word it reads is the pack's word for that thing, read out of the pack by the file itself,
   never written as letters in the file, and no word of that chrome is left standing in the fork's English.
+- **The same file holds 「The editor speaks on the console's message pill」,** in Korean at 1,280 and 360
+  pixels wide, on a dev host that stands the console's pill up and its library's toaster down as the console
+  does. It copies a line with the slash menu's copy, which the fork says through its toast helper, and reads
+  the pack's word for the copy on the pill; presses the pill away; copies a code block with the key the
+  block's bar raises, which the fork says through the notification service, and reads the same word on the
+  pill again; copies it once more while that line stands and reads the pill still saying the one line with
+  nothing waiting behind it; and reads that the helper's own box never stands in the page. A picture of the
+  pill over the note is kept at each width.
 - **The editor's styles stay in the editor.** The vendored editor lays its stylesheets on the page as plain
   style elements, unlayered, which beat every layered rule of the console; and a few of its rules name nothing
   of the editor's own — a bare `input`, a `.truncate` — so once a note is opened they would reach every screen
@@ -442,6 +451,34 @@ studied of AFFiNE and under which licence.
     guidance, the names it carries, and the sample lines of the document a card pictures — and leaves what
     a card only shows as contents: a file's name or a person's, a value filling a cell of a sample table,
     the letters and numbers of a formula or of code, and a date.
+- **The editor speaks on the console's message pill.** The console says everything on one pill at the top of
+  the screen (bmo-ui's island, `docs/components.md`, 「Messages」 there), and the component library's toaster
+  is not stood up, so a line told any other way is lost. The fork says a line of notice by two roads: the
+  notification service its host provides, and a toast helper of its own, which hands its line to that service
+  wherever the host provides one and draws its own box over the editor's viewport only where none is provided
+  (`docs/affine.md`, the fork's second seam). The bundle provides the service, so every line the editor says
+  reaches it and no box is drawn in the editor; the service says each line on the pill, in the console's
+  language from the pack, as the seam answers the rest of the editor's words. The screen's own lines about
+  the editor — an Ask AI result that could not be placed, an image that could not be added, a block copied
+  from the keys the bundle declares — take the same pill, the bundle's block copy saying the same line the
+  fork's copies say.
+  - The pill tells the word that an action went through or did not, and a notice of something that arrived,
+    so that is what the screen says of the editor: a copy, a refused size or link, a failed download or
+    read, a notice the fork raises on its own. A line that narrates a step still under way — an image's
+    download starting, or a second press while one runs, whose progress the browser shows itself — is not
+    said. A copy that went through wears the success tone and a refusal or failure the error tone; a notice
+    the fork raises with a tone of its own keeps it, and any other line wears the info tone. Which lines are
+    held back and which wear success or error is the bundle's to say, keyed by the fork's words as the pack
+    is, so a line the fork adds later is said in the info tone rather than lost.
+  - Each line is named by the fork's words, so the same line said again before the first has gone — a
+    second copy — replaces it where it stands. A press the fork offers with a notice, its undo among them,
+    stands on the pill under the pack's word for it; when the fork takes a notice back, its undo already
+    taken another way, the pill lets it go, and the fork learns when the pill is done with one it asked to
+    hear of. A notice the fork draws out of a template is said as the words it draws.
+  - A line whose words carry a figure of the moment — the size cap an image is refused over, a count of
+    rows copied from a table — is answered by nothing in the pack and is said as the fork wrote it.
+  - A question the fork asks before an action is the console's question dialog, never the pill, and a
+    question that asks for a typed answer is answered with none.
 - The screen is read in the console's screen mode and keeps none of its own. The bundle's chrome is
   drawn from the console's tokens, so it stands in the mode the console stands in as it is written;
   the vendored editor colours itself by a `data-theme` attribute of the document element instead —
