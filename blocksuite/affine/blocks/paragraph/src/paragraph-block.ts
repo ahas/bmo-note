@@ -24,6 +24,7 @@ import {
   type InlineRangeProvider,
 } from '@blocksuite/std/inline';
 import { computed, effect, signal } from '@preact/signals-core';
+import { translateValue } from '@blocksuite/affine-components/translate';
 import { html, nothing, type TemplateResult } from 'lit';
 import { query } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
@@ -384,7 +385,7 @@ export class ParagraphBlockComponent extends CaptionedBlockComponent<ParagraphBl
                       visible: this._displayPlaceholder.value,
                     })}
                   >
-                    ${this._placeholder}
+                    ${translateValue(this._placeholder)}
                   </div>
                 `
           }

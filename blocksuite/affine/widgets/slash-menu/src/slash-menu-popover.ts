@@ -19,6 +19,10 @@ import {
 } from '@blocksuite/affine-shared/utils';
 import { WithDisposable } from '@blocksuite/global/lit';
 import { ArrowDownSmallIcon } from '@blocksuite/icons/lit';
+import {
+  translate,
+  translateValue,
+} from '@blocksuite/affine-components/translate';
 import { autoPlacement, offset } from '@floating-ui/dom';
 import { html, LitElement, nothing, type PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
@@ -151,7 +155,11 @@ export class SlashMenu extends WithDisposable(LitElement) {
 
       this._filteredItems = this._filteredItems.concat(
         queue.filter(({ name, searchAlias = [] }) =>
-          [name, ...searchAlias].some(str => isFuzzyMatch(str, searchStr))
+          // A reader types what the menu shows them, which is whatever the mounter answered for the
+          // words written here; both are matched, so the words stand in either language.
+          [name, translate(name), ...searchAlias].some(str =>
+            isFuzzyMatch(str, searchStr)
+          )
         )
       );
 
@@ -170,10 +178,13 @@ export class SlashMenu extends WithDisposable(LitElement) {
     }
 
     this._filteredItems.sort((a, b) => {
-      return -(
-        substringMatchScore(a.name, searchStr) -
-        substringMatchScore(b.name, searchStr)
-      );
+      const score = (item: SlashMenuItem) =>
+        Math.max(
+          substringMatchScore(item.name, searchStr),
+          substringMatchScore(translate(item.name), searchStr)
+        );
+
+      return -(score(a) - score(b));
     });
 
     this._queryState = this._filteredItems.length === 0 ? 'no_result' : 'on';
@@ -455,7 +466,7 @@ export class InnerSlashMenu extends WithDisposable(LitElement) {
           }}
         >
           <div class="tooltip-figure">${tooltip.figure}</div>
-          <div class="tooltip-caption">${tooltip.caption}</div>
+          <div class="tooltip-caption">${translateValue(tooltip.caption)}</div>
         </affine-tooltip>`
       }
     </icon-button>`;
@@ -468,7 +479,8 @@ export class InnerSlashMenu extends WithDisposable(LitElement) {
     return html`<div class="slash-menu-group">
       ${when(
         !this.context.searching,
-        () => html`<div class="slash-menu-group-name">${groupName}</div>`
+        () =>
+          html`<div class="slash-menu-group-name">${translate(groupName)}</div>`
       )}
       ${items.map(this._renderItem)}
     </div>`;

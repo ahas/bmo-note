@@ -73,6 +73,7 @@ import {
   BlockViewIdentifier,
 } from '@blocksuite/std';
 import { toDraftModel } from '@blocksuite/store';
+import { translate } from '@blocksuite/affine-components/translate';
 import { html } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
 
@@ -119,8 +120,8 @@ const conversionsActionGroup = {
           .contentPadding="${'8px'}"
           .button=${html`
             <editor-icon-button
-              aria-label="Conversions"
-              .tooltip="${'Turn into'}"
+              aria-label=${translate('Conversions')}
+              .tooltip="${translate('Turn into')}"
             >
               ${conversion.icon} ${EditorChevronDown}
             </editor-icon-button>
@@ -136,11 +137,11 @@ const conversionsActionGroup = {
               item => item.name,
               ({ flavour, type, name, icon }) => html`
                 <editor-menu-action
-                  aria-label=${name}
+                  aria-label=${translate(name)}
                   ?data-selected=${conversion.name === name}
                   @click=${() => update(flavour, type)}
                 >
-                  ${icon}<span class="label">${name}</span>
+                  ${icon}<span class="label">${translate(name)}</span>
                 </editor-menu-action>
               `
             )}
@@ -184,7 +185,10 @@ const alignActionGroup = {
         <editor-menu-button
           .contentPadding="${'8px'}"
           .button=${html`
-            <editor-icon-button aria-label="Align" .tooltip="${'Align'}">
+            <editor-icon-button
+              aria-label=${translate('Align')}
+              .tooltip="${translate('Align')}"
+            >
               ${alignment.icon} ${EditorChevronDown}
             </editor-icon-button>
           `}
@@ -195,10 +199,10 @@ const alignActionGroup = {
               item => item.name,
               ({ textAlign, name, icon }) => html`
                 <editor-menu-action
-                  aria-label=${name}
+                  aria-label=${translate(name)}
                   @click=${() => update(textAlign)}
                 >
-                  ${icon}<span class="label">${name}</span>
+                  ${icon}<span class="label">${translate(name)}</span>
                 </editor-menu-action>
               `
             )}

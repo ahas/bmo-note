@@ -14,6 +14,7 @@ import { isInsidePageEditor } from '@blocksuite/affine-shared/utils';
 import { noop, sleep } from '@blocksuite/global/utils';
 import { CommentIcon, NumberedListIcon } from '@blocksuite/icons/lit';
 import { BlockSelection } from '@blocksuite/std';
+import { translate, translateValue } from '@blocksuite/affine-components/translate';
 import { html } from 'lit';
 import { ifDefined } from 'lit/directives/if-defined.js';
 
@@ -71,7 +72,7 @@ export const PRIMARY_GROUPS: MenuItemGroup<CodeBlockToolbarContext>[] = [
             render: item => html`
               <editor-icon-button
                 class="code-toolbar-button copy-code"
-                aria-label=${ifDefined(item.label)}
+                aria-label=${ifDefined(translateValue(item.label))}
                 .tooltip=${item.label}
                 .tooltipOffset=${4}
                 .iconSize=${'16px'}
@@ -102,7 +103,7 @@ export const PRIMARY_GROUPS: MenuItemGroup<CodeBlockToolbarContext>[] = [
               return html`
                 <editor-icon-button
                   class="code-toolbar-button collapse"
-                  aria-label=${label}
+                  aria-label=${translate(label)}
                   .tooltip=${label}
                   .tooltipOffset=${4}
                   .iconSize=${'16px'}
@@ -132,7 +133,7 @@ export const PRIMARY_GROUPS: MenuItemGroup<CodeBlockToolbarContext>[] = [
             render: item => html`
               <editor-icon-button
                 class="code-toolbar-button caption"
-                aria-label=${ifDefined(item.label)}
+                aria-label=${ifDefined(translateValue(item.label))}
                 .tooltip=${item.label}
                 .tooltipOffset=${4}
                 .iconSize=${'16px'}
@@ -174,7 +175,7 @@ export const PRIMARY_GROUPS: MenuItemGroup<CodeBlockToolbarContext>[] = [
             render: item =>
               html`<editor-icon-button
                 class="code-toolbar-button comment"
-                aria-label=${ifDefined(item.label)}
+                aria-label=${ifDefined(translateValue(item.label))}
                 .tooltip=${item.label}
                 .tooltipOffset=${4}
                 .iconSize=${'16px'}
@@ -211,10 +212,10 @@ export const toggleGroup: MenuItemGroup<CodeBlockToolbarContext> = {
                   const currentWrap = blockComponent.model.props.wrap;
                   blockComponent.setWrap(!currentWrap);
                 }}
-                aria-label=${label}
+                aria-label=${translate(label)}
               >
                 ${icon}
-                <span class="label">${label}</span>
+                <span class="label">${translate(label)}</span>
                 <toggle-switch
                   style="margin-left: auto;"
                   .on=${wrapped}
@@ -244,10 +245,10 @@ export const toggleGroup: MenuItemGroup<CodeBlockToolbarContext> = {
                     lineNumber: !blockComponent.showLineNumbers,
                   });
                 }}
-                aria-label=${label}
+                aria-label=${translate(label)}
               >
                 ${NumberedListIcon()}
-                <span class="label">${label}</span>
+                <span class="label">${translate(label)}</span>
                 <toggle-switch
                   style="margin-left: auto;"
                   .on=${lineNumber}

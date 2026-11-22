@@ -4,6 +4,7 @@ import { ifDefined } from 'lit/directives/if-defined.js';
 import { join } from 'lit/directives/join.js';
 import { repeat } from 'lit/directives/repeat.js';
 
+import { translate, translateValue } from '../translate';
 import { ToolbarMoreMenuConfigExtension } from './config.js';
 import type { MenuContext } from './menu-context.js';
 import type {
@@ -78,14 +79,14 @@ export function renderActions(
                 class=${ifDefined(
                   item.type === 'delete' ? 'delete' : undefined
                 )}
-                aria-label=${ifDefined(item.label)}
+                aria-label=${ifDefined(translateValue(item.label))}
                 ?data-selected=${selectedName === item.label}
                 ?disabled=${item.disabled}
                 @click=${item.action ? item.action : () => action?.(item)}
               >
                 ${item.icon}${
                   item.label
-                    ? html`<span class="label">${item.label}</span>`
+                    ? html`<span class="label">${translate(item.label)}</span>`
                     : nothing
                 }
               </editor-menu-action>

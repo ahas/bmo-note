@@ -12,6 +12,7 @@ import {
 } from '@blocksuite/affine-shared/services';
 import { nextTick } from '@blocksuite/global/utils';
 import { MoreVerticalIcon } from '@blocksuite/icons/lit';
+import { translate } from '@blocksuite/affine-components/translate';
 import type {
   AutoUpdateOptions,
   ComputePositionConfig,
@@ -267,12 +268,12 @@ export function renderToolbar(
           `${flavour}:${key}`,
           html`
             <editor-menu-button
-              aria-label="More menu"
+              aria-label=${translate('More menu')}
               .contentPadding="${'8px'}"
               .button=${html`
                 <editor-icon-button
-                  aria-label="More"
-                  .tooltip="${'More'}"
+                  aria-label=${translate('More')}
+                  .tooltip="${translate('More')}"
                   .iconContainerPadding=${innerToolbar ? 4 : 2}
                   .iconSize=${innerToolbar ? '16px' : undefined}
                 >
@@ -381,7 +382,7 @@ function renderActionItem(action: ToolbarAction, context: ToolbarContext) {
   return html`
     <editor-icon-button
       data-testid=${ifDefined(id)}
-      aria-label=${ifDefined(label)}
+      aria-label=${ifDefined(translate(label))}
       ?active=${actived}
       ?disabled=${disabled}
       .tooltip=${action.tooltip}
@@ -392,7 +393,7 @@ function renderActionItem(action: ToolbarAction, context: ToolbarContext) {
       ${action.icon}
       ${
         action.showLabel && action.label
-          ? html`<span class="label">${action.label}</span>`
+          ? html`<span class="label">${translate(action.label)}</span>`
           : null
       }
     </editor-icon-button>
@@ -417,7 +418,7 @@ function renderMenuActionItem(action: ToolbarAction, context: ToolbarContext) {
   return html`
     <editor-menu-action
       data-testid=${ifDefined(id)}
-      aria-label=${ifDefined(label)}
+      aria-label=${ifDefined(translate(label))}
       class="${ifDefined(destructive)}"
       ?active=${actived}
       ?disabled=${disabled}
@@ -427,7 +428,11 @@ function renderMenuActionItem(action: ToolbarAction, context: ToolbarContext) {
       @click=${() => action.run?.(context)}
     >
       ${action.icon}
-      ${action.label ? html`<span class="label">${action.label}</span>` : null}
+      ${
+        action.label
+          ? html`<span class="label">${translate(action.label)}</span>`
+          : null
+      }
     </editor-menu-action>
   `;
 }

@@ -4,6 +4,7 @@ import {
   CheckBoxUnIcon,
   DoneIcon,
 } from '@blocksuite/icons/lit';
+import { translateValue } from '../translate';
 import type { ReadonlySignal } from '@preact/signals-core';
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { css, html, type TemplateResult, unsafeCSS } from 'lit';
@@ -218,7 +219,7 @@ export const menuButtonItems = {
           return html`
             ${config.prefix}
             <div class="affine-menu-action-text">
-              ${config.label?.() ?? config.name} ${config.info}
+              ${translateValue(config.label?.() ?? config.name)} ${config.info}
             </div>
             ${config.postfix ?? (config.isSelected ? DoneIcon() : undefined)}
           `;
@@ -256,7 +257,7 @@ export const menuButtonItems = {
               : CheckBoxUnIcon()
           }
           <div class="affine-menu-action-text">
-            ${config.label?.() ?? config.name}
+            ${translateValue(config.label?.() ?? config.name)}
           </div>
           ${config.postfix}
         `,

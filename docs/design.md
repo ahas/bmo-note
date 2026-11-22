@@ -326,9 +326,8 @@ studied of AFFiNE and under which licence.
   three the other blocks carry in their more menu, standing as keys of their own since the block offers
   nothing else. These keys wear the format bar's icon set, each with a tooltip naming it in the console's
   language from the bundle's pack, and the line the copy key says comes from the pack as well. A kind the
-  fork adds later that declares no toolbar is one more entry in that declaration. The fork's own keys, its
-  menus and its lines are written in English inside the fork, which offers no seam to name them otherwise,
-  so they stand in English.
+  fork adds later that declares no toolbar is one more entry in that declaration. The fork's own keys,
+  menus and lines answer to the console's language through the seam named below.
 - The press on the handle lands inside the editable page, so the browser lays a caret in the nearest line
   as well, which the editor would read a moment later as a text selection over the block; the bundle drops
   that caret as the press is let go, so the block stays selected whole however briefly or long the press
@@ -392,6 +391,13 @@ studied of AFFiNE and under which licence.
   and the delete among them taking the line away, and a finger that slides, a press shorter than the hold
   and a hold on the words choosing nothing; the touch sequence is laid down as a real finger lays it. A
   picture of the phone's choice is kept with the rest.
+- **A browser file of its own holds 「The editor's own words follow the console's language」 on the real
+  screen.** The console reads Korean: it selects a run of words and reads the keys of the toolbar that rises
+  over them, their tooltips and the entries of the menu gathered under the last one; it calls the slash menu
+  and reads its group titles and item names; it reads the hint an empty line holds, a caption's hint and the
+  line a copy of a block says. Every word it reads is the pack's word for that thing, read out of the pack by
+  the file itself, never written as letters in the file, and no word of that chrome is left standing in the
+  fork's English.
 - **The editor's styles stay in the editor.** The vendored editor lays its stylesheets on the page as plain
   style elements, unlayered, which beat every layered rule of the console; and a few of its rules name nothing
   of the editor's own — a bare `input`, a `.truncate` — so once a note is opened they would reach every screen
@@ -403,9 +409,24 @@ studied of AFFiNE and under which licence.
 - An image an editor inserts is held on the service before its block stands: the editor's blob store
   is the note's own blob routes, so uploads and read-backs cross the console's relay like every other
   call, and a note reads back its images wherever it is opened.
-- The editor's own words come from BlockSuite and AFFiNE, which ship English UI strings; the bundle
-  supplies no translation of them. Everything the bundle itself writes follows the console's wording
-  guide in its own two locales.
+- **The editor's own words follow the console's language.** The fork names the words of its own chrome —
+  the keys of the selection toolbar and their tooltips, the menus under them, the slash menu, the caption
+  hint, the hint an empty line holds, and its lines of notice — as English inside its own sources, and
+  ships neither a translation nor a hook to supply one. The fork therefore carries a seam of its own: one
+  translator, installed by whoever mounts the editor and read at the points where a word of that chrome is
+  drawn — the renderers of toolbar actions and of menu items, the buttons a menu row draws its words in,
+  the slash menu's view, the panels the phone's keyboard bar opens, the line of notice, the caption editor,
+  the hint an empty line holds and the menu that names a block's row or column. A word is answered by
+  whatever the mounter says; a word nothing answers for stands exactly as the fork wrote it, so the seam
+  cannot lose a word the fork adds later, and an answer never rewrites itself. Only what a person reads
+  changes: the fork's own handles for lookups, its `data-testid` values and the `text` attribute its menu
+  scrollers read, keep the words the fork wrote. What a reader types into the slash menu is matched against
+  the words as shown as well as the words the fork wrote, so a reader who knows only a Korean name still
+  finds the item. The bundle installs the
+  translator as it mounts an editor and answers each word the fork says with the console's word for it,
+  held in the bundle's pack under both locales, keyed by the English words themselves, following the
+  console's wording guide as every other word the bundle writes does. What the bundle names for itself —
+  the three keys over a block chosen whole, its format bar, its screens — was always the pack's.
 - The screen is read in the console's screen mode and keeps none of its own. The bundle's chrome is
   drawn from the console's tokens, so it stands in the mode the console stands in as it is written;
   the vendored editor colours itself by a `data-theme` attribute of the document element instead —

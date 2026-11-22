@@ -26,6 +26,8 @@ import { BlockFlavourIdentifier, LifeCycleWatcher } from "@blocksuite/affine/std
 import { svg } from "lit";
 import { Subscription } from "rxjs";
 
+import { answered } from "./words";
+
 import type { Container } from "@blocksuite/affine/global/di";
 import type { NotificationService, ToolbarAction, ToolbarContext } from "@blocksuite/affine/shared/services";
 import type { ExtensionType } from "@blocksuite/affine/store";
@@ -96,12 +98,14 @@ export function pageExtensions(notice: EditorNotice): ExtensionType[] {
     setPrimaryMode: () => {},
     togglePrimaryMode: () => "page"
   };
+  // The lines the editor asks the screen to say are the fork's words: they answer to the console's
+  // language here, where the screen draws them rather than the editor's own chrome doing it.
   const messages: NotificationService = {
-    toast: (message) => notice.toast(String(message ?? "")),
-    confirm: async (options) => notice.confirm(String(options.title ?? "")),
+    toast: (message) => notice.toast(answered(String(message ?? ""))),
+    confirm: async (options) => notice.confirm(answered(String(options.title ?? ""))),
     prompt: async () => null,
-    notify: (options) => notice.toast(String(options.title ?? "")),
-    notifyWithUndoAction: (options) => notice.toast(String(options.title ?? ""))
+    notify: (options) => notice.toast(answered(String(options.title ?? ""))),
+    notifyWithUndoAction: (options) => notice.toast(answered(String(options.title ?? "")))
   };
 
   return [

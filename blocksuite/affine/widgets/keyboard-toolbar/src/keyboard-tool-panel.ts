@@ -1,4 +1,5 @@
 import { SignalWatcher, WithDisposable } from '@blocksuite/global/lit';
+import { translate } from '@blocksuite/affine-components/translate';
 import {
   PropTypes,
   requiredProperties,
@@ -60,7 +61,7 @@ export class AffineKeyboardToolPanel extends SignalWatcher(
       <button @click=${() => this._handleItemClick(item)}>
         ${this._renderIcon(item.icon)}
       </button>
-      <span>${item.name}</span>
+      <span>${translate(item.name)}</span>
     </div>`;
   }
 

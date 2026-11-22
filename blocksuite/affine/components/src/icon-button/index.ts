@@ -9,6 +9,7 @@ import {
   unsafeCSS,
 } from 'lit';
 import { property, query } from 'lit/decorators.js';
+import { translateValue } from '../translate';
 
 /**
  * Default size is 32px, you can override it by setting `size` property.
@@ -187,13 +188,15 @@ export class IconButton extends LitElement {
       this.style.setProperty('--svg-icon-color', iconColor);
     }
 
+    // The words are the mounter's to answer; the `text` attribute these elements are scrolled by keeps
+    // what was written here.
     const text = this.text
       ? // wrap a span around the text so we can ellipsis it automatically
-        html`<div class="text">${this.text}</div>`
+        html`<div class="text">${translateValue(this.text)}</div>`
       : nothing;
 
     const subText = this.subText
-      ? html`<div class="sub-text">${this.subText}</div>`
+      ? html`<div class="sub-text">${translateValue(this.subText)}</div>`
       : nothing;
 
     const textContainer =

@@ -1,4 +1,5 @@
 import { PlusIcon } from '@blocksuite/icons/lit';
+import { translate } from '@blocksuite/affine-components/translate';
 import { css, html, LitElement } from 'lit';
 import { property } from 'lit/decorators.js';
 
@@ -61,8 +62,8 @@ export class AffineAddBlockWidget extends LitElement {
     return html`
       <button
         class="affine-add-block-widget"
-        title="Click to add a block below"
-        aria-label="Add block below"
+        title=${translate('Click to add a block below')}
+        aria-label=${translate('Add block below')}
         @click=${this._handleClick}
       >
         ${PlusIcon({ width: '12', height: '12' })}

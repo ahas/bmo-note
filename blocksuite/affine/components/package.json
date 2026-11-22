@@ -41,6 +41,7 @@
     "./icon-button": "./src/icon-button/index.ts",
     "./toolbar": "./src/toolbar/index.ts",
     "./toast": "./src/toast/index.ts",
+    "./translate": "./src/translate/index.ts",
     "./smooth-corner": "./src/smooth-corner/index.ts",
     "./caption": "./src/caption/index.ts",
     "./context-menu": "./src/context-menu/index.ts",

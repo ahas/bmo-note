@@ -12,6 +12,7 @@ import {
 import { RANGE_SYNC_EXCLUDE_ATTR } from '@blocksuite/std/inline';
 import type { BlockModel, Store } from '@blocksuite/store';
 import { Text } from '@blocksuite/store';
+import { translate } from '../translate';
 import { consume } from '@lit/context';
 import { css, html, nothing } from 'lit';
 import { query, state } from 'lit/decorators.js';
@@ -145,7 +146,7 @@ export class BlockCaptionEditor<
 
     return html`<textarea
       .disabled=${this.doc.readonly}
-      placeholder="Write a caption"
+      placeholder=${translate('Write a caption')}
       class="block-caption-editor"
       .value=${this.caption ?? ''}
       @input=${this._onInputChange}

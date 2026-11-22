@@ -29,6 +29,7 @@ import { chooseWhole, gutterBlock } from "../domain/gutter";
 import { linesOf, opaqueRow } from "../domain/text";
 import { followScreenMode } from "../domain/theme";
 import { writeNoteTitle } from "../domain/title";
+import { answerEditorWords } from "../domain/words";
 
 import type { BlobSource } from "../domain/blobs";
 import type { EditorNotice } from "../domain/editor";
@@ -150,6 +151,11 @@ let stopSelection: Subscription | null = null;
 
 onMounted(async () => {
   await ensureEditorRegistered();
+
+  // The fork's own chrome — its toolbar keys and their tooltips, its menus, the slash menu, its hints and
+  // its lines of notice — answers to the console's language through the pack, before the editor draws
+  // (`docs/design.md`, 「The editor's own words follow the console's language」).
+  answerEditorWords(i18n.tm("note.editor.words") as Record<string, string>);
 
   held = openNoteDoc(props.noteId, fromBase64(props.doc), props.blobs ?? noteBlobSource(props.noteId), props.readonly);
 

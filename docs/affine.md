@@ -54,6 +54,16 @@ platform does not run); the sync gateway (no realtime collaboration in the unit'
 note is the truth the design states); the GraphQL metadata API (this unit's routes state their own
 shape); the app shells, Electron packaging and copilot paths (a console bundle is the surface).
 
+The fork's tree is not untouched: it carries one seam of this unit's own, the translator `docs/design.md`
+names 「The editor's own words follow the console's language」. It is a module of the preset's component
+layer, read by the renderers of that layer and of the blocks and widgets the page view mounts, at the point
+where a word of the editor's own chrome is drawn, and it answers nothing by itself: whoever mounts the
+editor installs the answers, which is why the words live in the console bundle's pack and not in the fork's
+sources. A merge of `upstream/canary` keeps the module and those reads; a renderer the merge adds, or a word
+it adds to a renderer the seam already reads, needs no change, and one the merge rebuilds elsewhere is
+untranslated until it is read the same way. The words' browser file fails on exactly that case, and the
+client's check builds the copy the same way the deployment does.
+
 ## The client's build path to the vendored editor
 
 The monorepo resolves its `@blocksuite/*` dependencies to each package's own `src`, and its package

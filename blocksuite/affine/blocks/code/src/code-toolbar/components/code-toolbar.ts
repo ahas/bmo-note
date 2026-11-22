@@ -10,6 +10,7 @@ import { noop } from '@blocksuite/global/utils';
 import { MoreVerticalIcon } from '@blocksuite/icons/lit';
 import { flip, offset } from '@floating-ui/dom';
 import { effect } from '@preact/signals-core';
+import { translate } from '@blocksuite/affine-components/translate';
 import { css, html, LitElement } from 'lit';
 import { property, query, state } from 'lit/decorators.js';
 
@@ -127,7 +128,7 @@ export class AffineCodeToolbar extends WithDisposable(LitElement) {
         <editor-icon-button
           class="code-toolbar-button more"
           data-testid="more"
-          aria-label="More"
+          aria-label=${translate('More')}
           .tooltip=${'More'}
           .tooltipOffset=${4}
           .iconSize=${'16px'}

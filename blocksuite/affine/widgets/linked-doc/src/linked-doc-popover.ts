@@ -15,6 +15,7 @@ import { MoreHorizontalIcon } from '@blocksuite/icons/lit';
 import { PropTypes, requiredProperties } from '@blocksuite/std';
 import { GfxControllerIdentifier } from '@blocksuite/std/gfx';
 import { effect } from '@preact/signals-core';
+import { translate } from '@blocksuite/affine-components/translate';
 import { css, html, LitElement, nothing } from 'lit';
 import { property, query, queryAll, state } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
@@ -286,7 +287,7 @@ export class LinkedDocPopover extends SignalWatcher(
           return html`
             <div class="divider" ?hidden=${idx === 0}></div>
             <div class="group-title">
-              <div class="group-title-text">${group.name}</div>
+              <div class="group-title-text">${translate(group.name)}</div>
               ${
                 group.isLoading
                   ? html`<span class="loading-icon">${LoadingIcon()}</span>`

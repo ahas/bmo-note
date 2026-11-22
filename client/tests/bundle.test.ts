@@ -28,6 +28,30 @@ describe("the words", () => {
     expect(keysOf(PACKS.ko).every((key) => key.startsWith("note."))).toBe(true);
   });
 
+  test("the editor's own words answer in the reader's language and stand as the fork wrote them in English", () => {
+    const answered = PACKS.ko.note.editor.words;
+    const written = PACKS.en.note.editor.words;
+    const hangul = /[\p{Script=Hangul}]/u;
+
+    // The words the fork says are the keys, so a word added to the fork is a word the pack leaves
+    // standing rather than one it hides, and the English locale answers with the words themselves.
+    expect(Object.keys(answered).length).toBeGreaterThan(80);
+    expect(Object.keys(written)).toEqual(Object.keys(answered));
+
+    for (const [said, same] of Object.entries(written)) expect(same, said).toBe(said);
+
+    for (const [said, korean] of Object.entries(answered)) {
+      expect(hangul.test(korean), said).toBe(true);
+    }
+
+    // The console's own bar and the editor's keys name one thing with one word.
+    const marks = { bold: "Bold", italic: "Italic", underline: "Underline", strike: "Strikethrough", code: "Code" } as const;
+    const kinds = { text: "Text", h1: "Heading 1", h2: "Heading 2", h3: "Heading 3", bulleted: "Bulleted List", numbered: "Numbered List", todo: "To-do List", quote: "Quote", code: "Code Block" } as const;
+
+    for (const [key, said] of Object.entries(marks)) expect(answered[said], said).toBe(PACKS.ko.note.mark[key as keyof typeof PACKS.ko.note.mark]);
+    for (const [key, said] of Object.entries(kinds)) expect(answered[said], said).toBe(PACKS.ko.note.kind[key as keyof typeof PACKS.ko.note.kind]);
+  });
+
   test("every key the screens ask for is held", () => {
     // The bar's own names: the marks and kinds reach the packs through template heads, written whole here.
     const asked = new Set(sources.flatMap((path) => [...readFileSync(path, "utf8").matchAll(/["'`](note\.(?:section|sort|search|action|label|mark|kind|talk|empty|status|question|error)\.[a-z_0-9]+)["'`]/g)].map((match) => match[1]!)));

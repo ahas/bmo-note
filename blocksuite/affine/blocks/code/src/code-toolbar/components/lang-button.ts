@@ -11,6 +11,7 @@ import {
 import { unsafeCSSVarV2 } from '@blocksuite/affine-shared/theme';
 import { SignalWatcher, WithDisposable } from '@blocksuite/global/lit';
 import { noop } from '@blocksuite/global/utils';
+import { translate } from '@blocksuite/affine-components/translate';
 import { css, LitElement, nothing } from 'lit';
 import { property, query } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
@@ -166,7 +167,7 @@ export class LanguageListButton extends WithDisposable(
       data-testid="lang-button"
       width="auto"
       .text=${html`<div style=${textStyles}>
-        ${this.blockComponent.languageName$.value}
+        ${translate(this.blockComponent.languageName$.value)}
       </div>`}
       height="24px"
       @click=${this._clickLangBtn}

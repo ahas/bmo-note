@@ -5,6 +5,7 @@ import { css, html, LitElement, nothing } from 'lit';
 import { property } from 'lit/decorators.js';
 import { cache } from 'lit/directives/cache.js';
 import { styleMap } from 'lit/directives/style-map.js';
+import { translateValue } from '../translate';
 
 export class EditorIconButton extends LitElement {
   static override styles = css`
@@ -116,7 +117,9 @@ export class EditorIconButton extends LitElement {
   }
 
   override render() {
-    const tooltip = this.coming ? '(Coming soon)' : this.tooltip;
+    // The words of a key are the mounter's to answer; only what a reader sees is, so the tooltip is
+    // answered where the element's own name, read by a lookup, is not.
+    const tooltip = translateValue(this.coming ? '(Coming soon)' : this.tooltip);
     const classnames = `icon-container active-mode-${this.activeMode} ${this.hoverState ? 'hovered' : ''}`;
     const padding = this.iconContainerPadding;
     const iconContainerStyles = styleMap({

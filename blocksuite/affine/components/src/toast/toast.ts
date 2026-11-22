@@ -1,4 +1,5 @@
 import type { EditorHost } from '@blocksuite/std';
+import { translate } from '../translate';
 import { baseTheme } from '@toeverything/theme';
 import { html } from 'lit';
 
@@ -40,7 +41,7 @@ export const toast = (
   const template = html`<div style="${styles}"></div>`;
   const element = htmlToElement<HTMLDivElement>(template);
   // message is not trusted
-  element.textContent = message;
+  element.textContent = translate(message);
   ToastContainer?.append(element);
 
   const fadeIn = [

@@ -43,6 +43,8 @@ const SHOTS = process.env.BMO_NOTE_SHOTS ?? "/tmp/note-renewal-shots";
 // The cookie the dev host reads for the language: the format bar's keys are found by their Korean names.
 const LOCALE_COOKIE = "bmo-dev-locale";
 const WORDS = ko.note;
+// What the pack answers for the fork's own word, which is the name the key wears once the editor is drawn in Korean.
+const MORE_MENU = WORDS.editor.words["More menu"];
 
 // The note's top-level blocks, and the editor's last line, where a table or a database is written.
 const BLOCKS = "affine-note > .affine-note-block-container > .affine-block-children-container > [data-block-id]";
@@ -296,7 +298,7 @@ async function reachesDelete(page: Page, across: number): Promise<string> {
 
   if ((await own.count()) > 0) return standsInside(own.first(), across);
 
-  return standsInside(page.locator(`${TOOLBAR} editor-menu-button[aria-label="More menu"]`).first(), across);
+  return standsInside(page.locator(`${TOOLBAR} editor-menu-button[aria-label="${MORE_MENU}"]`).first(), across);
 }
 
 // Where a key stands across the screen, read in the page: `inside` where its whole box fits a screen
@@ -422,7 +424,7 @@ for (const width of WIDTHS) {
         await pressHandle(page, line, nearTop);
 
         const own = (await page.locator(`${TOOLBAR} editor-icon-button[aria-label="${WORDS.block.delete}"]`).count()) > 0;
-        const more = (await page.locator(`${TOOLBAR} editor-menu-button[aria-label="More menu"]`).count()) > 0;
+        const more = (await page.locator(`${TOOLBAR} editor-menu-button[aria-label="${MORE_MENU}"]`).count()) > 0;
 
         expect({ width: width.width, blockKeys: own, forkMenu: more }).toEqual({ width: width.width, blockKeys: !width.roomy, forkMenu: width.roomy });
       },
