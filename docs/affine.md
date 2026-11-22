@@ -60,8 +60,8 @@ layer.
 The first is the translator `docs/design.md` names 「The editor's own words follow the console's language」. It is a module of the preset's component
 layer, read by the renderers of that layer and of the blocks and widgets the page view mounts, at the point
 where a word of the editor's own chrome is drawn, and it answers nothing by itself: whoever mounts the
-editor installs the answers, which is why the words live in the console bundle's pack and not in the fork's
-sources. A word drawn out of a template cannot be asked at that point, so the hover room the fork draws asks
+editor installs the answers, which is why the words live in the console bundle's own table of the editor's
+words and not in the fork's sources. A word drawn out of a template cannot be asked at that point, so the hover room the fork draws asks
 the lines of its own drawn content of the same seam, and a renderer that draws a room of the editor's own
 chrome says so to it; a room that shows a reader's own words says nothing of the kind and is left alone. A
 merge of `upstream/canary` keeps the module and those reads; a renderer the merge adds, or a word or a drawn
@@ -118,9 +118,10 @@ it in. The console bundle therefore builds the editor through four ordered steps
 
 The copy is a build step over the same working tree, never a second checkout; `client/blocksuite/` is
 not tracked. Merging `upstream/canary` moves the editor the bundle builds with, and `bun run vendor`
-refreshes the copy. `bun run check` runs the same chain up to the tests; the deployment's console-bundle
-step runs it whole. A fresh tree the testbed tests in (a bench copy, a gate's checkout, the daily run's
-tree) runs the chain up to the bundle as its declared setup, before any unit, since the screens' browser
+refreshes the copy. `bun run check` runs the same chain whole, with the typecheck beside it and the tests
+last, so a bundle the deployment's console-bundle step would refuse, a screen asking for a word the pack
+does not answer among them, fails the client's check, and with it the change check and the close, first.
+A fresh tree the testbed tests in (a bench copy, a gate's checkout, the daily run's tree) runs the chain up to the bundle as its declared setup, before any unit, since the screens' browser
 tests drive a dev host that imports the copy and the installed packages.
 
 The client installs `@nuxt/ui` at exactly the version the vendored bmo-ui release names, and carries

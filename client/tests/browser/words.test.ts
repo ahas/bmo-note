@@ -3,6 +3,7 @@ import { existsSync, mkdirSync } from "node:fs";
 
 import { chromium } from "playwright-core";
 
+import koEditor from "../../i18n/editor/ko.json";
 import ko from "../../i18n/ko.json";
 import { FIXTURE, seeded } from "./fixture";
 import { stoodUp } from "./stack";
@@ -12,20 +13,20 @@ import type { Stack } from "./stack";
 
 // The editor's own words follow the console's language (docs/design.md, 「The editor's own words follow the
 // console's language」). The fork names the words of its own chrome in English inside its sources and ships no
-// translation, so the bundle answers them through the seam the fork carries, from its pack. This file reads that
+// translation, so the bundle answers them through the seam the fork carries, from its own table of the editor's words. This file reads that
 // chrome in a real browser at a desktop's width, in Korean: the names the keys of the toolbar over a run of words
 // wear and the words the menus they hold carry, the kinds the menu that changes a block's kind offers, the slash
 // menu standing on an empty line with its group titles, its item names and the line under each and what a reader
 // typing there is left with, the hint the lines carry for an empty one, and a code block's keys with the hint its
 // caption waits under. It also holds a pointer over the keys of that toolbar and over the items of the slash menu
 // and reads the rooms that rise for them, where the fork's words stand only inside a template. Every word read is
-// the pack's word for that thing, read out of the pack by the file itself, never written as letters in the file,
+// the table's word for that thing, read out of the table by the file itself, never written as letters in the file,
 // and nothing standing in that chrome is left in the fork's English beside the product names the console's wording
-// guide keeps in their own. The English a room still holds is what the pack answers with nothing — the sample data
+// guide keeps in their own. The English a room still holds is what the table answers with nothing — the sample data
 // and the dates a card pictures, a file's name, a formula, code — and the file names it card by card. It also holds
 // that the editor speaks on the console's message pill (docs/design.md, 「The editor speaks on the console's message
 // pill」) at a desktop's width and a phone's: a copy said through the editor's notification service and one said
-// through the fork's toast helper both stand on the pill in the pack's words, the same line said again replaces
+// through the fork's toast helper both stand on the pill in the table's words, the same line said again replaces
 // itself, and the helper's own box never stands. Skipped where the browser build is not on the machine.
 
 const ready = existsSync(chromium.executablePath());
@@ -37,11 +38,11 @@ const SETTLING_MS = 60_000;
 
 const SHOTS = process.env.BMO_NOTE_SHOTS ?? "/tmp/note-renewal-shots";
 
-// The cookie the dev host reads for the language: the editor's words are read as the pack's Korean.
+// The cookie the dev host reads for the language: the editor's words are read as the table's Korean.
 const LOCALE_COOKIE = "bmo-dev-locale";
 const WORDS = ko.note;
-// What the pack answers for each word the fork says.
-const SAID = WORDS.editor.words;
+// What the editor's word table answers for each word the fork says.
+const SAID: Record<string, string> = koEditor;
 
 const PARAGRAPH = "affine-paragraph";
 const TOOLBAR = "affine-toolbar-widget editor-toolbar[data-open]";
@@ -75,7 +76,7 @@ const ENGLISH_KEPT = ["AI", "PDF", "URL", "HTML", "Markdown", "KaTeX", "Figma", 
 
 // A card the slash menu holds for a pointer's hover, named by the words the fork says for it. The fork's words
 // are the keys because the room holds them inside a template, where the seam can only ask what a card says one
-// line at a time: `caption` is the word the card wears, `says` the lines the pack answers it, and `keeps` the
+// line at a time: `caption` is the word the card wears, `says` the lines the table answers it, and `keeps` the
 // English the card only pictures — the sample data or the date of a document drawn there, a file's name, a
 // formula, a piece of code laid in the editor's code face, which the seam leaves exactly as the fork drew it.
 interface Card {
@@ -233,7 +234,7 @@ afterAll(async () => {
 
 describe.skipIf(!ready)("the editor's own words", () => {
   test(
-    "the keys over a run of words, the menu gathered under one of them and the colour menu another opens are the pack's words",
+    "the keys over a run of words, the menu gathered under one of them and the colour menu another opens are the bundle's words",
     async () => {
       const page = await note(FIXTURE.notes[0]!.id);
 
@@ -298,7 +299,7 @@ describe.skipIf(!ready)("the editor's own words", () => {
     async () => {
       const page = await note(FIXTURE.notes[0]!.id);
 
-      // The hint the lines carry for an empty one is the fork's own line, answered by the pack.
+      // The hint the lines carry for an empty one is the fork's own line, answered by the table.
       await intoEmptyLine(page);
       const hints = await page.locator(HINT).evaluateAll((found: Element[]) => found.map((one) => (one.textContent ?? "").trim()));
 
@@ -346,7 +347,7 @@ describe.skipIf(!ready)("the editor's own words", () => {
   );
 
   test(
-    "a code block's keys, the menu under them and the hint its caption waits under are the pack's words",
+    "a code block's keys, the menu under them and the hint its caption waits under are the bundle's words",
     async () => {
       const page = await note(FIXTURE.notes[0]!.id);
 
@@ -372,11 +373,11 @@ describe.skipIf(!ready)("the editor's own words", () => {
   );
 
   test(
-    "the rooms a pointer's hover brings up say the pack's words, and picture only what the pack leaves in the fork's English",
+    "the rooms a pointer's hover brings up say the bundle's words, and picture only what the table leaves in the fork's English",
     async () => {
       const page = await note(FIXTURE.notes[0]!.id);
 
-      // A key's room holds the one word the pack gave the key.
+      // A key's room holds the one word the table gave the key.
       await page.locator(PARAGRAPH).first().click({ clickCount: 3 });
       await page.locator(TOOLBAR).waitFor({ state: "visible", timeout: SETTLING_MS });
 
@@ -386,7 +387,7 @@ describe.skipIf(!ready)("the editor's own words", () => {
         expect({ key, room }).toEqual({ key, room: [SAID[key]] });
       }
 
-      // A card's room holds the words the pack answers for the lines it says, and pictures the rest.
+      // A card's room holds the words the table answers for the lines it says, and pictures the rest.
       await intoEmptyLine(page);
       await page.keyboard.type("/");
       await standing(page, SLASH_GROUPS, SAID["Basic"]);

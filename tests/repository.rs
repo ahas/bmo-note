@@ -195,11 +195,13 @@ fn no_unit_file_holds_personal_data() {
 
 #[test]
 fn korean_stands_only_where_the_ledger_of_the_unit_allows_it() {
-  // English in code, comments, documents and commits; Korean in the bundle's `ko` words alone, and in
-  // the test fixtures that read them (CLAUDE.md).
+  // English in code, comments, documents and commits; Korean in the bundle's `ko` words alone, the pack
+  // and the editor's word table inside the bundle's words folder, and in the test fixtures that read them
+  // (CLAUDE.md).
   let mut refused = Vec::new();
   for path in unit_files() {
-    let allowed = path == "client/i18n/ko.json" || (path.starts_with("tests/") && path.ends_with(".rs"));
+    let words = path.starts_with("client/i18n/") && path.ends_with("/ko.json");
+    let allowed = words || (path.starts_with("tests/") && path.ends_with(".rs"));
     if allowed {
       continue;
     }

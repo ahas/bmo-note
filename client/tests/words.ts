@@ -1,10 +1,14 @@
+import koEditor from "../i18n/editor/ko.json";
 import en from "../i18n/en.json";
 import ko from "../i18n/ko.json";
 
 // The bundle's words as a test reads them: a key looked up in a locale's pack and its marks filled, the
-// way the console's translator fills them.
+// way the console's translator fills them, and the editor's word table for each language it answers.
 
 export const PACKS = { ko, en } as const;
+
+/** The editor's word tables, beside the pack and outside it, by the language each answers. */
+export const EDITOR_WORDS = { ko: koEditor } as const;
 
 export function word(pack: unknown, key: string): string | undefined {
   let held: unknown = pack;

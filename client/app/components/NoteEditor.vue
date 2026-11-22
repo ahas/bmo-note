@@ -159,9 +159,9 @@ onMounted(async () => {
   await ensureEditorRegistered();
 
   // The fork's own chrome — its toolbar keys and their tooltips, its menus, the slash menu, its hints and
-  // its lines of notice — answers to the console's language through the pack, before the editor draws
-  // (`docs/design.md`, 「The editor's own words follow the console's language」).
-  answerEditorWords(i18n.tm("note.editor.words") as Record<string, string>);
+  // its lines of notice — answers to the console's language through the editor's word table, before the
+  // editor draws (`docs/design.md`, 「The editor's own words follow the console's language」).
+  answerEditorWords(i18n.locale.value);
 
   held = openNoteDoc(props.noteId, fromBase64(props.doc), props.blobs ?? noteBlobSource(props.noteId), props.readonly);
 

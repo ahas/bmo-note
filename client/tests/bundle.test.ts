@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { parse } from "vue/compiler-sfc";
 
-import { PACKS, keysOf, word } from "./words";
+import { EDITOR_WORDS, PACKS, keysOf, word } from "./words";
 
 // The bundle as a console finds it: the words every key the screens ask for, in both
 // locales, under the bundle's namespace, the rows its screens stand their keys in, and no Korean anywhere in
@@ -28,17 +28,13 @@ describe("the words", () => {
     expect(keysOf(PACKS.ko).every((key) => key.startsWith("note."))).toBe(true);
   });
 
-  test("the editor's own words answer in the reader's language and stand as the fork wrote them in English", () => {
-    const answered = PACKS.ko.note.editor.words;
-    const written = PACKS.en.note.editor.words;
+  test("the editor's own words answer in the reader's language from a table outside the pack", () => {
+    const answered: Record<string, string> = EDITOR_WORDS.ko;
     const hangul = /[\p{Script=Hangul}]/u;
 
-    // The words the fork says are the keys, so a word added to the fork is a word the pack leaves
-    // standing rather than one it hides, and the English locale answers with the words themselves.
+    // The words the fork says are the keys, so a word added to the fork is a word the table leaves
+    // standing rather than one it hides; English, the fork's own language, has no table to answer from.
     expect(Object.keys(answered).length).toBeGreaterThan(80);
-    expect(Object.keys(written)).toEqual(Object.keys(answered));
-
-    for (const [said, same] of Object.entries(written)) expect(same, said).toBe(said);
 
     for (const [said, korean] of Object.entries(answered)) {
       expect(hangul.test(korean), said).toBe(true);

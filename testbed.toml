@@ -5,7 +5,8 @@ name = "bmo-note"
 
 [test]
 # The service crate at the root, and the console bundle under client/, whose check script vendors the
-# editor, installs the bundle's locked packages and typechecks the bundle.
+# editor, installs the bundle's locked packages, typechecks the bundle and builds it as the deployment's
+# console-bundle step does, its word check among it, before its tests.
 languages = ["cargo", "bun"]
 # A fresh tree (a bench copy, a gate's checkout, the daily run's tree) holds none of the bundle's ignored
 # folders, and the browser files under client/ drive the dev host, which imports the bundle's packages and

@@ -3,6 +3,7 @@ import { existsSync, mkdirSync } from "node:fs";
 
 import { chromium } from "playwright-core";
 
+import koEditor from "../../i18n/editor/ko.json";
 import ko from "../../i18n/ko.json";
 import { FIXTURE, seeded } from "./fixture";
 import { stoodUp } from "./stack";
@@ -43,8 +44,8 @@ const SHOTS = process.env.BMO_NOTE_SHOTS ?? "/tmp/note-renewal-shots";
 // The cookie the dev host reads for the language: the format bar's keys are found by their Korean names.
 const LOCALE_COOKIE = "bmo-dev-locale";
 const WORDS = ko.note;
-// What the pack answers for the fork's own word, which is the name the key wears once the editor is drawn in Korean.
-const MORE_MENU = WORDS.editor.words["More menu"];
+// What the editor's word table answers for the fork's own word, which is the name the key wears once the editor is drawn in Korean.
+const MORE_MENU = koEditor["More menu"];
 
 // The note's top-level blocks, and the editor's last line, where a table or a database is written.
 const BLOCKS = "affine-note > .affine-note-block-container > .affine-block-children-container > [data-block-id]";

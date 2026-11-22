@@ -326,7 +326,7 @@ studied of AFFiNE and under which licence.
   three the other blocks carry in their more menu, standing as keys of their own since the block offers
   nothing else. These keys wear the format bar's icon set, each with a tooltip naming it in the console's
   language from the bundle's pack, and the copy key says the fork's own line for a copy on the console's
-  message pill, answered from the pack as every copy is. A kind the
+  message pill, answered from the editor's word table as every copy is. A kind the
   fork adds later that declares no toolbar is one more entry in that declaration. The fork's own keys,
   menus and lines answer to the console's language through the seam named below.
 - The press on the handle lands inside the editable page, so the browser lays a caret in the nearest line
@@ -398,17 +398,17 @@ studied of AFFiNE and under which licence.
   and reads its group titles and item names; it reads the hint an empty line holds, a caption's hint and the
   line a copy of a block says. It holds a pointer over a toolbar key and over the items of the slash menu and
   reads the rooms that rise for them, so a word held only in a hover room is read where a reader sees it.
-  Every line left standing in those rooms in the fork's English is a line the pack answers with nothing: a
-  file's name or a person's, a formula, a piece of code, a date, or a product's own name, each one named in
-  the file.
-  Every other word it reads is the pack's word for that thing, read out of the pack by the file itself,
+  Every line left standing in those rooms in the fork's English is a line the editor's word table answers
+  with nothing: a file's name or a person's, a formula, a piece of code, a date, or a product's own name,
+  each one named in the file.
+  Every other word it reads is the table's word for that thing, read out of the table by the file itself,
   never written as letters in the file, and no word of that chrome is left standing in the fork's English.
 - **The same file holds 「The editor speaks on the console's message pill」,** in Korean at 1,280 and 360
   pixels wide, on a dev host that stands the console's pill up and its library's toaster down as the console
   does. It copies a line with the slash menu's copy, which the fork says through its toast helper, and reads
-  the pack's word for the copy on the pill, standing at the top of the screen, centred, inside the content's
+  the table's word for the copy on the pill, standing at the top of the screen, centred, inside the content's
   gutter; presses the pill away; opens the link card's form from the slash menu, refuses a link that is none
-  with Enter and reads the pack's word for the refusal under the field with no pill standing, and reads the
+  with Enter and reads the table's word for the refusal under the field with no pill standing, and reads the
   line go once the field is changed; copies a code block with the key the block's bar raises, which the fork
   says through the notification service, and reads the same word on the pill again; copies it once more
   while that line stands and reads the pill still saying the one line with nothing waiting behind it; and
@@ -440,9 +440,17 @@ studied of AFFiNE and under which licence.
   the words as shown as well as the words the fork wrote, so a reader who knows only a Korean name still
   finds the item. The bundle installs the
   translator as it mounts an editor and answers each word the fork says with the console's word for it,
-  held in the bundle's pack under both locales, keyed by the English words themselves, following the
-  console's wording guide as every other word the bundle writes does. What the bundle names for itself —
-  the three keys over a block chosen whole, its format bar, its screens — was always the pack's.
+  from the editor's word table, keyed by the English words themselves, following the console's wording
+  guide as every other word the bundle writes does.
+  - **The editor's word table is the editor's own locale,** as the component library carries its own: one
+    table for each language the bundle answers the fork in, in a folder of its own inside the bundle's words
+    folder, chosen by the console's language as an editor is mounted. A language with no table answers
+    nothing, so English, the fork's own language, stands as the fork wrote it and needs no table.
+  - **The table stands outside the pack.** The pack holds only keys a screen asks for written whole, each
+    answered by one word (bmo-ui's `docs/wording.md`, 「The key」), and the bundle build refuses a screen
+    that asks it for a tree; the table is read whole and keyed by the fork's own sentences and the pieces
+    of sentences it assembles. What the bundle names for itself — the three keys over a block chosen
+    whole, its format bar, its screens — is the pack's.
   - **A hover room answers its words once it stands drawn.** The words of a room a pointer's hover brings
     up live inside a template, where markup and words stand together, so no word of one can be asked
     before the room is drawn. The room asks them, line by line, of the same seam at the moment its content
@@ -450,7 +458,7 @@ studied of AFFiNE and under which licence.
     key's hint, the slash menu's card — so a room holding a reader's own words, a document's title among
     them, is never rewritten. A line is asked as it reads with its outer spacing cut away and is put back
     with that spacing kept, and a line nothing answers for stands exactly as the fork drew it. Which lines
-    the pack answers is the bundle's to say: it answers what a card says to the reader — its lines of
+    the table answers is the bundle's to say: it answers what a card says to the reader — its lines of
     guidance, the names it carries, and the sample lines of the document a card pictures — and leaves what
     a card only shows as contents: a file's name or a person's, a value filling a cell of a sample table,
     the letters and numbers of a formula or of code, and a date.
@@ -461,7 +469,7 @@ studied of AFFiNE and under which licence.
   wherever the host provides one and draws its own box over the editor's viewport only where none is provided
   (`docs/affine.md`, the fork's second seam). The bundle provides the service, so every line the editor says
   reaches it and no box is drawn in the editor; the service says each line on the pill, in the console's
-  language from the pack, as the seam answers the rest of the editor's words. The screen's own lines about
+  language from the editor's word table, as the seam answers the rest of the editor's words. The screen's own lines about
   the editor — an Ask AI result that could not be placed, an image that could not be added, a block copied
   from the keys the bundle declares — take the same pill, the bundle's block copy saying the same line the
   fork's copies say.
@@ -471,19 +479,20 @@ studied of AFFiNE and under which licence.
     download starting, or a second press while one runs, whose progress the browser shows itself — is not
     said. A copy that went through wears the success tone and a refusal or failure the error tone; a notice
     the fork raises with a tone of its own keeps it, and any other line wears the info tone. Which lines are
-    held back and which wear success or error is the bundle's to say, keyed by the fork's words as the pack
-    is, so a line the fork adds later is said in the info tone rather than lost.
+    held back and which wear success or error is the bundle's to say, keyed by the fork's words as the
+    table is, so a line the fork adds later is said in the info tone rather than lost.
   - Each line is named by the fork's words, so the same line said again before the first has gone — a
     second copy — replaces it where it stands. A press the fork offers with a notice, its undo among them,
-    stands on the pill under the pack's word for it; when the fork takes a notice back, its undo already
+    stands on the pill under the table's word for it; when the fork takes a notice back, its undo already
     taken another way, the pill lets it go, and the fork learns when the pill is done with one it asked to
     hear of. A notice the fork draws out of a template is said as the words it draws.
   - A line whose words carry a figure of the moment — the size cap an image is refused over, a count of
-    rows copied from a table — is answered by nothing in the pack and is said as the fork wrote it.
+    rows copied from a table — is answered by nothing in the editor's word table and is said as the fork
+    wrote it.
   - A form's own refusal stays in the form, beside the field it refuses, never on the pill: the link card's
     create form refusing a link that is none, the card's edit form refusing an empty title and an
     attachment's rename form refusing an empty name each draw the line under that field in the error
-    colour, in the pack's words, until the field is changed (`docs/affine.md`, the fork's third seam).
+    colour, in the table's words, until the field is changed (`docs/affine.md`, the fork's third seam).
   - A question the fork asks before an action is the console's question dialog, never the pill, and a
     question that asks for a typed answer is answered with none.
 - The screen is read in the console's screen mode and keeps none of its own. The bundle's chrome is
