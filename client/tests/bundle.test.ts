@@ -46,6 +46,16 @@ describe("the words", () => {
 
     for (const [key, said] of Object.entries(marks)) expect(answered[said], said).toBe(PACKS.ko.note.mark[key as keyof typeof PACKS.ko.note.mark]);
     for (const [key, said] of Object.entries(kinds)) expect(answered[said], said).toBe(PACKS.ko.note.kind[key as keyof typeof PACKS.ko.note.kind]);
+
+    // A table is named by the bar's word wherever the editor or the bundle's own lines speak of one.
+    const table = PACKS.ko.note.action.table;
+    const namesTable = /\btables?\b|\btabular\b/i;
+
+    expect(answered.Table).toBe(table);
+
+    for (const [said, korean] of Object.entries(answered)) if (namesTable.test(said)) expect(korean, said).toContain(table);
+
+    for (const key of keysOf(PACKS.en)) if (namesTable.test(word(PACKS.en, key)!)) expect(word(PACKS.ko, key), key).toContain(table);
   });
 
   test("every key the screens ask for is held", () => {
