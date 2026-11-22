@@ -153,9 +153,7 @@ export class DatabaseTitle extends SignalWatcher(
       data-title-empty="${isEmpty}"
       data-title-focus="${this.isFocus$.value}"
     >
-      <div class="text" style="${untitledStyle}">
-        ${translate('Untitled')}
-      </div>
+      <div class="text" style="${untitledStyle}">${translate('Untitled')}</div>
       <div class="text">${this.text$.value}</div>
       <textarea
         .disabled="${this.readonly$.value}"
