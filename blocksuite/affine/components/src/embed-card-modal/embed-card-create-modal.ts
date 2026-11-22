@@ -13,13 +13,13 @@ import { property, query, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { styleMap } from 'lit-html/directives/style-map.js';
 
-import { toast } from '../toast';
+import { formRefusal, formRefusalStyles } from '../form-refusal';
 import { embedCardModalStyles } from './styles.js';
 
 export class EmbedCardCreateModal extends SignalWatcher(
   WithDisposable(ShadowlessElement)
 ) {
-  static override styles = embedCardModalStyles;
+  static override styles = [embedCardModalStyles, formRefusalStyles];
 
   private readonly _onCancel = () => {
     this.remove();
@@ -29,7 +29,7 @@ export class EmbedCardCreateModal extends SignalWatcher(
     const url = this.input.value;
 
     if (!isValidUrl(url)) {
-      toast(this.host, 'Invalid link');
+      this._refused = 'Invalid link';
       return;
     }
 
@@ -80,6 +80,7 @@ export class EmbedCardCreateModal extends SignalWatcher(
   private _handleInput(e: InputEvent) {
     const target = e.target as HTMLInputElement;
     this._linkInputValue = target.value;
+    this._refused = null;
   }
 
   override connectedCallback() {
@@ -128,6 +129,7 @@ export class EmbedCardCreateModal extends SignalWatcher(
             value=${this._linkInputValue}
             @input=${this._handleInput}
           />
+          ${formRefusal(this._refused)}
         </div>
 
         <div class="embed-card-modal-row">
@@ -148,6 +150,10 @@ export class EmbedCardCreateModal extends SignalWatcher(
 
   @state()
   private accessor _linkInputValue = '';
+
+  // What the form refuses in the link written in it, until the link is changed.
+  @state()
+  private accessor _refused: string | null = null;
 
   @property({ attribute: false })
   accessor createOptions!:

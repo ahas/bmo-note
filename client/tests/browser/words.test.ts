@@ -57,6 +57,9 @@ const CAPTION = "textarea.block-caption-editor";
 // The console's one message pill, and the box the fork's toast helper draws where no host hears its lines.
 const PILL = ".bmo-island";
 const HELPER_BOX = ".toast-container";
+// The link card's create form, and the line a form of the editor's says under a field it refuses.
+const LINK_FORM = "embed-card-create-modal";
+const REFUSAL = ".form-refusal";
 // The gutter the content keeps from the screen's edges on a phone, which the pill keeps as well.
 const GUTTER_PX = 16;
 
@@ -413,7 +416,7 @@ describe.skipIf(!ready)("the editor's own words", () => {
 
   for (const width of WIDTHS) {
     test(
-      `at ${width.name} the editor's copies stand on the console's pill in its words, and its own box never stands`,
+      `at ${width.name} the editor's copies stand on the console's pill in its words, a form's refusal stays in the form, and its own box never stands`,
       async () => {
         const page = await note(FIXTURE.notes[0]!.id, width);
         const copied = SAID["Copied to clipboard"];
@@ -441,6 +444,26 @@ describe.skipIf(!ready)("the editor's own words", () => {
         // Pressed away, the pill goes.
         await page.locator(`${PILL} button`).first().click();
         await page.locator(PILL).waitFor({ state: "detached", timeout: SETTLING_MS });
+
+        // A form's own refusal stays in the form, under the field it refuses, until the field is changed.
+        await intoEmptyLine(page);
+        await page.keyboard.type("/");
+        await page.locator(`${SLASH}[data-testid="Link"]`).click();
+
+        const form = page.locator(LINK_FORM);
+        const refusal = form.locator(REFUSAL);
+
+        await form.locator("input").fill("no link here");
+        await form.locator("input").press("Enter");
+        await refusal.waitFor({ timeout: SETTLING_MS });
+        expect(((await refusal.textContent()) ?? "").trim()).toBe(SAID["Invalid link"]);
+        expect(await page.locator(PILL).count()).toBe(0);
+        await picture(page, `words-refusal-${width.width}`);
+
+        await form.locator("input").press("Backspace");
+        await refusal.waitFor({ state: "detached", timeout: SETTLING_MS });
+        await form.locator("input").press("Escape");
+        await form.waitFor({ state: "detached", timeout: SETTLING_MS });
 
         // A code block's copy, said through the notification service the screen provides.
         await inCodeBlock(page);

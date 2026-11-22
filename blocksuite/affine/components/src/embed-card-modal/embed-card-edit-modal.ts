@@ -31,12 +31,13 @@ import { choose } from 'lit/directives/choose.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { live } from 'lit/directives/live.js';
 
-import { toast } from '../toast';
+import { formRefusal, formRefusalStyles } from '../form-refusal';
 
 export class EmbedCardEditModal extends SignalWatcher(
   WithDisposable(LitElement)
 ) {
   static override styles = css`
+    ${formRefusalStyles}
     :host {
       position: absolute;
       top: 0;
@@ -77,6 +78,11 @@ export class EmbedCardEditModal extends SignalWatcher(
       display: flex;
       align-items: center;
       gap: 12px;
+    }
+
+    .row.refusable {
+      flex-wrap: wrap;
+      row-gap: 0;
     }
 
     .row .input {
@@ -187,7 +193,7 @@ export class EmbedCardEditModal extends SignalWatcher(
 
     const title = this.title$.value.trim();
     if (title.length === 0) {
-      toast(this.host, 'Title can not be empty');
+      this.refused$.value = 'Title can not be empty';
       return;
     }
 
@@ -212,6 +218,7 @@ export class EmbedCardEditModal extends SignalWatcher(
   private readonly _updateTitle = (e: InputEvent) => {
     const target = e.target as HTMLInputElement;
     this.title$.value = target.value;
+    this.refused$.value = null;
   };
 
   get isEmbedLinkedDocModel() {
@@ -304,7 +311,7 @@ export class EmbedCardEditModal extends SignalWatcher(
   override render() {
     return html`
       <div class="embed-card-modal-wrapper">
-        <div class="row">
+        <div class="row refusable">
           <input
             class="input title"
             type="text"
@@ -312,6 +319,7 @@ export class EmbedCardEditModal extends SignalWatcher(
             .value=${live(this.title$.value)}
             @input=${this._updateTitle}
           />
+          ${formRefusal(this.refused$.value)}
         </div>
         <div class="row">
           <textarea
@@ -407,6 +415,9 @@ export class EmbedCardEditModal extends SignalWatcher(
   );
 
   accessor title$ = signal<string>('');
+
+  // What the form refuses in the title written in it, until the title is changed.
+  accessor refused$ = signal<string | null>(null);
 
   @query('.input.title')
   accessor titleInput!: HTMLInputElement;

@@ -6,9 +6,11 @@ export const renameStyles = css`
   .affine-attachment-rename-container {
     position: relative;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     width: 320px;
     gap: 12px;
+    row-gap: 0;
     padding: 12px;
     z-index: var(--affine-z-index-popover);
   }

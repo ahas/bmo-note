@@ -1,9 +1,12 @@
 import { ConfirmIcon } from '@blocksuite/affine-components/icons';
-import { toast } from '@blocksuite/affine-components/toast';
+import {
+  formRefusal,
+  formRefusalStyles,
+} from '@blocksuite/affine-components/form-refusal';
 import type { AttachmentBlockModel } from '@blocksuite/affine-model';
 import { CitationProvider } from '@blocksuite/affine-shared/services';
 import type { EditorHost } from '@blocksuite/std';
-import { html } from 'lit';
+import { html, render } from 'lit';
 import { createRef, ref } from 'lit/directives/ref.js';
 
 import { renameStyles } from './styles';
@@ -18,6 +21,11 @@ export const RenameModal = ({
   abortController: AbortController;
 }) => {
   const inputRef = createRef<HTMLInputElement>();
+  // Where the form says what it refuses in the name written in it, until the name is changed.
+  const refusalRef = createRef<HTMLDivElement>();
+  const refuse = (said: string | null) => {
+    if (refusalRef.value) render(formRefusal(said), refusalRef.value);
+  };
   // Fix auto focus
   setTimeout(() => inputRef.value?.focus());
   const originalName = model.props.name;
@@ -40,7 +48,7 @@ export const RenameModal = ({
   const onConfirm = () => {
     const newFileName = fileName + extension;
     if (!newFileName) {
-      toast(editorHost, 'File name cannot be empty');
+      refuse('File name cannot be empty');
       return;
     }
     model.store.updateBlock(model, {
@@ -53,6 +61,7 @@ export const RenameModal = ({
   };
   const onInput = (e: InputEvent) => {
     fileName = (e.target as HTMLInputElement).value;
+    refuse(null);
   };
   const onKeydown = (e: KeyboardEvent) => {
     e.stopPropagation();
@@ -70,6 +79,7 @@ export const RenameModal = ({
   return html`
     <style>
       ${renameStyles}
+      ${formRefusalStyles}
     </style>
     <div class="affine-attachment-rename-overlay-mask" @click="${abort}"></div>
     <div class="affine-attachment-rename-container">
@@ -90,6 +100,7 @@ export const RenameModal = ({
       >
         ${ConfirmIcon}
       </editor-icon-button>
+      <div class="affine-attachment-rename-refusal" ${ref(refusalRef)}></div>
     </div>
   `;
 };

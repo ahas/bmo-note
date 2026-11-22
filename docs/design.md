@@ -406,11 +406,14 @@ studied of AFFiNE and under which licence.
 - **The same file holds 「The editor speaks on the console's message pill」,** in Korean at 1,280 and 360
   pixels wide, on a dev host that stands the console's pill up and its library's toaster down as the console
   does. It copies a line with the slash menu's copy, which the fork says through its toast helper, and reads
-  the pack's word for the copy on the pill; presses the pill away; copies a code block with the key the
-  block's bar raises, which the fork says through the notification service, and reads the same word on the
-  pill again; copies it once more while that line stands and reads the pill still saying the one line with
-  nothing waiting behind it; and reads that the helper's own box never stands in the page. A picture of the
-  pill over the note is kept at each width.
+  the pack's word for the copy on the pill, standing at the top of the screen, centred, inside the content's
+  gutter; presses the pill away; opens the link card's form from the slash menu, refuses a link that is none
+  with Enter and reads the pack's word for the refusal under the field with no pill standing, and reads the
+  line go once the field is changed; copies a code block with the key the block's bar raises, which the fork
+  says through the notification service, and reads the same word on the pill again; copies it once more
+  while that line stands and reads the pill still saying the one line with nothing waiting behind it; and
+  reads that the helper's own box never stands in the page. A picture of the pill over the note and of the
+  refused form is kept at each width.
 - **The editor's styles stay in the editor.** The vendored editor lays its stylesheets on the page as plain
   style elements, unlayered, which beat every layered rule of the console; and a few of its rules name nothing
   of the editor's own — a bare `input`, a `.truncate` — so once a note is opened they would reach every screen
@@ -463,8 +466,8 @@ studied of AFFiNE and under which licence.
   from the keys the bundle declares — take the same pill, the bundle's block copy saying the same line the
   fork's copies say.
   - The pill tells the word that an action went through or did not, and a notice of something that arrived,
-    so that is what the screen says of the editor: a copy, a refused size or link, a failed download or
-    read, a notice the fork raises on its own. A line that narrates a step still under way — an image's
+    so that is what the screen says of the editor: a copy, a refused size, a failed download or read, a
+    notice the fork raises on its own. A line that narrates a step still under way — an image's
     download starting, or a second press while one runs, whose progress the browser shows itself — is not
     said. A copy that went through wears the success tone and a refusal or failure the error tone; a notice
     the fork raises with a tone of its own keeps it, and any other line wears the info tone. Which lines are
@@ -477,6 +480,10 @@ studied of AFFiNE and under which licence.
     hear of. A notice the fork draws out of a template is said as the words it draws.
   - A line whose words carry a figure of the moment — the size cap an image is refused over, a count of
     rows copied from a table — is answered by nothing in the pack and is said as the fork wrote it.
+  - A form's own refusal stays in the form, beside the field it refuses, never on the pill: the link card's
+    create form refusing a link that is none, the card's edit form refusing an empty title and an
+    attachment's rename form refusing an empty name each draw the line under that field in the error
+    colour, in the pack's words, until the field is changed (`docs/affine.md`, the fork's third seam).
   - A question the fork asks before an action is the console's question dialog, never the pill, and a
     question that asks for a typed answer is answered with none.
 - The screen is read in the console's screen mode and keeps none of its own. The bundle's chrome is

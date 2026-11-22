@@ -54,7 +54,7 @@ platform does not run); the sync gateway (no realtime collaboration in the unit'
 note is the truth the design states); the GraphQL metadata API (this unit's routes state their own
 shape); the app shells, Electron packaging and copilot paths (a console bundle is the surface).
 
-The fork's tree is not untouched: it carries two seams of this unit's own, both in the preset's component
+The fork's tree is not untouched: it carries three seams of this unit's own, all in the preset's component
 layer.
 
 The first is the translator `docs/design.md` names 「The editor's own words follow the console's language」. It is a module of the preset's component
@@ -78,6 +78,14 @@ on. The seam is one branch at the head of the helper; a merge keeps it, and a ca
 adds needs no change, while a line a merge says by some third road of its own is not heard until it is sent
 down one of the two. The pill's browser file reads the lines of both roads on the pill and reads that the
 helper's box never stands.
+
+The third is a form's own refusal, a small module of the same layer: one line in the error colour, its
+words asked of the translator, which a form of the editor's draws under the field it refuses and takes away
+once the field is changed. The forms that refused through the toast helper — the link card's create form,
+the card's edit form and the attachment's rename form — hold their refusal as a state of the form and draw
+it with that module, so what `docs/design.md` says of a refusal (「The editor speaks on the console's message
+pill」) holds. A merge keeps the module and those three reads; a form the merge adds that refuses through
+the toast helper says its refusal on the pill until it is read the same way.
 
 ## The client's build path to the vendored editor
 

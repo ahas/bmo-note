@@ -26,9 +26,6 @@ const HEARINGS = new Map<string, Hearing>([
   ["Copied failed, something went wrong", "error"],
   ["Failed to download image!", "error"],
   ["Failed to read image size, please try another image", "error"],
-  ["File name cannot be empty", "error"],
-  ["Title can not be empty", "error"],
-  ["Invalid link", "error"],
   ["Downloading image...", "held back"],
   ["Download in progress...", "held back"]
 ]);
