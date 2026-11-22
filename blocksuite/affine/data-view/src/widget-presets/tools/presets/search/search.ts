@@ -1,3 +1,4 @@
+import { translate } from '@blocksuite/affine-components/translate';
 import { unsafeCSSVarV2 } from '@blocksuite/affine-shared/theme';
 import { IS_MOBILE } from '@blocksuite/global/env';
 import { CloseIcon, SearchIcon } from '@blocksuite/icons/lit';
@@ -146,7 +147,7 @@ export class DataViewHeaderToolsSearch extends WidgetBase<
       <label class="${searchToolClassMap}" @click="${this._clickSearch}">
         <div class="affine-database-search-input-icon">${SearchIcon()}</div>
         <input
-          placeholder="Search..."
+          placeholder="${translate('Search...')}"
           class="affine-database-search-input"
           @input="${this._onSearch}"
           @click="${(event: MouseEvent) => event.stopPropagation()}"
@@ -168,7 +169,7 @@ export class DataViewHeaderToolsSearch extends WidgetBase<
               })}
               >Esc</span
             >
-            to clear all
+            ${translate('to clear all')}
           </affine-tooltip>
         </div>
       </label>

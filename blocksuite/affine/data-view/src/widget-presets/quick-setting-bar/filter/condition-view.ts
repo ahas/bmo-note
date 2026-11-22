@@ -5,6 +5,7 @@ import {
   type PopupTarget,
   popupTargetFromElement,
 } from '@blocksuite/affine-components/context-menu';
+import { translate } from '@blocksuite/affine-components/translate';
 import { SignalWatcher } from '@blocksuite/global/lit';
 import {
   ArrowDownSmallIcon,
@@ -299,7 +300,7 @@ export class FilterConditionView extends SignalWatcher(ShadowlessElement) {
     if (!leftVar) {
       return html` <data-view-component-button
         hoverType="border"
-        .text="${html`Invalid filter rule`}"
+        .text="${html`${translate('Invalid filter rule')}`}"
       ></data-view-component-button>`;
     }
     return html`

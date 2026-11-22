@@ -3,6 +3,7 @@ import {
   menu,
   type MenuConfig,
 } from '@blocksuite/affine-components/context-menu';
+import { translate } from '@blocksuite/affine-components/translate';
 import { SignalWatcher, WithDisposable } from '@blocksuite/global/lit';
 import { DeleteIcon, InvisibleIcon, ViewIcon } from '@blocksuite/icons/lit';
 import { ShadowlessElement } from '@blocksuite/std';
@@ -203,10 +204,10 @@ export class GroupSetting extends SignalWatcher(
         <div
           style="padding:0 4px;font-size:12px;color:var(--affine-text-secondary-color);line-height:20px;"
         >
-          Groups
+          ${translate('Groups')}
         </div>
         <div class="properties-group-op" @click="${clickChangeAll}">
-          ${isAllShowed ? 'Hide All' : 'Show All'}
+          ${translate(isAllShowed ? 'Hide All' : 'Show All')}
         </div>
       </div>
 
@@ -356,7 +357,7 @@ export const buildGroupSettingItems = (
                     <div
                       style="display:flex;align-items:center;gap:4px;font-size:14px;line-height:20px;color:var(--affine-text-secondary-color);margin-left:30px;"
                     >
-                      ${dateModeLabel(group.groupInfo$.value?.config.name)}
+                      ${translate(dateModeLabel(group.groupInfo$.value?.config.name))}
                     </div>
                   `,
                   options: {
@@ -388,7 +389,7 @@ export const buildGroupSettingItems = (
                                     ? 'var(--affine-text-emphasis-color)'
                                     : 'var(--affine-text-secondary-color)'
                                 }"
-                                >${label}</span
+                                >${translate(label)}</span
                               >`;
                             },
                             isSelected:
@@ -418,12 +419,12 @@ export const buildGroupSettingItems = (
                           <div
                             style="display:flex;align-items:center;gap:4px;font-size:14px;line-height:20px;color:var(--affine-text-secondary-color);margin-left:8px;"
                           >
-                            ${
+                            ${translate(
                               group.groupInfo$.value?.config.name ===
-                              'date-week-mon'
+                                'date-week-mon'
                                 ? 'Monday'
                                 : 'Sunday'
-                            }
+                            )}
                           </div>
                         `,
                         options: {
@@ -447,7 +448,7 @@ export const buildGroupSettingItems = (
                                           ? 'var(--affine-text-emphasis-color)'
                                           : 'var(--affine-text-secondary-color)'
                                       }"
-                                      >${label}</span
+                                      >${translate(label)}</span
                                     >`;
                                   },
                                   isSelected:
@@ -479,7 +480,9 @@ export const buildGroupSettingItems = (
                     <div
                       style="display:flex;align-items:center;gap:4px;font-size:14px;line-height:20px;color:var(--affine-text-secondary-color);margin-left:8px;"
                     >
-                      ${group.sortAsc$.value ? 'Oldest first' : 'Newest first'}
+                      ${translate(
+                        group.sortAsc$.value ? 'Oldest first' : 'Newest first'
+                      )}
                     </div>
                   `,
                   options: {
@@ -495,7 +498,7 @@ export const buildGroupSettingItems = (
                                   ? 'var(--affine-text-emphasis-color)'
                                   : 'var(--affine-text-secondary-color)'
                               }"
-                              >Oldest first</span
+                              >${translate('Oldest first')}</span
                             >`;
                           },
                           isSelected: group.sortAsc$.value,
@@ -514,7 +517,7 @@ export const buildGroupSettingItems = (
                                   ? 'var(--affine-text-emphasis-color)'
                                   : 'var(--affine-text-secondary-color)'
                               }"
-                              >Newest first</span
+                              >${translate('Newest first')}</span
                             >`;
                           },
                           isSelected: !group.sortAsc$.value,

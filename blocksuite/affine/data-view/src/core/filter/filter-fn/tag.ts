@@ -1,3 +1,5 @@
+import { translateFilled } from '@blocksuite/affine-components/translate';
+
 import { ct } from '../../logical/composite-type.js';
 import { t } from '../../logical/type-presets.js';
 import { tRef, tVar } from '../../logical/type-variable.js';
@@ -32,7 +34,9 @@ export const tagFilter = [
     args: [ct.array.instance(tRef(optionName))] as const,
     label: 'Is not one of',
     shortString: v =>
-      v ? `: Not ${tagToString(v.value, v.type.element)}` : undefined,
+      v ? `: ${translateFilled('Not {value}', {
+            value: tagToString(v.value, v.type.element) ?? '',
+          })}` : undefined,
     impl: (self, value) => {
       if (!value.length) {
         return true;

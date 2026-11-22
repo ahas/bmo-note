@@ -3,6 +3,10 @@ import {
   popMenu,
   popupTargetFromElement,
 } from '@blocksuite/affine-components/context-menu';
+import {
+  translate,
+  translateFilled,
+} from '@blocksuite/affine-components/translate';
 import { css, html } from 'lit';
 import { classMap } from 'lit/directives/class-map.js';
 import { styleMap } from 'lit/directives/style-map.js';
@@ -93,7 +97,9 @@ export class SelectGroupView extends BaseGroup<
   protected override render(): unknown {
     const tag = this.tag;
     if (!tag) {
-      const displayName = `No ${this.group.property.name$.value}`;
+      const displayName = translateFilled('No {property}', {
+        property: this.group.property.name$.value,
+      });
       return html` <div
         style="font-size: 14px;color: var(--affine-text-primary-color);line-height: 22px;"
       >
@@ -107,7 +113,7 @@ export class SelectGroupView extends BaseGroup<
       'data-view-group-title-select-view': true,
       readonly: this.readonly,
     });
-    const label = tag.value?.trim() ? tag.value : 'Untitled';
+    const label = tag.value?.trim() ? tag.value : translate('Untitled');
     return html` <div @click="${this._click}" class="${classList}">
       <div class="tag" style="${style}">${label}</div>
     </div>`;

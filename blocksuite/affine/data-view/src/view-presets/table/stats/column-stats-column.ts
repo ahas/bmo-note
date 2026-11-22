@@ -4,6 +4,10 @@ import {
   popMenu,
   popupTargetFromElement,
 } from '@blocksuite/affine-components/context-menu';
+import {
+  translate,
+  translateValue,
+} from '@blocksuite/affine-components/translate';
 import { SignalWatcher, WithDisposable } from '@blocksuite/global/lit';
 import { ArrowDownSmallIcon } from '@blocksuite/icons/lit';
 import { ShadowlessElement } from '@blocksuite/std';
@@ -227,10 +231,14 @@ export class DatabaseColumnStatsCell extends SignalWatcher(
       <div class="content">
         ${
           !this.statsResult$.value
-            ? html`Calculate ${ArrowDownSmallIcon()}`
+            ? html`${translate('Calculate')} ${ArrowDownSmallIcon()}`
             : html`
-                <span class="label">${this.statsResult$.value.name}</span>
-                <span class="value">${this.statsResult$.value.value} </span>
+                <span class="label"
+                  >${translateValue(this.statsResult$.value.name)}</span
+                >
+                <span class="value"
+                  >${translateValue(this.statsResult$.value.value)}
+                </span>
               `
         }
       </div>

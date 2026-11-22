@@ -1,4 +1,5 @@
 import { popupTargetFromElement } from '@blocksuite/affine-components/context-menu';
+import { translateFilled } from '@blocksuite/affine-components/translate';
 import { SortIcon } from '@blocksuite/icons/lit';
 import { html } from 'lit';
 
@@ -16,7 +17,9 @@ export const renderSortBar = (props: DataViewWidgetProps) => {
   if (count === 0) {
     return;
   }
-  const text = count === 1 ? html`1 Sort` : html`${count} Sorts`;
+  const text = html`${translateFilled(count === 1 ? '1 Sort' : '{n} Sorts', {
+    n: count,
+  })}`;
   const click = (event: MouseEvent) => {
     popSortRoot(popupTargetFromElement(event.currentTarget as HTMLElement), {
       sortUtils: createSortUtils(sortTrait, props.dataViewLogic.eventTrace),

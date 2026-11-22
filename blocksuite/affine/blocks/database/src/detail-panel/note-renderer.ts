@@ -1,3 +1,4 @@
+import { translate } from '@blocksuite/affine-components/translate';
 import {
   CodeBlockModel,
   type DatabaseBlockModel,
@@ -108,7 +109,7 @@ export class NoteRenderer
           @click="${this.addNote}"
           style="max-width: var(--affine-editor-width);margin: auto;cursor: pointer;color: var(--affine-text-disable-color)"
         >
-          Click to create a linked doc in center peek.
+          ${translate('Click to create a linked doc in center peek.')}
         </div>
       </div>`;
     }

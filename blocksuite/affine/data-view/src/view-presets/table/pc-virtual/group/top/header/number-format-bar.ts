@@ -1,3 +1,4 @@
+import { translate } from '@blocksuite/affine-components/translate';
 import { WithDisposable } from '@blocksuite/global/lit';
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { css, html, LitElement, unsafeCSS } from 'lit';
@@ -108,7 +109,7 @@ export class DatabaseNumberFormatBar extends WithDisposable(LitElement) {
         <div class="number-format-decimal-places">
           <button
             class="number-format-toolbar-button"
-            aria-label="decrease decimal places"
+            aria-label=${translate('decrease decimal places')}
             @click=${this._decrementDecimalPlaces}
           >
             ${DecreaseDecimalPlacesIcon}
@@ -116,7 +117,7 @@ export class DatabaseNumberFormatBar extends WithDisposable(LitElement) {
 
           <button
             class="number-format-toolbar-button"
-            aria-label="increase decimal places"
+            aria-label=${translate('increase decimal places')}
             @click=${this._incrementDecimalPlaces}
           >
             ${IncreaseDecimalPlacesIcon}

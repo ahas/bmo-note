@@ -5,6 +5,7 @@ import {
   type PopupTarget,
   popupTargetFromElement,
 } from '@blocksuite/affine-components/context-menu';
+import { translate } from '@blocksuite/affine-components/translate';
 import { SignalWatcher } from '@blocksuite/global/lit';
 import {
   ArrowDownSmallIcon,
@@ -348,14 +349,14 @@ export class FilterGroupView extends SignalWatcher(ShadowlessElement) {
           };
           let op: TemplateResult;
           if (i === 0) {
-            op = html` <div class="filter-group-op">Where</div>`;
+            op = html` <div class="filter-group-op">${translate('Where')}</div>`;
           } else {
             op = html`
               <div
                 class="filter-group-op filter-group-op-clickable"
                 @click="${this._selectOp}"
               >
-                ${this.opMap[data.op]}
+                ${translate(this.opMap[data.op])}
               </div>
             `;
           }
@@ -403,7 +404,8 @@ export class FilterGroupView extends SignalWatcher(ShadowlessElement) {
         })}
       </div>
       <div class="filter-group-button" @click="${this._addNew}">
-        ${PlusIcon()} Add ${this.isMaxDepth ? nothing : ArrowDownSmallIcon()}
+        ${PlusIcon()} ${translate('Add')}
+        ${this.isMaxDepth ? nothing : ArrowDownSmallIcon()}
       </div>
     `;
   }

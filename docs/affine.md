@@ -76,7 +76,20 @@ The first is the translator `docs/design.md` names 「The editor's own words fol
 layer, read by the renderers of that layer and of the blocks and widgets the page view mounts, at the point
 where a word of the editor's own chrome is drawn, and it answers nothing by itself: whoever mounts the
 editor installs the answers, which is why the words live in the console bundle's own table of the editor's
-words and not in the fork's sources. A word drawn out of a template cannot be asked at that point, so the hover room the fork draws asks
+words and not in the fork's sources.
+The component layer's menu reads its words of the seam in one place for every menu the fork draws: an
+item's name, a sub-menu row's and a switch's, a menu's title, its search field and the line it shows when the
+search finds nothing, and a typed field's hint, so a menu a block builds needs no read of its own; its search
+matches what the reader types against the answered words as well as the fork's own. The database block's
+views read the seam where they draw a word outside a menu, at each literal: the search field and the hint of
+its clear key, the bar of views and its count, the view settings' counts and layout, the filter and sort bars,
+the titles of their groups, the figures under a column, a select's tags, the detail of a row, and the date
+picker's days and months. A line the fork builds around a value is asked through the seam's second door,
+which takes the line with each value as a named mark, `{n}` or `{property}`, and fills the answer, so Korean
+places the value where it reads; and where the fork writes a name for the reader — a new view's, a new
+property's, the status property a kanban view adds and its three options — it writes the answered word, so
+the reader's data starts in the reader's language.
+A word drawn out of a template cannot be asked at that point, so the hover room the fork draws asks
 the lines of its own drawn content of the same seam, and a renderer that draws a room of the editor's own
 chrome says so to it; a room that shows a reader's own words says nothing of the kind and is left alone. A
 merge of `upstream/canary` keeps the module and those reads; a renderer the merge adds, or a word or a drawn

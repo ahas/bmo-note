@@ -4,6 +4,7 @@ import {
   type PopupTarget,
   popupTargetFromElement,
 } from '@blocksuite/affine-components/context-menu';
+import { translateFilled } from '@blocksuite/affine-components/translate';
 import { SignalWatcher } from '@blocksuite/global/lit';
 import {
   ArrowDownSmallIcon,
@@ -337,7 +338,9 @@ export class FilterRootView extends SignalWatcher(ShadowlessElement) {
       );
     };
     const length = condition.conditions.length;
-    const text = length > 1 ? `${length} rules` : `${length} rule`;
+    const text = translateFilled(length > 1 ? '{n} rules' : '{n} rule', {
+      n: length,
+    });
     return html` <data-view-component-button
       hoverType="border"
       .icon="${FilterIcon()}"

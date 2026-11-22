@@ -1,3 +1,7 @@
+import {
+  translate,
+  translateFilled,
+} from '@blocksuite/affine-components/translate';
 import { SignalWatcher, WithDisposable } from '@blocksuite/global/lit';
 import { ShadowlessElement } from '@blocksuite/std';
 import { css, html } from 'lit';
@@ -42,10 +46,12 @@ export class DateGroupView extends SignalWatcher(
     const name = this.group.name$.value;
     // Use contextual name based on the property when value is null
     const displayName =
-      name ||
+      translate(name) ||
       (this.group.value === null
-        ? `No ${this.group.property.name$.value}`
-        : 'Ungroups');
+        ? translateFilled('No {property}', {
+            property: this.group.property.name$.value,
+          })
+        : translate('Ungroups'));
     return html`<div class="dv-date-group">
       <span>${displayName}</span>
     </div>`;

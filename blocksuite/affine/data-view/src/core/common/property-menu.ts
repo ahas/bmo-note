@@ -1,4 +1,5 @@
 import { menu } from '@blocksuite/affine-components/context-menu';
+import { translateValue } from '@blocksuite/affine-components/translate';
 import { html } from 'lit/static-html.js';
 
 import { renderUniLit } from '../utils/uni-component/index.js';
@@ -29,11 +30,11 @@ export const typeConfig = (property: Property) => {
           style="color: var(--affine-text-secondary-color);gap:4px;font-size: 14px;"
         >
           ${renderUniLit(property.icon)}
-          ${
+          ${translateValue(
             property.view.propertyMetas$.value.find(
               v => v.type === property.type$.value
             )?.config.name
-          }
+          )}
         </div>`,
         options: {
           title: {

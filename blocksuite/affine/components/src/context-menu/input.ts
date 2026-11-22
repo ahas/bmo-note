@@ -7,6 +7,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import type { StyleInfo } from 'lit-html/directives/style-map.js';
 
+import { translate } from '../translate';
 import { MenuFocusable } from './focusable.js';
 import type { Menu } from './menu.js';
 import type { MenuItemRender } from './types.js';
@@ -119,7 +120,7 @@ export class MenuInput extends MenuFocusable {
       }}"
       @blur="${this.onBlur}"
       @input="${this.onInput}"
-      placeholder="${this.data.placeholder ?? ''}"
+      placeholder="${translate(this.data.placeholder ?? '')}"
       @keypress="${this.stopPropagation}"
       @keydown="${this.onKeydown}"
       @copy="${this.stopPropagation}"

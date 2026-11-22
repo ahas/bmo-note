@@ -1,3 +1,4 @@
+import { translate } from '@blocksuite/affine-components/translate';
 import type {
   ColumnDataType,
   ColumnUpdater,
@@ -219,7 +220,9 @@ export class DatabaseBlockDataSource extends DataSourceBase {
     return this._model.children[this._model.childMap.value.get(rowId) ?? -1];
   }
 
+  // A new property is named in the reader's language: the name is the reader's own once written.
   private newPropertyName(prefix = 'Column'): string {
+    const word = translate(prefix);
     let i = 1;
     const hasSameName = (name: string) => {
       return this._model.props.columns$.value.some(
@@ -227,7 +230,7 @@ export class DatabaseBlockDataSource extends DataSourceBase {
       );
     };
     while (true) {
-      let name = i === 1 ? prefix : `${prefix} ${i}`;
+      let name = i === 1 ? word : `${word} ${i}`;
       if (!hasSameName(name)) {
         return name;
       }
@@ -354,7 +357,7 @@ export class DatabaseBlockDataSource extends DataSourceBase {
           data: defaultData,
           id: propertyId,
           type: propertyId,
-          name: meta.config.name,
+          name: translate(meta.config.name),
         },
         index: -1,
       };

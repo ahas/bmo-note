@@ -415,6 +415,12 @@ studied of AFFiNE and under which licence.
   each one named in the file.
   Every other word it reads is the table's word for that thing, read out of the table by the file itself,
   never written as letters in the file, and no word of that chrome is left standing in the fork's English.
+  At 1,280 and 360 pixels wide it inserts a table view and a kanban view from the slash menu and opens what
+  a reader opens there: the view's menu, the search with its clear key's room, a filter and its condition, a
+  sort and its rule, the view's settings and each of their pages, a new column with its menu, its types and
+  its type key, a select's tags, a date's picker, a row's menu, the figures under a column and each group of
+  them, a kanban group's menu, and a card's menu with where it moves to. Nothing the block or those menus and rooms show is
+  left in English beside the product names the wording guide keeps and the names on a keyboard's keys.
 - **The same file holds 「The editor speaks on the console's message pill」,** in Korean at 1,280 and 360
   pixels wide, on a dev host that stands the console's pill up and its library's toaster down as the console
   does. It copies a line with the slash menu's copy, which the fork says through its toast helper, and reads
@@ -447,18 +453,23 @@ studied of AFFiNE and under which licence.
   call, and a note reads back its images wherever it is opened.
 - **The editor's own words follow the console's language.** The fork names the words of its own chrome —
   the keys of the selection toolbar and their tooltips, the menus under them, the slash menu, the caption
-  hint, the hint an empty line holds, and its lines of notice — as English inside its own sources, and
+  hint, the hint an empty line holds, its lines of notice, and the chrome of a database block's table and
+  kanban views: their bar of views, their search, filter, sort and view settings, a column's and a row's
+  menus, the titles of their groups, the figures under a column, a select's tags and a date cell's picker
+  — as English inside its own sources, and
   ships neither a translation nor a hook to supply one. The fork therefore carries a seam of its own: one
   translator, installed by whoever mounts the editor and read at the points where a word of that chrome is
   drawn — the renderers of toolbar actions and of menu items, the buttons a menu row draws its words in,
   the slash menu's view, the panels the phone's keyboard bar opens, the line of notice, the caption editor,
-  the hint an empty line holds and the menu that names a block's row or column. A word is answered by
+  the hint an empty line holds, the menu that names a block's row or column, a menu's title, search field,
+  typed field, sub-menu rows and switches, and each word the database views draw outside a menu. A word is
+  answered by
   whatever the mounter says; a word nothing answers for stands exactly as the fork wrote it, so the seam
   cannot lose a word the fork adds later, and an answer never rewrites itself. Only what a person reads
   changes: the fork's own handles for lookups, its `data-testid` values and the `text` attribute its menu
-  scrollers read, keep the words the fork wrote. What a reader types into the slash menu is matched against
-  the words as shown as well as the words the fork wrote, so a reader who knows only a Korean name still
-  finds the item. The bundle installs the
+  scrollers read, keep the words the fork wrote. What a reader types into the slash menu, or into the search
+  of any menu the fork draws, is matched against the words as shown as well as the words the fork wrote, so
+  a reader who knows only a Korean name still finds the item. The bundle installs the
   translator as it mounts an editor and answers each word the fork says with the console's word for it,
   from the editor's word table, keyed by the English words themselves, following the console's wording
   guide as every other word the bundle writes does.
@@ -471,6 +482,17 @@ studied of AFFiNE and under which licence.
     that asks it for a tree; the table is read whole and keyed by the fork's own sentences and the pieces
     of sentences it assembles. What the bundle names for itself — the three keys over a block chosen
     whole, its format bar, its screens — is the pack's.
+  - **A line that carries a value is asked whole.** Where the fork builds a line around a value — a count,
+    a property's name, the value a filter compares with — the line is asked as one line with the value
+    standing as a named mark where it falls, so the answer places the value where Korean puts it: the
+    fork's `No {property}` is answered with the property's name first and the word for none after it. A
+    line nothing answers for is filled into the fork's own English.
+  - **A name the fork writes for the reader is written in the reader's language.** A new view takes its
+    kind's name, a new property its type's name or the word for a column, and a new kanban view, finding no
+    property to group by, adds a status property with three options; each is written answered, so the
+    reader meets the word table's Korean names rather than the fork's English. Once written, a name is the
+    reader's own and is drawn as it stands. A date a group or a cell shows keeps the form the fork gives
+    it.
   - **A hover room answers its words once it stands drawn.** The words of a room a pointer's hover brings
     up live inside a template, where markup and words stand together, so no word of one can be asked
     before the room is drawn. The room asks them, line by line, of the same seam at the moment its content

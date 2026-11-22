@@ -3,6 +3,7 @@ import {
   popFilterableSimpleMenu,
   popupTargetFromElement,
 } from '@blocksuite/affine-components/context-menu';
+import { translate } from '@blocksuite/affine-components/translate';
 import { SignalWatcher, WithDisposable } from '@blocksuite/global/lit';
 import {
   PlusIcon,
@@ -149,7 +150,7 @@ export class MobileTableGroup extends SignalWatcher(
           role="button"
           aria-expanded=${this.collapsed$.value ? 'false' : 'true'}
           aria-label=${
-            this.collapsed$.value ? 'Expand group' : 'Collapse group'
+            translate(this.collapsed$.value ? 'Expand group' : 'Collapse group')
           }
           tabindex="0"
           @click=${this._toggleCollapse}
@@ -212,7 +213,9 @@ export class MobileTableGroup extends SignalWatcher(
                 data-test-id="affine-database-add-row-button"
                 role="button"
               >
-                ${PlusIcon()}<span style="font-size: 12px">New Record</span>
+                ${PlusIcon()}<span style="font-size: 12px"
+                  >${translate('New Record')}</span
+                >
               </div>
             </div>`
       }

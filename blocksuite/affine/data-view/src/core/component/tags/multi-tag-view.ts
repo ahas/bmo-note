@@ -1,3 +1,4 @@
+import { translate } from '@blocksuite/affine-components/translate';
 import { unsafeCSSVarV2 } from '@blocksuite/affine-shared/theme';
 import { WithDisposable } from '@blocksuite/global/lit';
 import { ShadowlessElement } from '@blocksuite/std';
@@ -64,7 +65,7 @@ export class MultiTagView extends WithDisposable(ShadowlessElement) {
             data-testid="tag-selected"
             class="select-selected"
             style=${style}
-            >${option.value?.trim() ? option.value : 'Untitled'}</span
+            >${option.value?.trim() ? option.value : translate('Untitled')}</span
           >`;
         })}
       </div>

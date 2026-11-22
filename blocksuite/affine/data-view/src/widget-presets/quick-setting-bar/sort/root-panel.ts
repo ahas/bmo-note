@@ -4,6 +4,7 @@ import {
   type PopupTarget,
   popupTargetFromElement,
 } from '@blocksuite/affine-components/context-menu';
+import { translate } from '@blocksuite/affine-components/translate';
 import { unsafeCSSVarV2 } from '@blocksuite/affine-shared/theme';
 import { SignalWatcher, WithDisposable } from '@blocksuite/global/lit';
 import {
@@ -100,7 +101,7 @@ export class SortRootView extends SignalWatcher(
               <data-view-component-button
                 style="color: var(--affine-error-color);border-color: color: var(--affine-error-color)"
                 @click="${deleteRule}"
-                .text="${html`This rule is invalid, click to delete`}"
+                .text="${html`${translate('This rule is invalid, click to delete')}`}"
               ></data-view-component-button>
             `;
           } else {
@@ -155,7 +156,7 @@ export class SortRootView extends SignalWatcher(
               ></data-view-component-button>
               <data-view-component-button
                 @click="${clickOrder}"
-                .text="${html` <div style="padding: 0 4px">${descName}</div>`}"
+                .text="${html` <div style="padding: 0 4px">${translate(descName)}</div>`}"
                 .postfix="${ArrowDownSmallIcon()}"
               ></data-view-component-button>
             `;

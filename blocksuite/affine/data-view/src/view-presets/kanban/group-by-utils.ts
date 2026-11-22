@@ -1,3 +1,4 @@
+import { translate } from '@blocksuite/affine-components/translate';
 import { nanoid } from '@blocksuite/store';
 
 import type { GroupBy } from '../../core/common/types.js';
@@ -107,7 +108,7 @@ export const ensureKanbanGroupColumn = (
   dataSource.propertyDataSet(statusId, {
     options: KANBAN_DEFAULT_STATUS_OPTIONS.map(value => ({
       id: nanoid(),
-      value,
+      value: translate(value),
       color: getTagColor(),
     })),
   });

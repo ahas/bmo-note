@@ -12,6 +12,7 @@ import { property } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { styleMap } from 'lit/directives/style-map.js';
 
+import { translate } from '../translate';
 import { arrowLeftIcon } from './icons.js';
 import { datePickerStyle } from './style.js';
 import { getMonthMatrix, toDate } from './utils.js';
@@ -89,7 +90,7 @@ export class DatePicker extends WithDisposable(LitElement) {
   }
 
   get dayLabel() {
-    return days[this.day];
+    return translate(days[this.day]);
   }
 
   get minHeight() {
@@ -102,7 +103,7 @@ export class DatePicker extends WithDisposable(LitElement) {
   }
 
   get monthLabel() {
-    return months[this.month];
+    return translate(months[this.month]);
   }
 
   get year() {
@@ -159,13 +160,13 @@ export class DatePicker extends WithDisposable(LitElement) {
           () => this._moveMonth(1),
           html`<button
             tabindex="0"
-            aria-label="today"
+            aria-label=${translate('today')}
             class="action-label interactive today"
             @click=${() => {
               this._onChange(new Date());
             }}
           >
-            <span>TODAY</span>
+            <span>${translate('TODAY')}</span>
           </button>`
         )}
       </div>
@@ -183,11 +184,11 @@ export class DatePicker extends WithDisposable(LitElement) {
           ? html`<div class="date-picker-footer">
               <button
                 tabindex="0"
-                aria-label="clear"
+                aria-label=${translate('clear')}
                 class="footer-button interactive"
                 @click=${() => this.onClear?.()}
               >
-                Clear
+                ${translate('Clear')}
               </button>
             </div>`
           : nothing
@@ -197,7 +198,7 @@ export class DatePicker extends WithDisposable(LitElement) {
   /** Week header */
   private _dayHeaderRenderer() {
     return html`<div class="days-header">
-      ${days.map(day => html`<div class="date-cell">${day}</div>`)}
+      ${days.map(day => html`<div class="date-cell">${translate(day)}</div>`)}
     </div>`;
   }
 
@@ -273,7 +274,7 @@ export class DatePicker extends WithDisposable(LitElement) {
           });
           return html`<button
             tabindex=${this._monthCursor === index ? 0 : -1}
-            aria-label=${month}
+            aria-label=${translate(month)}
             class=${classes}
             @click=${() => {
               this._cursor.setMonth(index);
@@ -282,7 +283,7 @@ export class DatePicker extends WithDisposable(LitElement) {
               this._getMatrix();
             }}
           >
-            ${month}
+            ${translate(month)}
           </button>`;
         })}
       </div>`;
@@ -319,7 +320,7 @@ export class DatePicker extends WithDisposable(LitElement) {
     });
     return html`<div class=${classes}>
       <button
-        aria-label="previous month"
+        aria-label=${translate('previous month')}
         class="date-picker-small-action interactive left"
         @click=${onPrev}
         ?disabled=${prevDisable}
@@ -328,7 +329,7 @@ export class DatePicker extends WithDisposable(LitElement) {
       </button>
       ${slot ?? nothing}
       <button
-        aria-label="next month"
+        aria-label=${translate('next month')}
         class="date-picker-small-action interactive right"
         @click=${onNext}
         ?disabled=${nextDisable}

@@ -7,6 +7,10 @@ import {
   type PopupTarget,
   popupTargetFromElement,
 } from '@blocksuite/affine-components/context-menu';
+import {
+  translate,
+  translateFilled,
+} from '@blocksuite/affine-components/translate';
 import { unsafeCSSVarV2 } from '@blocksuite/affine-shared/theme';
 import {
   ArrowRightSmallIcon,
@@ -196,7 +200,7 @@ export const popViewOptions = (
           style="padding:4px 8px;font-size:12px;line-height:20px;font-weight:500;border-radius:4px;cursor:pointer;color:var(--affine-primary-color);"
           @click="${clickChangeAll}"
         >
-          ${isAllShowed ? 'Hide All' : 'Show All'}
+          ${translate(isAllShowed ? 'Hide All' : 'Show All')}
         </div>`;
     },
     get onClose() {
@@ -358,7 +362,7 @@ export const popViewOptions = (
                           ${renderUniLit(meta.renderer.icon)}
                         </div>
                         <div style="${textStyle}">
-                          ${meta.model.defaultName}
+                          ${translate(meta.model.defaultName)}
                         </div>
                       </div>
                     `,
@@ -398,7 +402,7 @@ export const popViewOptions = (
                 <div
                   style="font-size:14px;line-height:22px;color:var(--affine-text-secondary-color);"
                 >
-                  Layout
+                  ${translate('Layout')}
                 </div>
               </div>
               <div style="display:flex;gap:4px;margin-top:8px;">
@@ -419,7 +423,9 @@ export const popViewOptions = (
         closeOnSelect: false,
         postfix: html`
           <div style="font-size: 14px;">
-            ${view.properties$.value.length} shown
+            ${translateFilled('{n} shown', {
+              n: view.properties$.value.length,
+            })}
           </div>
           ${ArrowRightSmallIcon()}
         `,
@@ -443,9 +449,7 @@ export const popViewOptions = (
               ${
                 filterCount === 0
                   ? ''
-                  : filterCount === 1
-                    ? '1 active'
-                    : `${filterCount} active`
+                  : translateFilled('{n} active', { n: filterCount })
               }
             </div>
             ${ArrowRightSmallIcon()}
@@ -471,9 +475,7 @@ export const popViewOptions = (
               ${
                 sortCount === 0
                   ? ''
-                  : sortCount === 1
-                    ? '1 active'
-                    : `${sortCount} active`
+                  : translateFilled('{n} active', { n: sortCount })
               }
             </div>
             ${ArrowRightSmallIcon()}

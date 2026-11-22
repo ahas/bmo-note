@@ -3,6 +3,7 @@ import {
   popFilterableSimpleMenu,
   popupTargetFromElement,
 } from '@blocksuite/affine-components/context-menu';
+import { translate } from '@blocksuite/affine-components/translate';
 import { SignalWatcher, WithDisposable } from '@blocksuite/global/lit';
 import { AddCursorIcon } from '@blocksuite/icons/lit';
 import { ShadowlessElement } from '@blocksuite/std';
@@ -188,7 +189,7 @@ export class KanbanGroup extends SignalWatcher(
                 >
                   ${AddCursorIcon()}
                 </div>
-                Add
+                ${translate('Add')}
               </div>`
         }
       </div>

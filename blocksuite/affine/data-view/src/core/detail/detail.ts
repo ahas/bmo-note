@@ -3,6 +3,7 @@ import {
   popMenu,
   popupTargetFromElement,
 } from '@blocksuite/affine-components/context-menu';
+import { translate } from '@blocksuite/affine-components/translate';
 import type { UniComponent } from '@blocksuite/affine-shared/types';
 import { SignalWatcher, WithDisposable } from '@blocksuite/global/lit';
 import {
@@ -263,7 +264,7 @@ export class RecordDetail extends SignalWatcher(
                   @click="${this._clickAddProperty}"
                 >
                   <div class="icon">${PlusIcon()}</div>
-                  Add Property
+                  ${translate('Add Property')}
                 </div>`
               : nothing
           }

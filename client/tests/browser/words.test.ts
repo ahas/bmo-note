@@ -8,7 +8,7 @@ import ko from "../../i18n/ko.json";
 import { FIXTURE, seeded } from "./fixture";
 import { stoodUp } from "./stack";
 
-import type { Browser, Page } from "playwright-core";
+import type { Browser, Locator, Page } from "playwright-core";
 import type { Stack } from "./stack";
 
 // The editor's own words follow the console's language (docs/design.md, 「The editor's own words follow the
@@ -64,6 +64,26 @@ const REFUSAL = ".form-refusal";
 // The gutter the content keeps from the screen's edges on a phone, which the pill keeps as well.
 const GUTTER_PX = 16;
 
+// The database block, the parts of it a reader presses, and the menu its controls open, wherever it is drawn.
+const DATABASE = "affine-database";
+const VIEWS = "data-view-header-views";
+const SEARCH = "data-view-header-tools-search";
+const MENU = "affine-menu";
+const MENU_ITEM = ".affine-menu-action-text";
+const FILTER_CHIP = "filter-condition-view data-view-component-button";
+const SORT_BAR = ".data-view-sort-button";
+const COLUMN = ".affine-database-column-content";
+const COLUMN_TYPE = ".affine-database-column-type-icon";
+const ADD_COLUMN = ".header-add-column-button";
+const SELECT_CELL = "affine-database-select-cell";
+const DATE_CELL = "affine-database-date-cell";
+const ROW = "data-view-table-row";
+const STATS_CELL = "affine-database-column-stats-cell";
+const KANBAN_GROUP = "affine-data-view-kanban-group";
+const KANBAN_CARD = "affine-data-view-kanban-card";
+// The cover a popup of the editor stands on, over the whole page: a press on it, outside the popup, puts the popup away.
+const POPUP_COVER = 'div[data-range-sync-exclude="true"][style*="z-index: 1001"]';
+
 // The widths the pill is read at: a desktop's, with room for the editor's whole bar, and a phone's.
 const WIDTHS = [
   { name: "a desktop's width", width: 1280, height: 900 },
@@ -73,6 +93,9 @@ const WIDTHS = [
 // The words that stand in English wherever the console's wording guide keeps a product, a format or a
 // protocol name: none of them a word the fork owed the reader.
 const ENGLISH_KEPT = ["AI", "PDF", "URL", "HTML", "Markdown", "KaTeX", "Figma", "GitHub", "Youtube", "YouTube", "Loom", "Spotify", "Miro", "bilibili", "Excalidraw", "Notion", "Airtable", "Tarot", "Google", "LaTeX"];
+
+// The names on a keyboard's keys, which a room shows as the key wears them.
+const KEY_NAMES = ["Esc"];
 
 // A card the slash menu holds for a pointer's hover, named by the words the fork says for it. The fork's words
 // are the keys because the room holds them inside a template, where the seam can only ask what a card says one
@@ -483,6 +506,186 @@ describe.skipIf(!ready)("the editor's own words", () => {
   }
 });
 
+// The database block's own chrome, in both of the views a reader inserts: every word the block draws and every
+// word of the menus, the bars and the rooms its controls open, read in Korean at each width.
+describe.skipIf(!ready)("the database block's own words", () => {
+  for (const width of WIDTHS) {
+    test(
+      `a table view, its bar of views, search, filter, sort, settings, columns, rows and figures say no English at ${width.name}`,
+      async () => {
+        const page = await note(FIXTURE.notes[0]!.id, width);
+        const block = await insertView(page, "Table View");
+        const left = new Map<string, string>();
+        const read = async (step: string) => {
+          for (const word of await englishOver(page, block)) if (!left.has(word)) left.set(word, step);
+        };
+
+        await read("the table as drawn");
+
+        // The bar of views: the menu of the view standing. The bar folds its tabs into a count as narrow screens
+        // lay it out again, so the press goes to the tab of the view standing itself.
+        await centred(block.locator(VIEWS));
+        await menuOpened(page, () => block.locator(`${VIEWS} .database-view-button.selected`).first().dispatchEvent("click"));
+        await read("the view's menu");
+        await popupsClosed(page);
+
+        // The search, with words typed and the clear key's room standing.
+        await centred(block.locator(SEARCH).first());
+        await block.locator(SEARCH).first().click();
+        await page.keyboard.type("zz");
+        await block.locator(`${SEARCH} .close-icon`).first().hover();
+        await shownAnywhere(page, SAID["to clear all"]!);
+        await read("the search and its clear key");
+        await block.locator(`${SEARCH} .close-icon`).first().click();
+
+        // A filter: its menu, the bar a filter stands on, and the condition the bar's chip opens.
+        await menuOpened(page, () => tool(block, "filter"));
+        await read("the filter menu");
+        await page.locator(`${MENU_ITEM}:visible`).first().dispatchEvent("click");
+        await block.locator(FILTER_CHIP).first().waitFor({ timeout: SETTLING_MS });
+        await popupsClosed(page);
+        await read("the filter bar");
+        await centred(block.locator(FILTER_CHIP).first());
+        await menuOpened(page, () => block.locator(FILTER_CHIP).first().click());
+        await read("a filter's condition");
+        await popupsClosed(page);
+
+        // A sort: its menu, and the bar a sort stands on with the rule it opens.
+        await menuOpened(page, () => tool(block, "sort"));
+        await read("the sort menu");
+        await page.locator(`${MENU_ITEM}:visible`).first().dispatchEvent("click");
+        await block.locator(SORT_BAR).first().waitFor({ timeout: SETTLING_MS });
+        await popupsClosed(page);
+        await read("the sort bar");
+        await centred(block.locator(SORT_BAR).first());
+        await block.locator(SORT_BAR).first().click();
+        await shownAnywhere(page, SAID["Ascending"]!);
+        await read("a sort's rule");
+        await popupsClosed(page);
+
+        // The view's settings, and each page they open.
+        await menuOpened(page, () => tool(block, "view-options"));
+        await read("the view's settings");
+        await popupsClosed(page);
+        for (const settings of ["Properties", "Filter", "Sort", "Group"]) {
+          await menuOpened(page, () => tool(block, "view-options"));
+          await settingsPage(page, settings);
+          await read(`the settings' ${settings} page`);
+          await popupsClosed(page);
+        }
+
+        // A row's menu.
+        await centred(block.locator(ROW).first());
+        await menuOpened(page, () => block.locator(`${ROW} .row-op`).nth(1).click());
+        await read("a row's menu");
+        await popupsClosed(page);
+
+        // A column added, its menu and the menu of its type, turned into a select.
+        const columns = block.locator(COLUMN);
+        const before = await columns.count();
+
+        await centred(block.locator(ADD_COLUMN).first());
+        await menuOpened(page, () => block.locator(ADD_COLUMN).first().click());
+        await columns.nth(before).waitFor({ timeout: SETTLING_MS });
+        await read("a new column and the menu it opens");
+        await popupsClosed(page);
+        await centred(columns.nth(before));
+        await menuOpened(page, () => columns.nth(before).click());
+        await read("a column's menu");
+        await subMenuOpened(page, SAID["Type"]!, SAID["Checkbox"]!);
+        await read("a column's types");
+        await menuRow(page, SAID["Select"]!).dispatchEvent("click");
+        await popupsClosed(page);
+        await centred(block.locator(COLUMN_TYPE).nth(before));
+        await menuOpened(page, () => block.locator(COLUMN_TYPE).nth(before).click());
+        await read("a column's type key");
+        await popupsClosed(page);
+
+        // A select's tags.
+        await centred(block.locator(SELECT_CELL).first());
+        await block.locator(SELECT_CELL).first().click();
+        await block.locator(SELECT_CELL).first().press("Enter");
+        await shownAnywhere(page, SAID["Select tag or create one"]!);
+        await read("a select's tags");
+        await popupsClosed(page);
+
+        // A date's picker, in a column added again and turned into a date.
+        await centred(block.locator(ADD_COLUMN).first());
+        await menuOpened(page, () => block.locator(ADD_COLUMN).first().click());
+        await columns.nth(before + 1).waitFor({ timeout: SETTLING_MS });
+        await subMenuOpened(page, SAID["Type"]!, SAID["Checkbox"]!);
+        await menuRow(page, SAID["Date"]!).dispatchEvent("click");
+        await popupsClosed(page);
+        await centred(block.locator(DATE_CELL).first());
+        await block.locator(DATE_CELL).first().click();
+        await block.locator(DATE_CELL).first().press("Enter");
+        await shownAnywhere(page, SAID["TODAY"]!);
+        await read("a date's picker");
+        await popupsClosed(page);
+
+        // The figures under a column, and each group of them.
+        await centred(block.locator(STATS_CELL).first());
+        await menuOpened(page, () => block.locator(STATS_CELL).first().click());
+        await read("the figures' menu");
+        for (const [group, shows] of [
+          ["Count", "Count All"],
+          ["Percent", "Percent Empty"]
+        ] as const) {
+          await subMenuOpened(page, SAID[group]!, SAID[shows]!);
+          await read(`the figures' ${group}`);
+        }
+        await popupsClosed(page);
+
+        expect(Object.fromEntries(left)).toEqual({});
+        await picture(page, `database-table-${width.width}`);
+        await page.context().close();
+      },
+      TEST_MS
+    );
+
+    test(
+      `a kanban view, its groups, its cards and their menus say no English at ${width.name}`,
+      async () => {
+        const page = await note(FIXTURE.notes[0]!.id, width);
+        const block = await insertView(page, "Kanban View");
+        const left = new Map<string, string>();
+        const read = async (step: string) => {
+          for (const word of await englishOver(page, block)) if (!left.has(word)) left.set(word, step);
+        };
+
+        // The status property the view adds for itself, its options and the group of cards that hold none.
+        await shownAnywhere(page, SAID["Todo"]!);
+        await read("the kanban as drawn");
+
+        // A group's menu.
+        await centred(block.locator(KANBAN_GROUP).nth(1));
+        await menuOpened(page, () => block.locator(KANBAN_GROUP).nth(1).locator(".group-header-op").last().click());
+        await read("a group's menu");
+        await popupsClosed(page);
+
+        // A card's menu, and where it moves to.
+        await centred(block.locator(KANBAN_CARD).first());
+        await menuOpened(page, () => block.locator(KANBAN_CARD).first().locator(".card-op").last().click());
+        await read("a card's menu");
+        await subMenuOpened(page, SAID["Move To"]!);
+        await read("where a card moves to");
+        await popupsClosed(page);
+
+        // How the view groups its cards.
+        await menuOpened(page, () => tool(block, "view-options"));
+        await settingsPage(page, "Group");
+        await read("the settings' Group page");
+        await popupsClosed(page);
+
+        expect(Object.fromEntries(left)).toEqual({});
+        await picture(page, `database-kanban-${width.width}`);
+        await page.context().close();
+      },
+      TEST_MS
+    );
+  }
+});
+
 // A page of the console's own, in Korean, at a desktop's width unless another is named: room enough for the
 // editor's whole bar.
 async function opened(path: string, width: { width: number; height: number } = WIDTHS[0]): Promise<Page> {
@@ -714,4 +917,240 @@ async function pillSays(page: Page, wanted: string): Promise<string> {
 async function picture(page: Page, name: string): Promise<void> {
   await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: `${SHOTS}/${name}.png` });
+}
+
+// A database view inserted from the slash menu on a new line at the note's end, standing drawn: the block no
+// database of the note was before, wherever the new line landed.
+async function insertView(page: Page, view: "Table View" | "Kanban View"): Promise<Locator> {
+  const ids = (): Promise<string[]> => page.locator(DATABASE).evaluateAll((found: Element[]) => found.map((one) => one.getAttribute("data-block-id") ?? ""));
+  const before = await ids();
+
+  await intoEmptyLine(page);
+  await page.keyboard.type("/");
+  await page.locator(SLASH, { hasText: SAID[view]! }).first().click();
+  await page.locator(DATABASE).nth(before.length).waitFor({ state: "attached", timeout: SETTLING_MS });
+
+  const id = (await ids()).find((one) => !before.includes(one))!;
+  const block = page.locator(`${DATABASE}[data-block-id="${id}"]`);
+
+  await block.waitFor({ timeout: SETTLING_MS });
+
+  return block;
+}
+
+// A part of a database view brought to the middle of the screen, clear of the bar a phone's screen keeps at its
+// foot, and the pointer over it.
+async function centred(part: Locator): Promise<void> {
+  await part.evaluate((one: Element) => one.scrollIntoView({ block: "center" }));
+  await part.hover();
+}
+
+// One of the tools over a database view, pressed.
+async function tool(block: Locator, name: string): Promise<void> {
+  await centred(block.locator("data-view-header-tools").first());
+  await block.locator(`data-view-header-tools-${name}`).first().click();
+}
+
+// Every popup standing put away, the newest first: a press that lands on the cover a popup stands over, outside
+// the popup, puts it away. The press is handed to the cover itself, since the cover lies under the screen's own
+// handles where it reaches them.
+async function popupsClosed(page: Page): Promise<void> {
+  for (let count = await standingPopups(page); count > 0; count = await standingPopups(page)) {
+    const cover = page.locator(POPUP_COVER).nth(count - 1);
+
+    await cover.dispatchEvent("pointerdown");
+    await cover.waitFor({ state: "detached", timeout: SETTLING_MS });
+  }
+}
+
+// How many popups stand over the page, each on a cover of its own.
+async function standingPopups(page: Page): Promise<number> {
+  return page.locator(POPUP_COVER).count();
+}
+
+// How many menus stand drawn, wherever the editor drew them: a menu stands in a portal's own room.
+async function standingMenus(page: Page): Promise<number> {
+  return page.evaluate((menu: string) => {
+    let count = 0;
+    const walk = (root: ParentNode) => {
+      for (const one of Array.from(root.querySelectorAll("*"))) {
+        if (one.matches(menu) && one.getBoundingClientRect().width > 0) count += 1;
+        if (one.shadowRoot !== null) walk(one.shadowRoot);
+      }
+    };
+
+    walk(document);
+
+    return count;
+  }, MENU);
+}
+
+// A press that opens a menu, done, and the menu it opened standing drawn.
+async function menuOpened(page: Page, act: () => Promise<unknown>): Promise<void> {
+  const before = await standingMenus(page);
+
+  await act();
+  await menusCounted(page, { above: before });
+}
+
+// The row of a standing menu named `word` opening the menu it leads to. A menu's rows open and close the menus
+// they lead to under a resting pointer as well, so the pointer is taken off every menu first; where `shows`, a
+// word that menu alone holds, already stands, the menu stands, and otherwise the row is pressed until `shows`
+// stands, or, where nothing else tells that menu apart, until one more menu stands. The press goes where the row
+// listens for it, since a tall menu may lay its rows under the screen's own bar.
+async function subMenuOpened(page: Page, word: string, shows?: string): Promise<void> {
+  const row = menuRow(page, word);
+
+  await page.mouse.move(0, 0);
+
+  if (shows === undefined) {
+    await menuOpened(page, () => row.dispatchEvent("click"));
+    return;
+  }
+
+  if (await standsAnywhere(page, shows)) return;
+  await row.dispatchEvent("click");
+  await shownAnywhere(page, shows);
+}
+
+// Whether `word` stands drawn anywhere on the page now, a room of a portal's own among it.
+async function standsAnywhere(page: Page, word: string): Promise<boolean> {
+  return page.evaluate((wanted: string) => {
+    let found = false;
+    const walk = (root: ParentNode) => {
+      for (const one of Array.from(root.querySelectorAll("*"))) {
+        if ((one.textContent ?? "").includes(wanted) && one.getBoundingClientRect().width > 0) found = true;
+        if (one.shadowRoot !== null) walk(one.shadowRoot);
+      }
+    };
+
+    walk(document);
+
+    return found;
+  }, word);
+}
+
+// The row of a standing menu that says `word` and nothing more.
+function menuRow(page: Page, word: string): Locator {
+  return page.locator(`${MENU_ITEM}:visible`, { hasText: new RegExp(`^\\s*${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`) }).first();
+}
+
+// The menus standing drawn number more than `above`, or fewer than `below`.
+async function menusCounted(page: Page, bound: { above?: number; below?: number }): Promise<void> {
+  await page.waitForFunction(
+    ({ menu, above, below }: { menu: string; above?: number; below?: number }) => {
+      let count = 0;
+      const walk = (root: ParentNode) => {
+        for (const one of Array.from(root.querySelectorAll("*"))) {
+          if (one.matches(menu) && one.getBoundingClientRect().width > 0) count += 1;
+          if (one.shadowRoot !== null) walk(one.shadowRoot);
+        }
+      };
+
+      walk(document);
+
+      return above !== undefined ? count > above : count < (below ?? 0);
+    },
+    { menu: MENU, ...bound },
+    { timeout: SETTLING_MS }
+  );
+}
+
+// A page of the view's settings opened from its main page, which stands no longer once the page has turned.
+async function settingsPage(page: Page, name: string): Promise<void> {
+  await menuRow(page, SAID[name]!).dispatchEvent("click");
+  await page.waitForFunction(
+    (layout: string) => {
+      let standing = false;
+      const walk = (root: ParentNode) => {
+        for (const one of Array.from(root.querySelectorAll("*"))) {
+          if (one.children.length === 0 && (one.textContent ?? "").trim() === layout && one.getBoundingClientRect().width > 0) standing = true;
+          if (one.shadowRoot !== null) walk(one.shadowRoot);
+        }
+      };
+
+      walk(document);
+
+      return !standing;
+    },
+    SAID["Layout"]!,
+    { timeout: SETTLING_MS }
+  );
+}
+
+// `word` standing drawn anywhere on the page, a room of a portal's own among it.
+async function shownAnywhere(page: Page, word: string): Promise<void> {
+  await page.waitForFunction(
+    (wanted: string) => {
+      let found = false;
+      const walk = (root: ParentNode) => {
+        for (const one of Array.from(root.querySelectorAll("*"))) {
+          if ((one.textContent ?? "").includes(wanted) && one.getBoundingClientRect().width > 0) found = true;
+          if (one.shadowRoot !== null) walk(one.shadowRoot);
+        }
+      };
+
+      walk(document);
+
+      return found;
+    },
+    word,
+    { timeout: SETTLING_MS }
+  );
+}
+
+// The words the newest database view and every menu and room over it show in English: each line of words that
+// stands drawn, and each name a part wears — its hint, its accessible name, its title — beside the product names
+// the console's wording guide keeps and the names on a keyboard's keys.
+async function englishOver(page: Page, block: Locator): Promise<string[]> {
+  const id = await block.getAttribute("data-block-id");
+
+  return page.evaluate(
+    ({ roots, kept, id }: { roots: string; kept: string[]; id: string | null }) => {
+      const found = new Set<string>();
+      const english = (words: string) => /[A-Za-z]{2,}/.test(words) && !kept.some((one) => words.includes(one));
+      const drawn = (one: Element) => {
+        const box = one.getBoundingClientRect();
+
+        return box.width > 0 && box.height > 0 && getComputedStyle(one).visibility !== "hidden";
+      };
+      const read = (root: Node) => {
+        for (const child of Array.from(root.childNodes)) {
+          if (child.nodeType === Node.TEXT_NODE) {
+            const holder = child.parentElement;
+            const line = (child.textContent ?? "").replace(/\s+/g, " ").trim();
+
+            if (holder !== null && !["STYLE", "SCRIPT"].includes(holder.tagName) && drawn(holder) && english(line)) found.add(line);
+          } else if (child instanceof Element && !["STYLE", "SCRIPT", "svg"].includes(child.tagName)) {
+            if (drawn(child)) {
+              for (const name of ["placeholder", "aria-label", "title"]) {
+                const value = child.getAttribute(name);
+
+                if (value !== null && english(value)) found.add(value);
+              }
+            }
+            read(child);
+            if (child.shadowRoot !== null) read(child.shadowRoot);
+          }
+        }
+      };
+      const gather = (root: ParentNode, into: Element[]) => {
+        for (const one of Array.from(root.querySelectorAll("*"))) {
+          if (one.matches(roots)) into.push(one);
+          if (one.shadowRoot !== null) gather(one.shadowRoot, into);
+        }
+      };
+      const tops: Element[] = [];
+
+      gather(document, tops);
+
+      for (const one of tops.filter((top) => !top.matches("affine-database") || top.getAttribute("data-block-id") === id)) {
+        read(one);
+        if (one.shadowRoot !== null) read(one.shadowRoot);
+      }
+
+      return [...found].sort();
+    },
+    { roots: `${DATABASE}, ${MENU}, affine-tooltip, affine-multi-tag-select, date-picker`, kept: [...ENGLISH_KEPT, ...KEY_NAMES], id }
+  );
 }

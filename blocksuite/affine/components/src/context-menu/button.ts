@@ -293,7 +293,7 @@ export const menuButtonItems = {
         content: () => html`
           ${config.prefix}
           <div class="affine-menu-action-text">
-            ${config.label?.() ?? config.name}
+            ${translateValue(config.label?.() ?? config.name)}
           </div>
           <toggle-switch
             .on="${config.on}"

@@ -1,3 +1,5 @@
+import { translate } from '@blocksuite/affine-components/translate';
+
 import { t } from '../../logical/type-presets.js';
 import { createFilter } from './create.js';
 
@@ -7,7 +9,7 @@ export const booleanFilter = [
     self: t.boolean.instance(),
     args: [],
     label: 'Is checked',
-    shortString: () => ': Checked',
+    shortString: () => `: ${translate('Checked')}`,
     impl: value => {
       return !!value;
     },
@@ -18,7 +20,7 @@ export const booleanFilter = [
     self: t.boolean.instance(),
     args: [],
     label: 'Is unchecked',
-    shortString: () => ': Unchecked',
+    shortString: () => `: ${translate('Unchecked')}`,
     impl: value => {
       return !value;
     },

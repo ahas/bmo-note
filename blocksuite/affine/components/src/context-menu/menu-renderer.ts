@@ -24,6 +24,7 @@ import { property } from 'lit/decorators.js';
 import { createRef, ref } from 'lit/directives/ref.js';
 import { styleMap } from 'lit/directives/style-map.js';
 
+import { translate, translateValue } from '../translate';
 import type { MenuFocusable } from './focusable.js';
 import { Menu, type MenuConfig, type MenuOptions } from './menu.js';
 import type { MenuComponentInterface } from './types.js';
@@ -167,7 +168,7 @@ export class MenuComponent
       <div class="affine-menu-body">
         ${
           result.length === 0 && this.menu.enableSearch
-            ? html` <div class="no-results">No Results</div>`
+            ? html` <div class="no-results">${translate('No Results')}</div>`
             : ''
         }
         ${result}
@@ -194,7 +195,7 @@ export class MenuComponent
       <input
         autocomplete="off"
         class="affine-menu-search"
-        placeholder="${config?.placeholder ?? ''}"
+        placeholder="${translate(config?.placeholder ?? '')}"
         data-1p-ignore
         ${ref(this.searchRef)}
         type="text"
@@ -234,7 +235,7 @@ export class MenuComponent
         <div
           style="flex:1;font-weight:500;font-size: 14px;line-height: 22px;color: var(--affine-text-primary-color)"
         >
-          ${title.text}
+          ${translateValue(title.text)}
         </div>
         ${title.postfix?.()}
         ${
@@ -359,7 +360,7 @@ export class MobileMenuComponent
           justify-content: center;
 "
         >
-          ${title?.text}
+          ${translateValue(title?.text)}
         </div>
         <div
           @click="${this.onClose}"
@@ -373,7 +374,7 @@ export class MobileMenuComponent
           margin-right: 10px;
          "
         >
-          Done
+          ${translate('Done')}
         </div>
       </div>
     `;

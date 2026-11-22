@@ -2,6 +2,7 @@ import { IS_MOBILE } from '@blocksuite/global/env';
 import { computed, signal } from '@preact/signals-core';
 import type { TemplateResult } from 'lit';
 
+import { translate } from '../translate';
 import { MenuFocusable } from './focusable.js';
 import type { MenuComponentInterface } from './types.js';
 
@@ -160,8 +161,13 @@ export class Menu {
     return result;
   }
 
+  // A reader finds an item by the words it is shown in as well as the words these sources name it by.
   search(name: string) {
-    return name.toLowerCase().includes(this.searchName$.value.toLowerCase());
+    const sought = this.searchName$.value.toLowerCase();
+
+    return [name, translate(name)].some(one =>
+      one.toLowerCase().includes(sought)
+    );
   }
 
   setFocusOnly(ele?: MenuFocusable) {

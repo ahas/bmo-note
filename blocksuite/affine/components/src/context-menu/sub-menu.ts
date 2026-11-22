@@ -12,6 +12,7 @@ import { css, html, nothing, type TemplateResult } from 'lit';
 import { property } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 
+import { translateValue } from '../translate';
 import { MenuButton } from './button.js';
 import { MenuFocusable } from './focusable.js';
 import { Menu, type MenuOptions } from './menu.js';
@@ -257,7 +258,7 @@ export const subMenuItems = {
         content: () =>
           html`${config.prefix}
             <div class="affine-menu-action-text">
-              ${config.label?.() ?? config.name}
+              ${translateValue(config.label?.() ?? config.name)}
             </div>
             ${config.postfix}
             ${config.disableArrow ? nothing : ArrowRightSmallIcon()} `,

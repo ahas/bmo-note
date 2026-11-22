@@ -116,6 +116,21 @@ function drawnInCodeFace(line: Text): boolean {
 }
 
 /**
+ * A line of the editor's own chrome that carries a value — a count, a name — asked as one line with each
+ * value standing as `{name}` where it falls, so the answer may place the value where its language puts it.
+ * The answer, or the line as these sources wrote it, is then filled with the values; a `{name}` nothing
+ * fills stands as written.
+ */
+export function translateFilled(
+  said: string,
+  fills: Record<string, string | number>
+): string {
+  return translate(said).replace(/\{(\w+)\}/g, (whole, name: string) =>
+    Object.hasOwn(fills, name) ? String(fills[name]) : whole
+  );
+}
+
+/**
  * The words of the editor's own chrome, as the reader reads them.
  */
 export function translate(said: string): string {

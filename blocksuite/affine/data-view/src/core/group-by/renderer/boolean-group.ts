@@ -1,3 +1,4 @@
+import { translateFilled } from '@blocksuite/affine-components/translate';
 import { CheckBoxCheckSolidIcon, CheckBoxUnIcon } from '@blocksuite/icons/lit';
 import { css, html } from 'lit';
 
@@ -18,7 +19,9 @@ export class BooleanGroupView extends BaseGroup<boolean, NonNullable<unknown>> {
   protected override render(): unknown {
     // Handle null/undefined values
     if (this.value == null) {
-      const displayName = `No ${this.group.property.name$.value ?? 'value'}`;
+      const displayName = translateFilled('No {property}', {
+        property: this.group.property.name$.value ?? 'value',
+      });
       return html` <div class="data-view-group-title-boolean-view">
         ${displayName}
       </div>`;

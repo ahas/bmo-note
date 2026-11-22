@@ -5,6 +5,7 @@ import {
   type PopupTarget,
   popupTargetFromElement,
 } from '@blocksuite/affine-components/context-menu';
+import { translate } from '@blocksuite/affine-components/translate';
 import { unsafeCSSVarV2 } from '@blocksuite/affine-shared/theme';
 import { rangeWrap } from '@blocksuite/affine-shared/utils';
 import { IS_MOBILE } from '@blocksuite/global/env';
@@ -131,7 +132,7 @@ export class TagManager {
     const options: RenderOption[] = [];
     const filterText = this.text$.value.toLocaleLowerCase();
     for (const option of this.options$.value) {
-      const label = option.value?.trim() ? option.value : 'Untitled';
+      const label = option.value?.trim() ? option.value : translate('Untitled');
       if (
         !filterText ||
         label.toLocaleLowerCase().includes(filterText) ||
@@ -347,7 +348,7 @@ export class MultiTagSelect extends SignalWatcher(
         <input
           class="${tagSelectInputStyle}"
           ${ref(this._selectInput)}
-          placeholder="Type here..."
+          placeholder="${translate('Type here...')}"
           .value="${this.text.value}"
           @input="${this._onInput}"
           @keydown="${this._onInputKeydown}"
@@ -363,7 +364,7 @@ export class MultiTagSelect extends SignalWatcher(
     });
     return html` <div class="${tagContainerStyle}" style=${style}>
       <div data-testid="tag-name" class="${tagTextStyle}">
-        ${name?.trim() ? name : 'Untitled'}
+        ${name?.trim() ? name : translate('Untitled')}
       </div>
       ${
         onDelete
@@ -382,7 +383,7 @@ export class MultiTagSelect extends SignalWatcher(
           'layer/insideBorder/border'
         )};margin: 4px 0;"
       ></div>
-      <div class="${selectOptionsTipsStyle}">Select tag or create one</div>
+      <div class="${selectOptionsTipsStyle}">${translate('Select tag or create one')}</div>
       <div data-testid="tag-option-list" class="${selectOptionsContainerStyle}">
         ${repeat(
           this.tagManager.filteredOptions$.value,
@@ -411,7 +412,7 @@ export class MultiTagSelect extends SignalWatcher(
                   ${
                     select.isCreate
                       ? html` <div class="${selectOptionNewIconStyle}">
-                          Create
+                          ${translate('Create')}
                         </div>`
                       : html`
                           <div
@@ -560,7 +561,7 @@ const popMobileTagSelect = (target: PopupTarget, ops: TagSelectOptions) => {
                 });
                 return html` <div class="${tagContainerStyle}" style=${style}>
                   <div class="${tagTextStyle}">
-                    ${option.value?.trim() ? option.value : 'Untitled'}
+                    ${option.value?.trim() ? option.value : translate('Untitled')}
                   </div>
                   <div
                     class="${tagDeleteIconStyle}"
@@ -577,7 +578,7 @@ const popMobileTagSelect = (target: PopupTarget, ops: TagSelectOptions) => {
                 .value="${tagManager.text$.value}"
                 @input="${onInput}"
                 @keydown="${onKeydown}"
-                placeholder="Type here..."
+                placeholder="${translate('Type here...')}"
                 type="text"
                 style="outline: none;border: none;flex:1;min-width: 10px"
               />
@@ -601,13 +602,13 @@ const popMobileTagSelect = (target: PopupTarget, ops: TagSelectOptions) => {
                         ${
                           option.isCreate
                             ? html` <div style="margin-right: 8px;">
-                                Create
+                                ${translate('Create')}
                               </div>`
                             : ''
                         }
                         <div class="${tagContainerStyle}" style=${style}>
                           <div class="${tagTextStyle}">
-                            ${option.value?.trim() ? option.value : 'Untitled'}
+                            ${option.value?.trim() ? option.value : translate('Untitled')}
                           </div>
                         </div>
                       </div>

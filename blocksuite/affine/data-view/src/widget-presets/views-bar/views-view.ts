@@ -5,6 +5,7 @@ import {
   type PopupTarget,
   popupTargetFromElement,
 } from '@blocksuite/affine-components/context-menu';
+import { translateFilled } from '@blocksuite/affine-components/translate';
 import {
   DeleteIcon,
   DuplicateIcon,
@@ -252,7 +253,7 @@ export class DataViewHeaderViews extends WidgetBase {
     }
     return html`
       <div class="database-view-button dv-hover" @click="${this._showMore}">
-        ${views.length - count} More
+        ${translateFilled('{n} More', { n: views.length - count })}
       </div>
     `;
   };

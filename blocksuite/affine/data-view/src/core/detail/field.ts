@@ -3,6 +3,7 @@ import {
   popMenu,
   popupTargetFromElement,
 } from '@blocksuite/affine-components/context-menu';
+import { translate } from '@blocksuite/affine-components/translate';
 import { SignalWatcher, WithDisposable } from '@blocksuite/global/lit';
 import {
   DeleteIcon,
@@ -101,7 +102,7 @@ export class RecordField extends SignalWatcher(
     }
 
     .field-content.empty::before {
-      content: 'Empty';
+      content: attr(data-empty-word);
       color: var(--affine-text-disable-color);
       font-size: 14px;
       line-height: 22px;
@@ -262,7 +263,11 @@ export class RecordField extends SignalWatcher(
           <div class="filed-name">${column.name$.value}</div>
         </div>
       </div>
-      <div @click="${this._click}" class="${contentClass}">
+      <div
+        @click="${this._click}"
+        class="${contentClass}"
+        data-empty-word="${translate('Empty')}"
+      >
         ${renderUniLit(view, props, {
           ref: this._cell,
           class: 'kanban-cell',

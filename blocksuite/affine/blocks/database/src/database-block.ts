@@ -7,6 +7,7 @@ import {
 import { DropIndicator } from '@blocksuite/affine-components/drop-indicator';
 import { PeekViewProvider } from '@blocksuite/affine-components/peek';
 import { toast } from '@blocksuite/affine-components/toast';
+import { translate } from '@blocksuite/affine-components/translate';
 import type { DatabaseBlockModel } from '@blocksuite/affine-model';
 import { EDGELESS_TOP_CONTENTEDITABLE_SELECTOR } from '@blocksuite/affine-shared/consts';
 import {
@@ -403,8 +404,9 @@ export class DatabaseBlockComponent extends CaptionedBlockComponent<DatabaseBloc
                 whiteSpace: 'wrap',
               })}
             >
-              Mobile database editing is not supported yet. You can open it in
-              experimental features, or edit it in desktop mode.
+              ${translate(
+                'Mobile database editing is not supported yet. You can open it in experimental features, or edit it in desktop mode.'
+              )}
             </div>`,
             accent: 'warning',
             onClose: () => {

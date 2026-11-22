@@ -1,3 +1,4 @@
+import { translate } from '@blocksuite/affine-components/translate';
 import type { InsertToPosition } from '@blocksuite/affine-shared/utils';
 import { nanoid } from '@blocksuite/store';
 import { computed, type ReadonlySignal, signal } from '@preact/signals-core';
@@ -78,7 +79,8 @@ export class ViewManagerBase implements ViewManager {
     const id = this.dataSource.viewDataAdd({
       ...data,
       id: nanoid(),
-      name: meta.model.defaultName,
+      // A new view is named in the reader's language: the name is the reader's own once written.
+      name: translate(meta.model.defaultName),
       mode: type,
     });
     this.setCurrentView(id);

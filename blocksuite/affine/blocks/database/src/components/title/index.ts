@@ -1,3 +1,4 @@
+import { translate } from '@blocksuite/affine-components/translate';
 import { unsafeCSSVarV2 } from '@blocksuite/affine-shared/theme';
 import { stopPropagation } from '@blocksuite/affine-shared/utils';
 import type { DataViewUILogicBase } from '@blocksuite/data-view';
@@ -152,7 +153,9 @@ export class DatabaseTitle extends SignalWatcher(
       data-title-empty="${isEmpty}"
       data-title-focus="${this.isFocus$.value}"
     >
-      <div class="text" style="${untitledStyle}">Untitled</div>
+      <div class="text" style="${untitledStyle}">
+        ${translate('Untitled')}
+      </div>
       <div class="text">${this.text$.value}</div>
       <textarea
         .disabled="${this.readonly$.value}"
