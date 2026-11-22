@@ -59,8 +59,11 @@ names 「The editor's own words follow the console's language」. It is a module
 layer, read by the renderers of that layer and of the blocks and widgets the page view mounts, at the point
 where a word of the editor's own chrome is drawn, and it answers nothing by itself: whoever mounts the
 editor installs the answers, which is why the words live in the console bundle's pack and not in the fork's
-sources. A merge of `upstream/canary` keeps the module and those reads; a renderer the merge adds, or a word
-it adds to a renderer the seam already reads, needs no change, and one the merge rebuilds elsewhere is
+sources. A word drawn out of a template cannot be asked at that point, so the hover room the fork draws asks
+the lines of its own drawn content of the same seam, and a renderer that draws a room of the editor's own
+chrome says so to it; a room that shows a reader's own words says nothing of the kind and is left alone. A
+merge of `upstream/canary` keeps the module and those reads; a renderer the merge adds, or a word or a drawn
+line it adds to a renderer the seam already reads, needs no change, and one the merge rebuilds elsewhere is
 untranslated until it is read the same way. The words' browser file fails on exactly that case, and the
 client's check builds the copy the same way the deployment does.
 

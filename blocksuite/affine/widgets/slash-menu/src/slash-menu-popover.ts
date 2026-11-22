@@ -460,6 +460,7 @@ export class InnerSlashMenu extends WithDisposable(LitElement) {
           tip-position="right"
           .offset=${22}
           .tooltipStyle=${slashItemToolTipStyle}
+          .translateWords=${true}
           .hoverOptions=${{
             enterDelay: AFFINE_SLASH_MENU_TOOLTIP_TIMEOUT,
             allowMultiple: false,

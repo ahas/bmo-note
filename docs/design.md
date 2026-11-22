@@ -395,9 +395,13 @@ studied of AFFiNE and under which licence.
   screen.** The console reads Korean: it selects a run of words and reads the keys of the toolbar that rises
   over them, their tooltips and the entries of the menu gathered under the last one; it calls the slash menu
   and reads its group titles and item names; it reads the hint an empty line holds, a caption's hint and the
-  line a copy of a block says. Every word it reads is the pack's word for that thing, read out of the pack by
-  the file itself, never written as letters in the file, and no word of that chrome is left standing in the
-  fork's English.
+  line a copy of a block says. It holds a pointer over a toolbar key and over the items of the slash menu and
+  reads the rooms that rise for them, so a word held only in a hover room is read where a reader sees it.
+  Every line left standing in those rooms in the fork's English is a line the pack answers with nothing: a
+  file's name or a person's, a formula, a piece of code, a date, or a product's own name, each one named in
+  the file.
+  Every other word it reads is the pack's word for that thing, read out of the pack by the file itself,
+  never written as letters in the file, and no word of that chrome is left standing in the fork's English.
 - **The editor's styles stay in the editor.** The vendored editor lays its stylesheets on the page as plain
   style elements, unlayered, which beat every layered rule of the console; and a few of its rules name nothing
   of the editor's own — a bare `input`, a `.truncate` — so once a note is opened they would reach every screen
@@ -427,6 +431,17 @@ studied of AFFiNE and under which licence.
   held in the bundle's pack under both locales, keyed by the English words themselves, following the
   console's wording guide as every other word the bundle writes does. What the bundle names for itself —
   the three keys over a block chosen whole, its format bar, its screens — was always the pack's.
+  - **A hover room answers its words once it stands drawn.** The words of a room a pointer's hover brings
+    up live inside a template, where markup and words stand together, so no word of one can be asked
+    before the room is drawn. The room asks them, line by line, of the same seam at the moment its content
+    is laid out for the reader, and a renderer asks only for a room that holds the editor's own chrome — a
+    key's hint, the slash menu's card — so a room holding a reader's own words, a document's title among
+    them, is never rewritten. A line is asked as it reads with its outer spacing cut away and is put back
+    with that spacing kept, and a line nothing answers for stands exactly as the fork drew it. Which lines
+    the pack answers is the bundle's to say: it answers what a card says to the reader — its lines of
+    guidance, the names it carries, and the sample lines of the document a card pictures — and leaves what
+    a card only shows as contents: a file's name or a person's, a value filling a cell of a sample table,
+    the letters and numbers of a formula or of code, and a date.
 - The screen is read in the console's screen mode and keeps none of its own. The bundle's chrome is
   drawn from the console's tokens, so it stands in the mode the console stands in as it is written;
   the vendored editor colours itself by a `data-theme` attribute of the document element instead —

@@ -14,6 +14,7 @@ import { property } from 'lit/decorators.js';
 import { type StyleInfo, styleMap } from 'lit/directives/style-map.js';
 
 import { HoverController, type HoverOptions } from '../hover/index.js';
+import { translateDrawn } from '../translate';
 
 const styles = css`
   .affine-tooltip {
@@ -169,9 +170,18 @@ export class Tooltip extends LitElement {
               updatePortal();
             });
 
-            const children = Array.from(this.childNodes).map(node =>
-              node.cloneNode(true)
-            );
+            const children = Array.from(this.childNodes).map(node => {
+              const drawn = node.cloneNode(true);
+
+              // The lines of a room stand here, drawn out of a template, where a
+              // reader is about to read them; the mounter's answers are asked
+              // now. A room of a reader's own words says nothing of the kind.
+              if (this.translateWords) {
+                translateDrawn(drawn);
+              }
+
+              return drawn;
+            });
 
             return html`
               <style>
@@ -321,6 +331,15 @@ export class Tooltip extends LitElement {
 
   @property({ attribute: false })
   accessor tooltipStyle: CSSResult = css``;
+
+  /**
+   * Whether what this room draws says words of the editor's own chrome, answered
+   * line by line as the room is laid out for the reader. A room that shows a
+   * reader's own words — a document's title among them — leaves this off, and
+   * what it draws stands as it was drawn.
+   */
+  @property({ type: Boolean, attribute: 'translate-words' })
+  accessor translateWords = false;
 
   @property({ attribute: false })
   accessor zIndex: number | string = 'var(--affine-z-index-popover)';

@@ -153,6 +153,7 @@ export class EditorIconButton extends LitElement {
                 tip-position=${this.tipPosition}
                 .arrow=${this.arrow}
                 .offset=${this.tooltipOffset}
+                .translateWords=${typeof tooltip !== 'string'}
                 >${tooltip}</affine-tooltip
               >`
             : nothing

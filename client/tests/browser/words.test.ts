@@ -17,9 +17,12 @@ import type { Stack } from "./stack";
 // wear and the words the menus they hold carry, the kinds the menu that changes a block's kind offers, the slash
 // menu standing on an empty line with its group titles, its item names and the line under each and what a reader
 // typing there is left with, the hint the lines carry for an empty one, and a code block's keys with the hint its
-// caption waits under. Every word read is the pack's word for that thing, read out of the pack by the file itself,
+// caption waits under. It also holds a pointer over the keys of that toolbar and over the items of the slash menu
+// and reads the rooms that rise for them, where the fork's words stand only inside a template. Every word read is
+// the pack's word for that thing, read out of the pack by the file itself, never written as letters in the file,
 // and nothing standing in that chrome is left in the fork's English beside the product names the console's wording
-// guide keeps in their own. Words held only in the room a pointer's hover brings up are not read here. Skipped
+// guide keeps in their own. The English a room still holds is what the pack answers with nothing — the sample data
+// and the dates a card pictures, a file's name, a formula, code — and the file names it card by card. Skipped
 // where the browser build is not on the machine.
 
 const ready = existsSync(chromium.executablePath());
@@ -52,6 +55,131 @@ const CAPTION = "textarea.block-caption-editor";
 // The words that stand in English wherever the console's wording guide keeps a product, a format or a
 // protocol name: none of them a word the fork owed the reader.
 const ENGLISH_KEPT = ["AI", "PDF", "URL", "HTML", "Markdown", "KaTeX", "Figma", "GitHub", "Youtube", "YouTube", "Loom", "Spotify", "Miro", "bilibili", "Excalidraw", "Notion", "Airtable", "Tarot", "Google", "LaTeX"];
+
+// A card the slash menu holds for a pointer's hover, named by the words the fork says for it. The fork's words
+// are the keys because the room holds them inside a template, where the seam can only ask what a card says one
+// line at a time: `caption` is the word the card wears, `says` the lines the pack answers it, and `keeps` the
+// English the card only pictures — the sample data or the date of a document drawn there, a file's name, a
+// formula, a piece of code laid in the editor's code face, which the seam leaves exactly as the fork drew it.
+interface Card {
+  item: string;
+  caption: string;
+  says: string[];
+  keeps: string[];
+}
+
+const CARDS: Card[] = [
+  {
+    item: "Text",
+    caption: "Text",
+    says: ["In a decentralized system, we can have a kaleidoscopic", "complexity to our data.", "Any user may have a different perspective on what data they", "either have, choose to share, or accept.", "For example, one user’s edits to a document might be on", "their laptop on an airplane; when the plane lands and the", "computer reconnects, those changes are distributed to", "other users.", "Other users might choose to accept all, some, or none of", "those changes to their version of the document."],
+    keeps: []
+  },
+  {
+    // The same lines again, where the card cuts them narrower.
+    item: "Divider",
+    caption: "Divider",
+    says: ["In a decentralized system, we can have a", "kaleidoscopic complexity to our data.", "Any user may have a different perspective", "on what data they either have, choose to", "share, or accept.", "For example, one user’s edits to a", "document might be on their laptop on an", "airplane; when the plane lands and the", "computer reconnects, those changes are", "distributed to other users.", "Other users might choose to accept all,", "some, or none of those changes to their", "version of the document."],
+    keeps: []
+  },
+  {
+    item: "Bulleted List",
+    caption: "Bulleted List",
+    says: ["Here's an example of a bulleted list.", "You can list your plans such as this"],
+    keeps: []
+  },
+  {
+    item: "Numbered List",
+    caption: "Numbered List",
+    says: ["Here's an example of a numbered list.", "You can list your plans such as this"],
+    keeps: []
+  },
+  {
+    item: "To-do List",
+    caption: "To-do List",
+    says: ["Here is an example of todo list.", "Make a list for building preview."],
+    keeps: []
+  },
+  {
+    item: "Callout",
+    caption: "Callout",
+    says: ["Highlight important notes.", "A storyboard is a visual representation of a story, typically presented in the form of sequential", "panels. Each panel features illustrations or images accompanied by notes describing key", "scenes or shots, including details of action and dialogue."],
+    keeps: []
+  },
+  {
+    item: "Table",
+    caption: "Table",
+    says: ["Insert editable tabular data.", "Country", "Ranking", "Weekly Overtime (Hrs)"],
+    keeps: ["China", "Japan", "USA", "🥇 First", "🥈 Second", "🥉 Third"]
+  },
+  {
+    item: "Table View",
+    caption: "Table View",
+    says: ["Display items in a table format.", "Untitled Table", "Title", "Status", "Todo", "In Progress", "Done"],
+    keeps: ["Task 1", "Task 2", "Task 3"]
+  },
+  {
+    item: "Kanban View",
+    caption: "Kanban View",
+    says: ["Visualize data in a dashboard.", "Untitled Kanban", "Ungroups", "In Progress", "Done"],
+    keeps: ["Task 1", "Task 4", "Task 5"]
+  },
+  {
+    item: "Image",
+    caption: "Photo",
+    says: ["Insert a photo."],
+    keeps: []
+  },
+  {
+    item: "Attachment",
+    caption: "Attachment",
+    says: ["Attach a file."],
+    keeps: ["Rickroll.mp3"]
+  },
+  {
+    item: "Frame",
+    caption: "Frame",
+    says: ["Create a blank frame in Edgeless", "Frame"],
+    keeps: []
+  },
+  {
+    item: "Mind Map",
+    caption: "Mind Map",
+    says: ["Create a mind map in Edgeless", "Mind Map", "Edgeless"],
+    keeps: []
+  },
+  {
+    item: "Inline Equation",
+    caption: "Inline Equation",
+    says: ["Energy. Mass. Light. In a single equation,"],
+    keeps: ["E=mc^2"]
+  },
+  {
+    item: "Code Block",
+    caption: "Code Block",
+    says: [],
+    keeps: ["struct", "var", "some", "body:", "ContentView", "View", "Text", "helloTo", '"Hello', 'helloTo)!"', '"World"', "@State"]
+  },
+  {
+    item: "Today",
+    caption: "Today",
+    says: ["Insert today’s date"],
+    keeps: ["Wed 3 Aug, 2022"]
+  },
+  {
+    // A card that cuts its line around the day it names: the seam answers each piece, the picture's own date stands.
+    item: "Tomorrow",
+    caption: "Tomorrow",
+    says: ["Insert", "tomorrow’s", "date"],
+    keeps: ["Wed 3 Aug, 2022"]
+  },
+  {
+    item: "Now",
+    caption: "Now",
+    says: ["Insert", "now", "date", "and time."],
+    keeps: ["11:45:14 Wed 3 Aug, 2022"]
+  }
+];
 
 interface Drawn {
   /** The words the chrome holds as text. */
@@ -226,6 +354,49 @@ describe.skipIf(!ready)("the editor's own words", () => {
     TEST_MS
   );
 
+  test(
+    "the rooms a pointer's hover brings up say the pack's words, and picture only what the pack leaves in the fork's English",
+    async () => {
+      const page = await note(FIXTURE.notes[0]!.id);
+
+      // A key's room holds the one word the pack gave the key.
+      await page.locator(PARAGRAPH).first().click({ clickCount: 3 });
+      await page.locator(TOOLBAR).waitFor({ state: "visible", timeout: SETTLING_MS });
+
+      for (const key of ["Bold", "Conversions", "Create Table", "More"]) {
+        const room = await hovered(page, `${TOOLBAR} editor-icon-button[aria-label="${SAID[key]}"]`, SAID[key]);
+
+        expect({ key, room }).toEqual({ key, room: [SAID[key]] });
+      }
+
+      // A card's room holds the words the pack answers for the lines it says, and pictures the rest.
+      await intoEmptyLine(page);
+      await page.keyboard.type("/");
+      await standing(page, SLASH_GROUPS, SAID["Basic"]);
+
+      const items = await named(page, SLASH);
+
+      for (const card of CARDS) {
+        const index = items.indexOf(SAID[card.item]);
+
+        expect(index).toBeGreaterThanOrEqual(0);
+
+        const room = await hovered(page, `${SLASH} >> nth=${index}`, SAID[card.caption]);
+        const answered = [SAID[card.caption], ...card.says.map((one) => SAID[one])];
+        const kept = card.keeps;
+        const left = room.filter((one) => /[A-Za-z]{2,}/.test(one) && !ENGLISH_KEPT.some((held) => one.includes(held)) && !kept.includes(one));
+
+        expect({ card: card.item, answered: answered.filter((one) => room.includes(one)) }).toEqual({ card: card.item, answered });
+        expect({ card: card.item, pictured: kept.filter((one) => room.includes(one)) }).toEqual({ card: card.item, pictured: kept });
+        expect({ card: card.item, english: left }).toEqual({ card: card.item, english: [] });
+      }
+
+      await picture(page, "words-hover-rooms");
+      await page.context().close();
+    },
+    TEST_MS
+  );
+
 });
 
 // A page of the console's own, in Korean, at a desktop's width: room enough for the editor's whole bar.
@@ -296,6 +467,61 @@ function drawnRoot(root: string): string {
 // name an item draws in a room of its own is not.
 async function standing(page: Page, root: string, wanted: string): Promise<void> {
   await page.locator(drawnRoot(root), { hasText: wanted }).first().waitFor({ timeout: SETTLING_MS });
+}
+
+// The room a hover brings up, read as a reader reads it: every line of words it holds, in the order it lays
+// them. A room stands in a portal of its own beside the document, and an earlier key's room may still be
+// fading, so the newest room that says the word the reader came for is the room read.
+async function hovered(page: Page, selector: string, says: string): Promise<string[]> {
+  // The pointer leaves whatever it stood over, so a room rises only where it is asked for.
+  await page.mouse.move(0, 0);
+  await page.locator(selector).first().hover({ timeout: SETTLING_MS });
+
+  const room = await page.waitForFunction(
+    (wanted: string) => {
+      const standing: string[][] = [];
+
+      for (const portal of Array.from(document.querySelectorAll("div.blocksuite-portal"))) {
+        const root = portal.shadowRoot ?? portal;
+
+        for (const room of Array.from(root.querySelectorAll('[role="tooltip"]'))) {
+          const lines: string[] = [];
+
+          const walk = (node: Node) => {
+            for (const child of Array.from(node.childNodes)) {
+              if (child.nodeType === Node.TEXT_NODE) {
+                const line = (child.data ?? "").replace(/\s+/g, " ").trim();
+
+                if (line !== "") {
+                  lines.push(line);
+                }
+              } else if (child.nodeType === Node.ELEMENT_NODE && !["STYLE", "SCRIPT"].includes((child as Element).tagName.toUpperCase())) {
+                walk(child);
+              }
+            }
+          };
+
+          walk(room);
+
+          if (lines.includes(wanted)) {
+            standing.push([...new Set(lines)]);
+          }
+        }
+      }
+
+      return standing.length > 0 ? standing[standing.length - 1] : undefined;
+    },
+    says,
+    { timeout: SETTLING_MS }
+  );
+
+  const lines = await room.jsonValue();
+
+  if (lines === undefined) {
+    throw new Error(`no room rose that says ${says}`);
+  }
+
+  return lines;
 }
 
 // What the chrome of `root` says: the words it draws as text, and the names it wears. The chrome is read
