@@ -311,10 +311,12 @@ studied of AFFiNE and under which licence.
   shape, never a cell stretched to the row's height. Slash commands stay a shortcut, never
   the way in. The image key opens a file input of the bundle's own: it carries the native hidden
   attribute, and the bundle's stylesheet holds it hidden with an `!important` rule. The selection toolbar,
-  the drag handle and the floating format menu are the fork's own and stand as it drew them, but for two
+  the drag handle and the floating format menu are the fork's own and stand as it drew them, but for four
   things. On a touch screen the floating format menu stands down: it is wider than a phone, it doubles the
-  bar, and the phone lays its own selection menu over the words; the bar does its work there. And every
-  block the drag handle selects whole raises the selection toolbar (below).
+  bar, and the phone lays its own selection menu over the words; the bar does its work there. The selection
+  toolbar over a block chosen whole stands on a touch screen all the same, since a chosen block is what a
+  phone holds to act on (below). Every block chosen whole, by the handle or by a held finger, raises the
+  selection toolbar (below). And the toolbar never stands wider than the screen it is drawn on (below).
 - **Every block has its handle and its toolbar.** The drag handle stands beside whichever top-level block
   the pointer is over, whatever its kind; pressing it selects that block whole, and the selection toolbar
   rises over it with what the block offers, its copy, duplicate and delete among them. Delete or Backspace
@@ -335,10 +337,32 @@ studied of AFFiNE and under which licence.
   stands its handle a toggle's width further out; so the editor's viewport, which clips what stands outside
   it, keeps a leading room of its own, 16 pixels, and the head over the document moves with it, so that
   handle stands in view where the column meets the editor's edge, on a phone or at full width.
-- The handle follows a pointer resting over a block, so a touch screen, which has none, shows it on no
-  block, and the selection toolbar stands down there whole with the floating format menu. At a phone's
-  width with a pointer, the fork's toolbar over a text block is wider than the screen, so its more menu,
-  and the delete in it, stands past the screen's edge; Delete and Backspace still remove the block.
+- **On a phone a held finger in the gutter chooses a block whole.** The handle follows a pointer, which a
+  touch screen has none of, so a phone reaches a block the way its note rows are reached: with a held finger.
+  The room left of the document's column, where a pointer's handle stands, is where the finger holds, and
+  bmo-ui's one hold (bmo-ui's `docs/components.md`, 「A held finger」) reads it: the top-level block standing
+  at that height is chosen whole and its toolbar rises over it, the same choice and the same toolbar a press
+  on the handle makes. A short press in the gutter is left to the fork's own reading of a press on the blank
+  room beside the column, which chooses a block that holds no words and hands a line of words its caret; the
+  hold is what chooses a line of words whole. A finger that slides past the hold's own distance, a scroll
+  that starts under it, a second finger or a press shorter than the hold makes no choice of this
+  interaction's, and the click the lifted finger lands is turned away, since the editor would otherwise stand
+  its own reading of the blank room in place of what the hold chose. The hold never reaches the words: a
+  field's words keep the hold to the phone's own choosing of them, and the block under them is chosen from
+  the gutter beside it.
+- The selection toolbar stands on a touch screen where a block stands chosen whole, though the floating
+  format menu stands down there: the screen carries a mark while its editor holds a block chosen whole,
+  and the bundle's rule hides the fork's toolbar widget only where no mark stands.
+- **The selection toolbar never stands wider than the screen.** Over a text block the fork's bar is 663
+  pixels wide, wider than a phone, and its more menu and the delete in it stand past the edge. Where the
+  editor's own room has no place for it — under a finger as with a pointer in a narrow window — the bundle
+  folds the fork's keys of a text block away and stands the block's three of the bundle's own, the same
+  copy, duplicate and delete the other kinds carry, since the marks and the kinds those folded keys reach
+  for are the format bar's work at every width. A bar that stays wide is kept to the screen as well: it
+  lives in the shadow room of the fork's own widget, which no rule of the bundle reaches, so the bundle lays
+  a sheet of its own in that room, and past the width a screen leaves it a bar wraps its keys into further
+  centred rows rather than stand past the edge. Either way the bar keeps its place over the block it acts
+  on.
 - **The screens' browser test holds them to these rows.** It builds the note service from the checkout,
   starts it on a settings folder and a store of its own, starts the bundle's dev host relaying to it as
   the console would, writes a few notes of realistic Korean titles and text through the relay, and drives
@@ -355,11 +379,19 @@ studied of AFFiNE and under which licence.
   browser lane, apart from the client's own check, skipped where the browser build is not on the machine.
   The handle's browser test stands on the same stack and holds 「Every block has its handle and its
   toolbar」 at both widths with a pointer: a note holding a block of every kind the editor's menus make,
-  each block's handle in view beside it and its press selecting it whole under its toolbar, which reaches
-  delete at a desktop's width; a table's handle pressed while the caret stands in one of its cells, the
+  each block's handle in view beside it and its press selecting it whole under a toolbar that stands whole
+  inside the screen at either width, its way to delete among its keys there — the fork's own more menu at a
+  desktop's width, the bundle's three keys once the room folds them; a table's handle pressed while the
+  caret stands in one of its cells, the
   table's copy, duplicate and delete keys, named in Korean, on top of what they stand over; the toolbar's duplicate and
   delete, and Delete and Backspace, each acting on a table selected whole; and a picture of the table's
-  handle and its toolbar.
+  handle and its toolbar. The same width read by a finger holds 「On a phone a held finger in the gutter
+  chooses a block whole」: a finger held in the gutter beside a line of words chooses it whole under a
+  toolbar that stands inside the screen and reaches delete, a table so chosen is duplicated and deleted by
+  its own three keys, the fold that leaves a line of words with those same three keys at a phone's width
+  and the delete among them taking the line away, and a finger that slides, a press shorter than the hold
+  and a hold on the words choosing nothing; the touch sequence is laid down as a real finger lays it. A
+  picture of the phone's choice is kept with the rest.
 - **The editor's styles stay in the editor.** The vendored editor lays its stylesheets on the page as plain
   style elements, unlayered, which beat every layered rule of the console; and a few of its rules name nothing
   of the editor's own — a bare `input`, a `.truncate` — so once a note is opened they would reach every screen

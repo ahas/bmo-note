@@ -12,6 +12,7 @@ import { useOverlay } from "@nuxt/ui/composables/useOverlay";
 import { useToast } from "@nuxt/ui/composables/useToast";
 
 import QuestionDialog from "bmo-ui/app/components/QuestionDialog.vue";
+import { useLongPress } from "bmo-ui/app/domain/longpress";
 
 import "@toeverything/theme/style.css";
 
@@ -24,6 +25,7 @@ import { pageExtensions } from "../domain/editor";
 import { countHolding } from "../domain/count";
 import { passageElement, passageModels } from "../domain/format";
 import { asOneStep, historyDirectionOf, stepHistory } from "../domain/history";
+import { chooseWhole, gutterBlock } from "../domain/gutter";
 import { linesOf, opaqueRow } from "../domain/text";
 import { followScreenMode } from "../domain/theme";
 import { writeNoteTitle } from "../domain/title";
@@ -35,6 +37,7 @@ import type { NoteDoc } from "../domain/doc";
 import type { ReplaceResult } from "../domain/apply";
 import type { Op } from "../domain/patch";
 import type { BlockStdScope } from "@blocksuite/affine/std";
+import type { Subscription } from "rxjs";
 
 const props = withDefaults(
   defineProps<{
@@ -118,6 +121,33 @@ function placeAsked(how: "replace" | "below", lines: string[]): void {
   }
 }
 
+// On a phone the block a person means is held from the gutter beside it: a finger resting left of the
+// document's column chooses whole the top-level block standing at its height, the choice a press on the
+// drag handle makes for a pointer (`docs/design.md`, 「On a phone a held finger in the gutter chooses a
+// block whole」). bmo-ui's one hold reads the finger, so a slide, a scroll that starts under it or a
+// second finger chooses nothing, and a hold on the words is never read here — the column's own edge ends
+// where this look begins, so the phone keeps its reading of a hold on text. A note held to read only has
+// nothing to choose.
+useLongPress({
+  surface: () => host.value,
+  press: (_target, at) => {
+    const std = scope.value;
+    const room = host.value;
+
+    if (props.readonly || std === null || room === null) return null;
+
+    const blockId = gutterBlock(std, at);
+
+    return blockId === null ? null : () => chooseWhole(std, blockId, { surface: room, at });
+  }
+});
+
+// While the editor holds a block chosen whole the screen carries the mark that lets the fork's selection
+// toolbar stand under a finger (`docs/design.md`, 「The console surface」).
+const blockChosen = ref(false);
+
+let stopSelection: Subscription | null = null;
+
 onMounted(async () => {
   await ensureEditorRegistered();
 
@@ -146,6 +176,9 @@ onMounted(async () => {
   // The bar drives the editor through its standard scope, which stands once the container has drawn.
   await container.updateComplete;
   scope.value = container.std ?? null;
+  stopSelection = scope.value?.selection.slots.changed.subscribe((selections) => {
+    blockChosen.value = selections.some((one) => one.type === "block");
+  }) ?? null;
   emit("ready");
 });
 
@@ -174,6 +207,7 @@ function answerHistoryKey(event: KeyboardEvent): void {
 
 onBeforeUnmount(() => {
   removeEventListener("keydown", answerHistoryKey, true);
+  stopSelection?.unsubscribe();
   stopChange?.();
   held?.dispose();
   held = null;
@@ -234,7 +268,7 @@ defineExpose({
         <slot name="barEnd" />
       </template>
     </NoteToolbar>
-    <div ref="host" data-note-editor class="note-editor-host min-h-0 flex-1 overflow-y-auto" />
+    <div ref="host" data-note-editor :data-block-chosen="blockChosen || undefined" class="note-editor-host min-h-0 flex-1 overflow-y-auto" />
 
     <NoteAsk
       v-if="!props.readonly"
@@ -266,10 +300,12 @@ defineExpose({
 }
 
 /* On a touch screen the editor's floating format menu stands down: the bar does its work, and the phone lays its
-   own selection menu over the words (`docs/design.md`, 「The console surface」). The editor lays its styles
-   unlayered, so the rule holds by importance. */
+   own selection menu over the words. The toolbar over a block chosen whole stands there all the same — it is what
+   a held finger in the gutter answers with — so the rule reaches the widget only where no block stands chosen
+   (`docs/design.md`, 「The console surface」). The editor lays its styles unlayered, so the rule holds by
+   importance. */
 @media (pointer: coarse) {
-  .note-editor-host :deep(affine-toolbar-widget) {
+  .note-editor-host:not([data-block-chosen]) :deep(affine-toolbar-widget) {
     display: none !important;
   }
 }

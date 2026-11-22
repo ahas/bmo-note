@@ -27,7 +27,7 @@ import { svg } from "lit";
 import { Subscription } from "rxjs";
 
 import type { Container } from "@blocksuite/affine/global/di";
-import type { NotificationService, ToolbarAction } from "@blocksuite/affine/shared/services";
+import type { NotificationService, ToolbarAction, ToolbarContext } from "@blocksuite/affine/shared/services";
 import type { ExtensionType } from "@blocksuite/affine/store";
 
 /// The cap an image may carry, mirroring the store's own (`settings.toml`, `[notes] max_blob_bytes`).
@@ -69,6 +69,21 @@ const DELETE_ICON = svg`<svg width="20" height="20" viewBox="0 0 24 24"><path fi
 /// block has its handle and its toolbar」).
 const KINDS_WITHOUT_TOOLBAR = [TableBlockSchema, DividerBlockSchema, LatexBlockSchema, DatabaseBlockSchema].map((schema) => schema.model.flavour);
 
+// The keys the fork raises over a line of words, by the ids it gives them. Where the editor's room has no
+// place for that bar these fold away and the block's three keys stand in their place (`docs/design.md`,
+// 「The selection toolbar never stands wider than the screen」). A key the fork adds, renames or moves is one
+// more entry here.
+const FORK_KEYS_OF_A_TEXT_BLOCK = ["a.conversions", "b.align", "b.inline-text", "c.highlight", "e.convert-to-database", "f.convert-to-linked-doc", "g.comment", "a.clipboard", "c.delete"];
+
+// The fork's bar over a text block stands 663 pixels wide; below this much room of the editor's own it has
+// no place.
+const ROOM_FOR_THE_FORK_BAR_PX = 720;
+
+/** Whether the editor holds the room for the fork's bar over a text block. */
+function forkBarHasRoom(ctx: ToolbarContext): boolean {
+  return ctx.host.getBoundingClientRect().width >= ROOM_FOR_THE_FORK_BAR_PX;
+}
+
 const manager = new ViewExtensionManager(getInternalViewExtensions());
 
 /** The page-mode view extensions, with the host services the preset reads overridden. */
@@ -89,15 +104,13 @@ export function pageExtensions(notice: EditorNotice): ExtensionType[] {
     notifyWithUndoAction: (options) => notice.toast(String(options.title ?? ""))
   };
 
-  const ask = notice.ask;
-
   return [
     ...(manager.get("page") as ExtensionType[]),
     FontConfigExtension(CommunityCanvasTextFonts),
-    // Ask AI leads the toolbar the editor floats over a text selection (`docs/design.md`, 「Ask AI」).
-    ...(ask === null ? [] : [askModule(notice.askLabel, ask)]),
+    textBlockModule(notice.askLabel, notice.ask, notice.blockWords),
     ...KINDS_WITHOUT_TOOLBAR.map((flavour) => blockModule(flavour, blockActions(notice.blockWords))),
     HandlePressKeepsBlock,
+    ToolbarKeptOnScreen,
     {
       setup: (di: Container) => {
         di.override(DocModeProvider, () => mode);
@@ -108,21 +121,32 @@ export function pageExtensions(notice: EditorNotice): ExtensionType[] {
   ];
 }
 
-/** The selection toolbar's Ask AI key, wearing `label` and opening `ask`. */
-function askModule(label: string, ask: () => void): ExtensionType {
+/** The keys the toolbar raises over a line of words, or a run of them: Ask AI leading them where the note
+ * answers; the fork's own keys standing while the editor holds room for that bar; and the block's three
+ * keys of the bundle's own standing where it does not, since what the fork's keys reach for — the marks,
+ * the kinds, a table — the format bar above the document already carries at every width (`docs/design.md`,
+ * 「The selection toolbar never stands wider than the screen」). */
+function textBlockModule(label: string, ask: (() => void) | null, words: BlockWords): ExtensionType {
   return ToolbarModuleExtension({
     id: BlockFlavourIdentifier("custom:affine:note"),
     config: {
       actions: [
-        {
-          id: "A.ask",
-          placement: ActionPlacement.Start,
-          score: -1,
-          label,
-          showLabel: true,
-          icon: ASK_ICON,
-          run: () => ask()
-        }
+        // Ask AI leads the toolbar, wearing the word it opens.
+        ...(ask === null
+          ? []
+          : [
+              {
+                id: "A.ask",
+                placement: ActionPlacement.Start,
+                score: -1,
+                label,
+                showLabel: true,
+                icon: ASK_ICON,
+                run: () => ask()
+              } satisfies ToolbarAction
+            ]),
+        ...FORK_KEYS_OF_A_TEXT_BLOCK.map((id): ToolbarAction => ({ id, when: forkBarHasRoom })),
+        ...blockActions(words, (ctx) => !forkBarHasRoom(ctx))
       ]
     }
   });
@@ -132,11 +156,14 @@ function askModule(label: string, ask: () => void): ExtensionType {
 const SELECTED_WHOLE = { types: ["block" as const], mode: "highest" as const };
 
 /** The keys of a block selected whole that declares no toolbar of its own: copy, duplicate and delete, the
- * three every other block carries in its more menu, run through the same commands, named in `words`. */
-function blockActions(words: BlockWords): ToolbarAction[] {
+ * three every other block carries in its more menu, run through the same commands, named in `words` and
+ * standing wherever `when` says. The delete is named apart from the fork's more-group of the same words, so
+ * the two are never merged into one key. */
+function blockActions(words: BlockWords, when?: (ctx: ToolbarContext) => boolean): ToolbarAction[] {
   return [
     {
       id: "a.copy",
+      when,
       tooltip: words.copy,
       icon: COPY_ICON,
       run: ({ chain, host }) => {
@@ -147,6 +174,7 @@ function blockActions(words: BlockWords): ToolbarAction[] {
     },
     {
       id: "b.duplicate",
+      when,
       tooltip: words.duplicate,
       icon: DUPLICATE_ICON,
       run: ({ chain, store }) => {
@@ -155,7 +183,8 @@ function blockActions(words: BlockWords): ToolbarAction[] {
       }
     },
     {
-      id: "c.delete",
+      id: "d.delete",
+      when,
       tooltip: words.delete,
       icon: DELETE_ICON,
       run: ({ chain }) => {
@@ -171,6 +200,66 @@ function blockModule(flavour: string, actions: ToolbarAction[]): ExtensionType {
     id: BlockFlavourIdentifier(flavour),
     config: { actions }
   });
+}
+
+/** The sheet the bundle lays in the fork's toolbar widget, which holds the bar to the screen: past the
+ * room the screen leaves it, the bar takes a second row rather than stand past the edge, and grows as tall
+ * as its rows need, since the fork drew it one row tall (`docs/design.md`, 「The selection toolbar never
+ * stands wider than the screen」). The 40 pixels are the room the bar keeps clear of the screen's edge
+ * besides its own padding and edge, which stand outside the width the cap holds. */
+const FITTING_SHEET = "editor-toolbar[data-open] { flex-wrap: wrap; justify-content: center; height: auto; min-height: 36px; max-width: calc(100vw - 40px); }";
+
+/** Over a text block the fork's toolbar is wider than a phone, and its more menu and the delete in it
+ * stand past the screen's edge. The bar stands in the shadow room of the fork's own widget, which no rule
+ * of the bundle reaches from outside, so the bundle lays a sheet of its own in that room. The editor draws
+ * its widgets after the watchers it mounts have run, so the widget is followed rather than read once, and
+ * the sheet goes in beside the fork's own only once the widget has drawn. */
+class ToolbarKeptOnScreen extends LifeCycleWatcher {
+  static override readonly key = "note-toolbar-kept-on-screen";
+
+  override mounted(): void {
+    const host = this.std.host;
+
+    // The fork's own sheet is laid with the widget's first draw; the bundle's goes beside it after.
+    const fit = (widget: ToolbarWidget): void => {
+      void widget.updateComplete.then(() => {
+        const room = widget.shadowRoot;
+
+        if (room === null) return;
+
+        const sheet = new CSSStyleSheet();
+
+        sheet.replaceSync(FITTING_SHEET);
+        room.adoptedStyleSheets = [...room.adoptedStyleSheets, sheet];
+      });
+    };
+
+    const shown = host.querySelector<ToolbarWidget>("affine-toolbar-widget");
+
+    if (shown !== null) {
+      fit(shown);
+
+      return;
+    }
+
+    const watch = new MutationObserver(() => {
+      const widget = host.querySelector<ToolbarWidget>("affine-toolbar-widget");
+
+      if (widget === null) return;
+
+      watch.disconnect();
+      fit(widget);
+    });
+
+    watch.observe(host, { childList: true, subtree: true });
+    host.disposables.add(() => watch.disconnect());
+  }
+}
+
+/** The fork's toolbar widget, as far as this bundle reaches into it: its drawing room and its draw. */
+interface ToolbarWidget extends Element {
+  readonly shadowRoot: ShadowRoot | null;
+  readonly updateComplete: Promise<unknown>;
 }
 
 /** A press on the drag handle selects its block whole, but the press lands inside the editable page, so the
