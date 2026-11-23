@@ -5,7 +5,7 @@ import { chromium } from "playwright-core";
 
 import koEditor from "../../i18n/editor/ko.json";
 import ko from "../../i18n/ko.json";
-import { FIXTURE, seeded } from "./fixture";
+import { FIXTURE, PHONE_AGENT, seeded } from "./fixture";
 import { stoodUp } from "./stack";
 
 import type { Browser, Locator, Page } from "playwright-core";
@@ -28,7 +28,8 @@ import type { Stack } from "./stack";
 // pill」) at a desktop's width and a phone's: a copy said through the editor's notification service and one said
 // through the fork's toast helper both stand on the pill in the table's words, the same line said again replaces
 // itself, a line the fork fills with a figure of the moment stands in the table's words with the figure in its
-// place, and the helper's own box never stands. Skipped where the browser build is not on the machine.
+// place, a database tapped under a phone's own agent says the fork's refusal in the table's words, and the
+// helper's own box never stands. Skipped where the browser build is not on the machine.
 
 const ready = existsSync(chromium.executablePath());
 
@@ -562,6 +563,41 @@ describe.skipIf(!ready)("the editor's own words", () => {
     },
     TEST_MS
   );
+
+  test(
+    "at a phone's width, under a phone's own agent, a database tapped says the fork's refusal on the pill in the table's words",
+    async () => {
+      const page = await note(FIXTURE.notes[0]!.id, WIDTHS[1], PHONE_AGENT);
+      const block = page.locator(DATABASE).first();
+
+      // The slash menu typed on the phone's own keyboard at the end of the note's last line of words, the caret
+      // laid there by a finger, and its table view tapped.
+      const last = await page.locator(PARAGRAPH).last().getAttribute("data-block-id");
+
+      await page.locator(PARAGRAPH).last().tap();
+      await page.waitForFunction(
+        (one) =>
+          (document.querySelector("editor-host") as unknown as { std: { selection: { value: { type: string; from?: { blockId: string } }[] } } }).std.selection.value.some(
+            (chosen) => chosen.type === "text" && chosen.from?.blockId === one
+          ),
+        last,
+        { timeout: SETTLING_MS }
+      );
+      await page.keyboard.press("End");
+      await page.keyboard.type(" /");
+      await page.locator(SLASH, { hasText: SAID["Table View"]! }).first().tap();
+      await block.waitFor({ timeout: SETTLING_MS });
+
+      const refused = SAID["Mobile database editing is not supported yet. You can open it in experimental features, or edit it in desktop mode."]!;
+
+      await block.evaluate((one: Element) => one.scrollIntoView({ block: "center" }));
+      await block.tap();
+      expect(await pillSays(page, refused)).toBe(refused);
+      await picture(page, "words-pill-phone-database");
+      await page.context().close();
+    },
+    TEST_MS
+  );
 });
 
 // The database block's own chrome, in both of the views a reader inserts: every word the block draws and every
@@ -759,9 +795,10 @@ describe.skipIf(!ready)("the database block's own words", () => {
 });
 
 // A page of the console's own, in Korean, at a desktop's width unless another is named: room enough for the
-// editor's whole bar.
-async function opened(path: string, width: { width: number; height: number } = WIDTHS[0]): Promise<Page> {
-  const context = await browser.newContext({ viewport: { width: width.width, height: width.height } });
+// editor's whole bar. A phone's agent, where one is named, is the page's agent, read by a finger.
+async function opened(path: string, width: { width: number; height: number } = WIDTHS[0], phone?: string): Promise<Page> {
+  const shape = phone === undefined ? {} : { userAgent: phone, hasTouch: true, isMobile: true };
+  const context = await browser.newContext({ viewport: { width: width.width, height: width.height }, ...shape });
 
   // A loaded machine may take longer than the driver's own default over any step.
   context.setDefaultTimeout(STANDING_MS);
@@ -777,8 +814,8 @@ async function opened(path: string, width: { width: number; height: number } = W
 }
 
 // The note open, with its first line standing.
-async function note(id: string, width?: { width: number; height: number }): Promise<Page> {
-  const page = await opened(`/note/${id}`, width);
+async function note(id: string, width?: { width: number; height: number }, phone?: string): Promise<Page> {
+  const page = await opened(`/note/${id}`, width, phone);
 
   await page.locator(PARAGRAPH).first().waitFor({ timeout: STANDING_MS });
 

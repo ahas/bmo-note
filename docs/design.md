@@ -435,7 +435,13 @@ studied of AFFiNE and under which licence.
   refused form is kept at each width. At 1,280 pixels it also reads the lines the fork fills with a figure:
   it offers the slash menu's image a picture one byte over the screen's cap and reads the table's refusal
   with the cap said in its mark's place, then copies a table view's cell, and that cell's row chosen whole,
-  and reads the table's line for each with the count of one in its place.
+  and reads the table's line for each with the count of one in its place. At 360 pixels, under a phone's own
+  agent and by a finger, it inserts a table view from the slash menu, taps the database and reads the
+  table's word for the fork's refusal to edit a database on a phone. The lines no screen of the fixture
+  can raise — a failed attachment download, an import and its failure, a calendar's entries that fail to
+  load, an embed that fails — are fed to the bundle's notification service by the client's own tests,
+  each as the fork builds it with a sample figure, and read as the table's Korean with the figure in its
+  place and the line's own tone, beside a download under way said by nothing.
 - **A browser file of its own holds 「On a phone the format bar is the one bar」** on the same stack, with the
   browser naming itself a phone, at 360 pixels wide, by a finger, in Korean. While a line is written the
   format bar stands with every key, the fork reads the agent as a phone's, and neither the fork's keyboard

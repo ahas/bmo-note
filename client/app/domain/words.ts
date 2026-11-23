@@ -12,15 +12,9 @@
 
 import { setWordTranslator } from "@blocksuite/affine/components/translate";
 
-type WordTable = Record<string, string>;
+import { TABLES } from "./word-tables";
 
-/** Every table the bundle carries, by the code of the language its file is named for. */
-const TABLES: Record<string, WordTable> = Object.fromEntries(
-  Object.entries(import.meta.glob<WordTable>("../../i18n/editor/*.json", { eager: true, import: "default" })).map(([path, table]) => [
-    path.slice(path.lastIndexOf("/") + 1, -".json".length),
-    table
-  ])
-);
+import type { WordTable } from "./word-tables";
 
 /** The table the last mounted editor answered from, kept so the screen's own dialogs read the same words. */
 let held: WordTable = {};

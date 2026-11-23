@@ -4,7 +4,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { chromium } from "playwright-core";
 
 import ko from "../../i18n/ko.json";
-import { FIXTURE, seeded } from "./fixture";
+import { FIXTURE, PHONE_AGENT, seeded } from "./fixture";
 import { stoodUp } from "./stack";
 
 import type { Browser, BrowserContextOptions, Locator, Page } from "playwright-core";
@@ -40,8 +40,6 @@ const SHOTS = process.env.BMO_NOTE_SHOTS ?? "/tmp/note-renewal-shots";
 const LOCALE_COOKIE = "bmo-dev-locale";
 const WORDS = ko.note;
 
-// A phone as it names itself to the page, which is what the fork reads to lay out its phone's chrome.
-const PHONE_AGENT = "Mozilla/5.0 (Linux; Android 14; SM-S931N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36";
 const PHONE = { width: 360, height: 780 };
 const NOTE = FIXTURE.notes[0]!;
 

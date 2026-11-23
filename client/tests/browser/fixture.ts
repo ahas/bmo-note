@@ -5,6 +5,9 @@
 
 import type { Page } from "playwright-core";
 
+/** A phone as it names itself to the page, which is what the fork reads to lay out its phone's chrome. */
+export const PHONE_AGENT = "Mozilla/5.0 (Linux; Android 14; SM-S931N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36";
+
 /** One note of the fixture: its id, icon, title and the lines of its text. */
 export interface FixtureNote {
   id: string;
