@@ -139,7 +139,7 @@
     },
     "ask": {
       "key": "AI에게 묻기",
-      "placeholder": "AI에게 요청할 내용을 입력하거나 고르세요",
+      "placeholder": "AI에게 요청할 내용을 입력하거나 선택해 주세요",
       "own": "“{words}” 요청",
       "writing": "작성하는 중…",
       "again": "다시",
