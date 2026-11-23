@@ -1,14 +1,7 @@
 # The workspace: the note service's own package at the root, which also holds the checks that span the
-# repository in `tests/`. The console bundle under `client/` is a project of its own. The fork's Rust
-# folders stand excluded: they are Enterprise-licensed paths this unit never builds (docs/affine.md).
+# repository in `tests/`. The console bundle under `client/` is a project of its own.
 [workspace]
 members = []
-exclude = [
-  "packages/backend/native",
-  "packages/common/native",
-  "packages/frontend/mobile-native",
-  "packages/frontend/native",
-]
 resolver = "3"
 
 [workspace.package]

@@ -1,6 +1,6 @@
 // The bundle's typecheck: `nuxi typecheck` over the layer, with the verdict taken from the unit's own
-// files alone. The vendored editor is checked by the fork's own tooling (`docs/affine.md`); its lines
-// are counted here for the record and never decide the check.
+// files alone; lines a dependency's own files report are counted here for the record and never decide
+// the check.
 
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,7 +12,7 @@ const output = `${run.stdout.toString()}${run.stderr.toString()}`;
 
 // An error line names its file at the front, relative to the project: ours stand under these folders.
 const OURS = /^(app|shared|console|scripts|tests)\//;
-const FOREIGN = /^(blocksuite|node_modules|\.nuxt)\//;
+const FOREIGN = /^(node_modules|\.nuxt)\//;
 const ERROR = /^(.+?)\((\d+),(\d+)\): error TS\d+:/;
 
 const ours: string[] = [];
@@ -33,7 +33,7 @@ if (ours.length > 0) {
 }
 
 if (foreign > 0) {
-  console.log(`(the vendored tree reported ${foreign} lines of its own; the fork checks those)`);
+  console.log(`(dependencies reported ${foreign} lines of their own)`);
 }
 
 if (ours.length > 0) {

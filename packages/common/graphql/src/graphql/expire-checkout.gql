@@ -1,3 +1,0 @@
-mutation expireCheckout($plan: SubscriptionPlan!, $attemptId: String!) {
-  expireCheckout(plan: $plan, attemptId: $attemptId)
-}

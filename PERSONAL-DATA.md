@@ -4,8 +4,7 @@ No personal data stands in this repository's unit: not a person's name, handle o
 mail address, telephone number, home path under a person's account, host name, domain, device or
 private network address, and not a line of an actual note. None of them stands in code, a comment, a
 document, a test fixture or a commit message in `src/`, `client/`, `deploy/`, `docs/`, `tests/`, the
-README, the licences or the root manifests. The fork's upstream folders hold upstream's own fixtures;
-the unit builds nothing from them and its checks read nothing from them.
+README, the licence or the root manifests.
 
 ## What to write instead
 

@@ -1,7 +1,6 @@
 //! Checks that span the unit: what its crate may depend on, its testbed declaration and service unit,
-//! its settings, the README's folder table, and what no unit file may hold (`PERSONAL-DATA.md`). The
-//! fork's upstream folders are out of this scope: the unit owns the folders the README's table names as
-//! its own, and the licence line of `docs/affine.md`.
+//! its settings, the README's folder table, its licence, and what no unit file may hold
+//! (`PERSONAL-DATA.md`).
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -15,26 +14,11 @@ use serde_json::Value;
 
 const ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
-/// The folders the unit owns wholly, as this test and `PERSONAL-DATA.md` scope them.
-const UNIT_FOLDERS: [&str; 3] = ["src", "client", "deploy"];
-
-/// The files under the fork's own `docs/` and `tests/` that belong to the unit.
-const UNIT_LOOSE_FILES: [&str; 11] = [
-  "docs/design.md",
-  "docs/api.md",
-  "docs/affine.md",
-  "tests/main.rs",
-  "tests/support.rs",
-  "tests/notes.rs",
-  "tests/blobs.rs",
-  "tests/sharing.rs",
-  "tests/events.rs",
-  "tests/console.rs",
-  "tests/repository.rs",
-];
+/// The folders of the unit, as this test, the README's table and `PERSONAL-DATA.md` scope them.
+const UNIT_FOLDERS: [&str; 5] = ["src", "client", "deploy", "tests", "docs"];
 
 /// The root files the unit owns.
-const UNIT_FILES: [&str; 11] = [
+const UNIT_FILES: [&str; 10] = [
   "README.md",
   "CLAUDE.md",
   "PERSONAL-DATA.md",
@@ -45,7 +29,6 @@ const UNIT_FILES: [&str; 11] = [
   "rustfmt.toml",
   ".gitignore",
   "LICENSE",
-  "LICENSE-MIT",
 ];
 
 /// The Hangul blocks of Unicode: Jamo, compatibility Jamo, Jamo extended A and B, syllables, and the
@@ -81,7 +64,6 @@ fn unit_files() -> Vec<String> {
       ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"]
         .into_iter()
         .chain(UNIT_FOLDERS)
-        .chain(UNIT_LOOSE_FILES)
         .chain(UNIT_FILES)
         .collect::<Vec<_>>(),
     )
@@ -195,9 +177,9 @@ fn no_unit_file_holds_personal_data() {
 
 #[test]
 fn korean_stands_only_where_the_ledger_of_the_unit_allows_it() {
-  // English in code, comments, documents and commits; Korean in the bundle's `ko` words alone, the pack
-  // and the editor's word table inside the bundle's words folder, in the test fixtures that read them, and
-  // in the README's language line, which names the Korean translation in its own script (CLAUDE.md).
+  // English in code, comments, documents and commits; Korean in the bundle's `ko` words alone, in the test
+  // fixtures that read them, and in the README's language line, which names the Korean translation in its
+  // own script (CLAUDE.md).
   let mut refused = Vec::new();
   for path in unit_files() {
     let words = path.starts_with("client/i18n/") && path.ends_with("/ko.json");
@@ -347,9 +329,15 @@ fn the_readme_table_names_the_unit_folders() {
 }
 
 #[test]
-fn the_licence_line_of_the_fork_is_stated_in_the_unit() {
-  let record = text_of("docs/affine.md").expect("docs/affine.md is the study record");
-  for phrase in ["packages/backend/", "packages/common/native", "Enterprise Edition", "MIT"] {
-    assert!(record.contains(phrase), "docs/affine.md does not name {phrase}");
-  }
+fn the_unit_stands_under_the_mit_licence_alone() {
+  let licence = text_of("LICENSE").expect("LICENSE is at the root");
+  assert!(licence.starts_with("MIT License"), "LICENSE is the MIT licence");
+  assert!(licence.contains("the bmo-note authors"), "LICENSE names the unit's authors");
+  let manifest: toml::Table =
+    text_of("Cargo.toml").expect("Cargo.toml").parse().expect("Cargo.toml is TOML");
+  let package = table(&manifest, "workspace")
+    .get("package")
+    .and_then(toml::Value::as_table)
+    .expect("[workspace.package]");
+  assert_eq!(package.get("license").and_then(toml::Value::as_str), Some("MIT"));
 }

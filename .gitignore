@@ -1,120 +1,15 @@
-# See http://help.github.com/ignore-files/ for more about ignoring files.
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/sdks
-.yarn/versions
-.corepack-bin
-
-# compiled output
-*dist
-/tmp
-/out-tsc
-.nyc_output
-.coverage
-.swc
-
-# dependencies
-node_modules
-
-# IDEs and editors
-**/.idea
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
-
-# IDE - VSCode
-.vscode/*
-!.vscode/settings.template.json
-!.vscode/launch.template.json
-!.vscode/extensions.json
-
-# Kiro
-.kiro
-
-# misc
-/.sass-cache
-/connect.lock
-coverage
-/libpeerconnection.log
-npm-debug.log
-yarn-error.log
-testem.log
-.pnpm-debug.log
-/typings
-tsconfig.tsbuildinfo
-.context
-/*.md
-!/README.*.md
-.codex
-.cursor
-
-# System Files
-.DS_Store
-Thumbs.db
-
-# env
-*.env.local
-*.local.env
-.history
-
-.next
-.vercel
-out/
-storybook-static
-
-test-results
-playwright-report
-playwright/.cache
-download
-
-# Cache
-next-env.d.ts
-.rollup.cache
-
-# Rust
-target
-*.node
-tsconfig.node.tsbuildinfo
-lib
-affine.db
-apps/web/next-routes.conf
-.nx
-
-packages/frontend/templates/edgeless
-packages/frontend/core/public/static/templates
-
-# script
-af
-af.cmd
-*.resolved
-
-# playwright
-storageState.json
-/.understand-anything
-
-# local test/browser artifacts
-/.playwright-browsers/
-**/.vitest-attachments/
-/blocksuite/framework/std/src/__tests__/gfx/__screenshots__/
-
-# The note unit: the Rust build, the console bundle and its vendor copy, the dev host's build, and
-# the code graph areas. The fork ignores root markdown, which would hide the unit's own rulebook.
-!/CLAUDE.md
-!/PERSONAL-DATA.md
+# The Rust build, the deployment's own settings link, the console bundle's install, its build and its dev host's
+# build, and the code graph areas.
 /target
 /settings.local.toml
-/client/blocksuite
+/node_modules
+/client/node_modules
 /client/dist
 /client/.output
 /client/.nuxt
 /client/tsconfig.tsbuildinfo
 /client/console/tsconfig.tsbuildinfo
+/client/dev-app/node_modules
 /client/dev-app/.output
 /client/dev-app/.nuxt
 /client/dev-app/dist
