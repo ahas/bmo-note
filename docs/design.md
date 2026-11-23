@@ -440,7 +440,8 @@ search, links and comments, and shows the notes through a console bundle under i
 - **The editor's words are the bundle's own.** Every word the editor's chrome shows — the toolbar keys and
   their tooltips, the slash menu's items, the drag handle's menu, the placeholders, the link field, the
   notes menu — is a key of the bundle's pack, answered in the console's language like every other word of
-  the bundle; the editor carries no words of its own.
+  the bundle; the editor carries no words of its own. The pack speaks English, Korean, Japanese and
+  Simplified Chinese, one file to a locale (`en`, `ko`, `ja`, `zh-CN`), every file holding the same keys.
 - **The screen speaks on the console's message pill** (bmo-ui's island, `docs/components.md`, 「Messages」):
   a copy of a block, a link copied, an image that could not be added or was refused over the cap, an Agent
   result that could not be placed. A copy wears the success tone and a refusal or failure the error

@@ -20,8 +20,9 @@ its JSON in the unit's own store, with its links and comment threads, and edited
   `cargo test` through the testbed; the client's `bun run check`; the screens' browser tests under
   `client/tests/browser/`, which `client/package.json` declares to the suite's browser lane and the client's
   check leaves out.
-- **English only** in code, documents, tests and commits; Korean in the bundle's `ko` words alone, besides
-  the README's language line and its translations (`README.ko.md` and its siblings).
+- **English only** in code, documents, tests and commits; Korean, Japanese and Chinese in the bundle's `ko`,
+  `ja` and `zh-CN` words alone, besides the README's language line and its translations (`README.ko.md` and
+  its siblings).
 - **No personal data, no names of agents, owners or hosts** in code, documents or commits. A note
   document's *content* is user data that stands in the store at runtime, never in the repository.
 - **Versions:** `0.1.0-rev.N` until a release the owner declares; no sibling version pins.

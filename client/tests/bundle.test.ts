@@ -24,27 +24,32 @@ function files(folder: string): string[] {
 const sources = [...files(join(root, "app")), ...files(join(root, "shared")), ...files(join(root, "console"))].filter((path) => /\.(ts|vue)$/.test(path));
 
 describe("the words", () => {
-  test("both locales hold the same keys, all under the bundle's namespace", () => {
-    expect(keysOf(PACKS.en).sort()).toEqual(keysOf(PACKS.ko).sort());
+  test("every locale holds the same keys, all under the bundle's namespace", () => {
+    for (const [locale, pack] of Object.entries(PACKS)) expect(keysOf(pack).sort(), locale).toEqual(keysOf(PACKS.en).sort());
     expect(keysOf(PACKS.ko).every((key) => key.startsWith("note."))).toBe(true);
   });
 
   test("the editor's own words are the pack's, one word for one thing wherever it is named", () => {
     // The kinds and the marks the bar, the slash menu and the drag handle's menu name, and what the slash menu
-    // puts in, each answered in both packs.
-    for (const kind of KINDS) expect(word(PACKS.ko, `note.kind.${kind.id}`), kind.id).toBeDefined();
-    for (const mark of MARKS) expect(word(PACKS.ko, `note.mark.${mark.id}`), mark.id).toBeDefined();
-    for (const insert of INSERTS) expect(word(PACKS.ko, `note.insert.${insert.id}`), insert.id).toBeDefined();
+    // puts in, each answered in every pack.
+    for (const pack of Object.values(PACKS)) {
+      for (const kind of KINDS) expect(word(pack, `note.kind.${kind.id}`), kind.id).toBeDefined();
+      for (const mark of MARKS) expect(word(pack, `note.mark.${mark.id}`), mark.id).toBeDefined();
+      for (const insert of INSERTS) expect(word(pack, `note.insert.${insert.id}`), insert.id).toBeDefined();
+    }
 
     // A table is named by the bar's word wherever the bundle's own lines speak of one.
-    const table = PACKS.ko.note.action.table;
     const namesTable = /\btables?\b|\btabular\b/i;
 
-    for (const key of keysOf(PACKS.en)) if (namesTable.test(word(PACKS.en, key)!)) expect(word(PACKS.ko, key), key).toContain(table);
+    for (const pack of Object.values(PACKS)) {
+      const table = pack.note.action.table.toLowerCase();
+
+      for (const key of keysOf(PACKS.en)) if (namesTable.test(word(PACKS.en, key)!)) expect(word(pack, key)!.toLowerCase(), key).toContain(table);
+    }
   });
 
   test("no word holds a bare @ or |, which the translator reads as a linked message and a plural", () => {
-    for (const pack of [PACKS.en, PACKS.ko]) {
+    for (const pack of Object.values(PACKS)) {
       for (const key of keysOf(pack)) {
         const said = word(pack, key)!.replace(/\{'[^']*'\}/gu, "");
 
@@ -67,7 +72,7 @@ describe("the words", () => {
     // The lines a refused save names by code are built at the moment of the refusal, not written whole.
     for (const code of ["bad-doc", "too-large"]) asked.add(`note.error.${code}`);
 
-    const missing = [...asked].filter((key) => word(PACKS.ko, key) === undefined || word(PACKS.en, key) === undefined);
+    const missing = [...asked].filter((key) => Object.values(PACKS).some((pack) => word(pack, key) === undefined));
 
     expect(missing).toEqual([]);
   });
