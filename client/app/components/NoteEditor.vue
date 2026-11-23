@@ -20,6 +20,7 @@ import NoteAsk from "./NoteAsk.vue";
 import NoteToolbar from "./NoteToolbar.vue";
 import { applyOps, readRows, replaceBody, runOf } from "../domain/apply";
 import { noteBlobSource } from "../domain/blobs";
+import { keepCaretInSight } from "../domain/caret";
 import { ensureEditorRegistered, fromBase64, openNoteDoc, toBase64 } from "../domain/doc";
 import { pageExtensions } from "../domain/editor";
 import { countHolding } from "../domain/count";
@@ -171,6 +172,8 @@ onMounted(async () => {
   });
 
   addEventListener("keydown", answerHistoryKey, true);
+  host.value?.addEventListener("input", followCaret);
+  host.value?.addEventListener("keydown", followCaretKey);
 
   const container = document.createElement("affine-editor-container") as HTMLElement & {
     autofocus: boolean;
@@ -217,8 +220,23 @@ function answerHistoryKey(event: KeyboardEvent): void {
   if (store !== null) stepHistory(store, direction);
 }
 
+// The caret stays in sight as words are written and as the keys move it between lines: the host's scroll follows
+// it, since the editor measures it against a viewport as tall as the document (`docs/design.md`, 「Editing and
+// saving」).
+const CARET_KEYS = new Set(["Enter", "Backspace", "Delete", "ArrowUp", "ArrowDown", "PageUp", "PageDown"]);
+
+function followCaret(): void {
+  if (host.value !== null) keepCaretInSight(host.value);
+}
+
+function followCaretKey(event: KeyboardEvent): void {
+  if (CARET_KEYS.has(event.key)) followCaret();
+}
+
 onBeforeUnmount(() => {
   removeEventListener("keydown", answerHistoryKey, true);
+  host.value?.removeEventListener("input", followCaret);
+  host.value?.removeEventListener("keydown", followCaretKey);
   stopSelection?.unsubscribe();
   stopChange?.();
   held?.dispose();

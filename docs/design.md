@@ -77,6 +77,11 @@ studied of AFFiNE and under which licence.
 - The full current state is stored on each save, replacing the previous bytes. Incremental
   update logs, the shape AFFiNE's server keeps, are not copied: a note this small does not earn them,
   and whole-state saves keep the service's one table and one version number honest.
+- **The caret stays in sight as words are written.** A new line, a deleted one, a typed word or an arrow key
+  that carries the caret past the foot or the head of the note's scroll moves that scroll until the caret stands
+  inside it with a little room around it. The fork measures the caret against its own viewport, which grows as
+  tall as the document while the screen's scroll is the host around it, so the screen keeps the caret in sight
+  itself.
 - The note's history is the fork's own: the document's store is put through its load lifecycle when
   the note opens, which is the only thing that readies the history extension — a store standing
   unloaded answers `canUndo` false forever, and the editor's own `Mod-z` binding guards on that and
