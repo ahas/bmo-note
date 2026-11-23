@@ -948,6 +948,7 @@ impl Store {
         author: author.to_owned(),
         body: body.to_owned(),
         created_at: at,
+        mine: true,
       };
       connection.execute(
         "INSERT INTO comments (owner, note, thread, id, author, body, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
@@ -1258,6 +1259,7 @@ fn thread_of(row: &rusqlite::Row<'_>) -> rusqlite::Result<Thread> {
     resolved_at: row.get(4)?,
     resolved_by: row.get(5)?,
     anchored: false,
+    mine: false,
     comments: Vec::new(),
   })
 }
@@ -1269,6 +1271,7 @@ fn comment_of(row: &rusqlite::Row<'_>, at: usize) -> rusqlite::Result<Comment> {
     author: row.get(at + 1)?,
     body: row.get(at + 2)?,
     created_at: row.get(at + 3)?,
+    mine: false,
   })
 }
 

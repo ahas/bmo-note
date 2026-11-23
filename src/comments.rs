@@ -68,6 +68,16 @@ fn anchoring(doc: &[u8]) -> impl Fn(&str) -> bool + use<> {
   move |thread: &str| marks.contains(thread)
 }
 
+/// The thread as the caller reads it: anchored where the document marks it, and the caller's own parts named.
+fn seen(mut thread: Thread, anchored: &dyn Fn(&str) -> bool, account: &str) -> Thread {
+  thread.anchored = anchored(&thread.id);
+  thread.mine = thread.author == account;
+  for comment in &mut thread.comments {
+    comment.mine = comment.author == account;
+  }
+  thread
+}
+
 fn publish(app: &App, reach: &Reach, note: &str, thread: &str) {
   let data = CommentEvent {
     note_id: note.to_owned(),
@@ -84,7 +94,14 @@ async fn read_threads(
   given: Result<Query<NoteQuery>, QueryRejection>,
 ) -> Answer<Json<Page<Thread>>> {
   let (reach, _, doc) = reached(&app, &headers, query(given)?.owner, &id)?;
-  let items = app.store.threads(&reach.owner, &id, &anchoring(&doc)).map_err(ApiError::failed)?;
+  let anchored = anchoring(&doc);
+  let items = app
+    .store
+    .threads(&reach.owner, &id, &anchored)
+    .map_err(ApiError::failed)?
+    .into_iter()
+    .map(|thread| seen(thread, &anchored, &reach.account))
+    .collect();
   Ok(Json(Page { items, more: false }))
 }
 
@@ -103,11 +120,11 @@ async fn start_thread(
   }
   let quote = clean_quote(&given.quote)?;
   let words = clean_comment(&given.body)?;
-  let (mut thread, made) = app
+  let (thread, made) = app
     .store
     .start_thread(&reach.owner, &id, &given.id, &quote, &reach.account, &words, now_ms())
     .map_err(ApiError::failed)?;
-  thread.anchored = anchoring(&doc)(&thread.id);
+  let thread = seen(thread, &anchoring(&doc), &reach.account);
   if made {
     publish(&app, &reach, &id, &thread.id);
   }
@@ -144,14 +161,13 @@ async fn change_thread(
   let (reach, meta, doc) = reached(&app, &headers, query(given_query)?.owner, &id)?;
   writable(&reach, &meta)?;
   let given: ThreadChange = body(&bytes)?;
-  let mut changed = app
+  let changed = app
     .store
     .resolve(&reach.owner, &id, &thread, given.resolved, &reach.account, now_ms())
     .map_err(ApiError::failed)?
     .ok_or_else(|| ApiError::not_found(format!("No thread {thread} stands on note {id}.")))?;
-  changed.anchored = anchoring(&doc)(&changed.id);
   publish(&app, &reach, &id, &thread);
-  Ok(Json(changed))
+  Ok(Json(seen(changed, &anchoring(&doc), &reach.account)))
 }
 
 async fn delete_thread(

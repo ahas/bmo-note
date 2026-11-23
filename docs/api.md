@@ -120,8 +120,9 @@ A service-token call on these routes answers for the `owner` it names; one namin
 
 - **A thread** is `id`, `quote` (the words it was laid on, as they read then), `author` (the account key
   that started it), `createdAt`, `resolvedAt` and `resolvedBy` (null while it is open), `anchored`
-  (whether the note's stored document holds a comment mark of the thread's id) and `comments`, oldest
-  first. **A comment** is `id`, `author`, `body` and `createdAt`. A thread id is chosen by the caller, 1
+  (whether the note's stored document holds a comment mark of the thread's id), `comments`, oldest
+  first, and `mine`, whether the caller started it. **A comment** is `id`, `author`, `body`, `createdAt` and
+  `mine`, whether the caller wrote it. A thread id is chosen by the caller, 1
   to 64 letters, digits, `-` and `_`, and is the `thread` attribute of the `comment` marks laid for it;
   a comment id is made by the service. A `quote` is at most 1,000 characters and a `body` 1 to 10,000,
   its ends trimmed; outside those, 400 `bad-request`.

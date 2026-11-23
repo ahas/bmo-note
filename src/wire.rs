@@ -413,6 +413,9 @@ pub struct Comment {
   pub author: String,
   pub body: String,
   pub created_at: i64,
+  /// Whether the caller wrote it.
+  #[serde(default)]
+  pub mine: bool,
 }
 
 /// A comment thread laid on words of a note.
@@ -431,6 +434,9 @@ pub struct Thread {
   pub resolved_by: Option<String>,
   /// Whether the note's stored document holds a comment mark of the thread's id.
   pub anchored: bool,
+  /// Whether the caller started it.
+  #[serde(default)]
+  pub mine: bool,
   /// Oldest first.
   pub comments: Vec<Comment>,
 }

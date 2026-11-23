@@ -119,6 +119,16 @@ async fn a_thread_is_started_answered_resolved_and_reopened() {
   // The reader reads it all; reopening clears the resolution.
   let (_, read) = answered(ran.as_reader("GET", &path("", true), READER, "member")).await;
   assert_eq!(read["items"][0]["comments"].as_array().map(Vec::len), Some(2));
+  assert_eq!(read["items"][0]["mine"], false);
+  let (_, editors) = answered(ran.as_reader("GET", &path("", true), EDITOR, "member")).await;
+  assert_eq!(
+    (
+      editors["items"][0]["comments"][0]["mine"].clone(),
+      editors["items"][0]["comments"][1]["mine"].clone()
+    ),
+    (json!(false), json!(true)),
+    "each reader is told which comments are theirs"
+  );
   let (_, reopened) = answered(
     ran
       .as_reader("PATCH", &path("/t1", false), OWNER, "member")
