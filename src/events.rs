@@ -15,13 +15,17 @@ use crate::wire::StreamEvent;
 pub const KEPT: usize = 1000;
 
 /// The kinds the note service publishes.
-pub const KINDS: [&str; 6] = [
+pub const KINDS: [&str; 10] = [
   "note.saved",
   "note.trashed",
   "note.restored",
   "note.purged",
   "note.shared",
   "note.unshared",
+  "note.commented",
+  "note.filed",
+  "folder.changed",
+  "bookmark.changed",
 ];
 
 /// One event, and the accounts it reaches: a console reader is given an event it stands among alone.

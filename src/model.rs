@@ -105,11 +105,27 @@ pub fn parse_list_cursor(order: ListOrder, after: &str, shared: bool) -> Option<
 }
 
 /// The words a note id never is, since they name routes standing under `/notes`.
-pub const RESERVED_IDS: [&str; 3] = ["search", "pinned", "recent"];
+pub const RESERVED_IDS: [&str; 2] = ["search", "recent"];
 
 /// Whether an id may name a note a write makes: a valid id that names no route.
 pub fn makeable_id(id: &str) -> bool {
   valid_id(id) && !RESERVED_IDS.contains(&id)
+}
+
+/// The most characters a folder's name holds.
+pub const FOLDER_NAME_MAX: usize = 100;
+
+/// A folder's name as it is stored: one line, each run of white space one space, its ends trimmed, 1 to
+/// `FOLDER_NAME_MAX` characters.
+pub fn clean_folder_name(name: &str) -> Result<String, ApiError> {
+  if name.chars().any(|ch| ch.is_control() && !ch.is_whitespace()) {
+    return Err(ApiError::bad_request("A folder's name holds control characters."));
+  }
+  let name = name.split_whitespace().collect::<Vec<_>>().join(" ");
+  if name.is_empty() || name.chars().count() > FOLDER_NAME_MAX {
+    return Err(ApiError::bad_request(format!("A folder's name is 1 to {FOLDER_NAME_MAX} characters.")));
+  }
+  Ok(name)
 }
 
 /// The most characters an icon holds.

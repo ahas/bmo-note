@@ -5,7 +5,8 @@
 // screen the two regions stand behind the library's splitter, the navigator folding away whole; on a phone
 // the note region owns the screen and the navigator rises as a drawer from one key. The search dialog
 // stands while the address carries a search. Nothing is laid into the console's title bar; where no console
-// offers one, the screen draws its own, holding the screen's name alone.
+// offers one, the screen draws its own, holding the screen's name alone. The reader's folders, their bookmarks
+// and what a row dragged onto a folder does are answered here, each on the message pill where it fails.
 
 import { computed, inject, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -24,18 +25,20 @@ import NoteOpen from "../../components/NoteOpen.vue";
 import NoteSearch from "../../components/NoteSearch.vue";
 import { useNavigator } from "../../composables/useNavigator";
 import { useOwnerNames } from "../../composables/useOwnerNames";
-import { createNoteApi } from "../../domain/api";
+import { createNoteApi, Refusal } from "../../domain/api";
 import { emptyFinding, findingOf, withFinding } from "../../domain/finding";
 import { screenKeyOf, SCREEN_KBDS, typingIn } from "../../domain/keys";
-import { NAVIGATOR_FIRST_PX, NAVIGATOR_MAX_PX, NAVIGATOR_MIN_PX, noteKeyOf, notePath, withWide } from "../../domain/navigator";
+import { folderOrder, holdsFolder, NAVIGATOR_FIRST_PX, NAVIGATOR_MAX_PX, NAVIGATOR_MIN_PX, noteKeyOf, notePath, withWide } from "../../domain/navigator";
 import { FIRST_SPAN, linkRoad, linkSpans, memberRoad } from "../../domain/share";
 
 import type { DropdownMenuItem, SplitterItem } from "@nuxt/ui";
 import type { RelayOptions } from "bmo-ui/app/domain/relay";
 import type { Call, NoteKey } from "../../domain/api";
 import type { Finding } from "../../domain/finding";
-import type { NoteAct } from "../../components/NoteOpen.vue";
-import type { NoteMeta } from "../../../shared/types";
+import type { HeldRow } from "../../domain/drag";
+import type { NavigatorActs } from "../../components/NoteNavigator.vue";
+import type { LineAsk, NoteAct } from "../../components/NoteOpen.vue";
+import type { NoteBookmark, NoteFolder, NoteMeta } from "../../../shared/types";
 
 const SERVICE = "note";
 
@@ -79,7 +82,13 @@ const chosenMark = computed(() => {
   return chosenKey.value?.owner === undefined ? null : `${chosenKey.value.owner}/${chosenKey.value.id}`;
 });
 
-const pinnedOpen = computed(() => openNote.value !== null && board.pinnedKeys.value.has(noteKeyOf(openNote.value)));
+const bookmarkedOpen = computed(() => openNote.value !== null && board.noteMarks.value.has(noteKeyOf(openNote.value)));
+const openLines = computed(() => (openNote.value === null ? new Map<string, string>() : (board.lineMarks.value.get(noteKeyOf(openNote.value)) ?? new Map<string, string>())));
+const markedLines = computed(() => [...openLines.value.keys()]);
+
+// A line a bookmark asked to bring into sight, for the note it stands in; each ask a turn of its own.
+const lineAsk = ref<{ key: string; block: string; turn: number } | null>(null);
+const lineOpen = computed(() => (lineAsk.value !== null && lineAsk.value.key === regionKey.value ? { block: lineAsk.value.block, turn: lineAsk.value.turn } : null));
 const wideOpen = computed(() => openNote.value !== null && board.prefs.value.wide.includes(noteKeyOf(openNote.value)));
 
 // The splitter's navigator panel, and whether it stands folded.
@@ -126,7 +135,7 @@ function openPath(path: string, newTab: boolean): void {
 
 // The reader's own account key, read off any note the reader owns, for the note links that name it.
 const readerKey = computed<string | null>(() => {
-  const owned = [openNote.value, ...board.sections.mine.rows, ...board.pinned.value].find((note) => note !== null && note.access === "owner");
+  const owned = [openNote.value, ...board.sections.mine.rows, ...board.bookmarks.value.map((one) => one.note)].find((note) => note !== null && note.access === "owner");
 
   return owned?.owner ?? null;
 });
@@ -142,11 +151,11 @@ function choose(note: NoteMeta, newTab = false): void {
   void router.push(notePath(note));
 }
 
-async function create(): Promise<void> {
+async function create(folder?: string): Promise<void> {
   if (board.creating.value) return;
 
   try {
-    const made = await board.create();
+    const made = await board.create(folder);
 
     drawerOpen.value = false;
     await router.push(notePath(made));
@@ -219,9 +228,9 @@ async function act(kind: NoteAct, note: NoteMeta): Promise<void> {
         shareNote.value = note;
         shareOpen.value = true;
         break;
-      case "pin":
-      case "unpin":
-        await board.setPinned(note, kind === "pin");
+      case "bookmark":
+      case "unbookmark":
+        await board.setNoteMarked(note, kind === "bookmark");
         break;
       case "copy":
         await copyLink(note);
@@ -260,21 +269,188 @@ async function act(kind: NoteAct, note: NoteMeta): Promise<void> {
   }
 }
 
+// The places a row can be moved to: the top, then every folder by its place in the tree, the one it stands in
+// marked; a folder never offers itself nor a folder it holds.
+const DEPTH_INSET = ["", "ps-6", "ps-10", "ps-14", "ps-18", "ps-22", "ps-26", "ps-30"];
+
+function placesFor(row: HeldRow, standing: string | null): DropdownMenuItem[][] {
+  const folders = folderOrder(board.tree.value).filter((node) => row.kind === "note" || !holdsFolder(board.folders.value, row.id, node.folder.id));
+  const place = (folder: string | null): DropdownMenuItem => ({
+    type: "checkbox",
+    checked: standing === folder,
+    onSelect: () => void dropRow(folder, row)
+  });
+
+  return [
+    [{ ...place(null), label: i18n.t("note.folder.top"), icon: "i-material-symbols-home-outline" }],
+    ...(folders.length === 0
+      ? []
+      : [folders.map((node) => ({ ...place(node.folder.id), label: node.folder.name, icon: "i-material-symbols-folder-outline", class: DEPTH_INSET[Math.min(node.depth, DEPTH_INSET.length - 1)] }))])
+  ];
+}
+
 // A row's menu: what the reader may do to that note.
 function itemsOf(note: NoteMeta): DropdownMenuItem[][] {
-  const pinned = board.pinnedKeys.value.has(noteKeyOf(note));
+  const marked = board.noteMarks.value.has(noteKeyOf(note));
   const owns = note.access === "owner";
   const first: DropdownMenuItem[] = [
-    pinned
-      ? { label: i18n.t("note.action.unpin"), icon: "i-material-symbols-star", onSelect: () => void act("unpin", note) }
-      : { label: i18n.t("note.action.pin"), icon: "i-material-symbols-star-outline", onSelect: () => void act("pin", note) },
+    marked
+      ? { label: i18n.t("note.action.unbookmark"), icon: "i-material-symbols-bookmark", onSelect: () => void act("unbookmark", note) }
+      : { label: i18n.t("note.action.bookmark"), icon: "i-material-symbols-bookmark-outline", onSelect: () => void act("bookmark", note) },
     ...(owns ? [{ label: i18n.t("note.action.share"), icon: "i-material-symbols-share-outline", onSelect: () => void act("share", note) }] : []),
     { label: i18n.t("note.action.copy_link"), icon: "i-material-symbols-link", onSelect: () => void act("copy", note) },
-    { label: i18n.t("note.action.duplicate"), icon: "i-material-symbols-content-copy-outline", onSelect: () => void act("duplicate", note) }
+    { label: i18n.t("note.action.duplicate"), icon: "i-material-symbols-content-copy-outline", onSelect: () => void act("duplicate", note) },
+    ...(owns ? [{ label: i18n.t("note.action.move_to"), icon: "i-material-symbols-drive-file-move-outline", children: placesFor({ kind: "note", id: note.id }, note.folder) }] : [])
   ];
 
   return owns ? [first, [{ label: i18n.t("note.action.trash"), icon: "i-material-symbols-delete-outline", color: "error", onSelect: () => void act("trash", note) }]] : [first];
 }
+
+// ---------------------------------------------------------------------------------------------------------
+// Folders and bookmarks (`docs/design.md`, 「Folders」, 「Bookmarks」)
+
+function failed(key = "note.error.folder_failed") {
+  return (error: unknown) => {
+    const code = error instanceof Refusal ? error.code : "";
+
+    island.say({ tone: "error", title: i18n.t(code === "too-deep" ? "note.error.too_deep" : code === "folder-cycle" ? "note.error.folder_cycle" : key) });
+  };
+}
+
+function newFolder(parent: string | null): void {
+  board.makeFolder(i18n.t("note.folder.new_name"), parent).catch(failed());
+}
+
+function nameFolder(folder: NoteFolder, name: string | null): void {
+  board.naming.value = null;
+
+  if (name !== null) board.renameFolder(folder.id, name).catch(failed());
+}
+
+async function deleteFolder(folder: NoteFolder): Promise<void> {
+  if (!(await askQuestion({ title: i18n.t("note.question.delete_folder"), item: folder.name, effect: i18n.t("note.question.delete_folder_effect"), confirm: i18n.t("note.action.delete") }))) return;
+
+  try {
+    await board.deleteFolder(folder.id);
+    island.say({ tone: "success", title: i18n.t("note.status.folder_deleted") });
+  } catch (error) {
+    failed()(error);
+  }
+}
+
+/** A row moved into a folder, or to the top, by a drag or by its menu's move to. */
+async function dropRow(folder: string | null, row: HeldRow): Promise<void> {
+  try {
+    if (row.kind === "note") {
+      const moved = await board.fileNote(row.id, folder);
+
+      if (openNote.value !== null && openNote.value.access === "owner" && openNote.value.id === moved.id) openNote.value = { ...openNote.value, folder: moved.folder };
+    } else {
+      if (row.id === folder) return;
+
+      await board.moveFolder(row.id, folder);
+    }
+
+    island.say({ tone: "success", title: i18n.t("note.status.moved") });
+  } catch (error) {
+    failed()(error);
+  }
+}
+
+function folderItemsOf(folder: NoteFolder): DropdownMenuItem[][] {
+  const marked = board.folderMarks.value.get(folder.id);
+
+  return [
+    [
+      { label: i18n.t("note.action.new"), icon: "i-material-symbols-add", onSelect: () => void create(folder.id) },
+      { label: i18n.t("note.action.new_folder"), icon: "i-material-symbols-create-new-folder-outline", onSelect: () => newFolder(folder.id) }
+    ],
+    [
+      { label: i18n.t("note.action.rename"), icon: "i-material-symbols-edit-outline", kbds: ["F2"], onSelect: () => (board.naming.value = folder.id) },
+      { label: i18n.t("note.action.move_to"), icon: "i-material-symbols-drive-file-move-outline", children: placesFor({ kind: "folder", id: folder.id }, folder.parent) },
+      marked === undefined
+        ? { label: i18n.t("note.action.bookmark"), icon: "i-material-symbols-bookmark-outline", onSelect: () => void board.addBookmark({ kind: "folder", folderId: folder.id }).catch(failed("note.error.bookmark_failed")) }
+        : { label: i18n.t("note.action.unbookmark"), icon: "i-material-symbols-bookmark", onSelect: () => void board.removeBookmark(marked).catch(failed("note.error.bookmark_failed")) }
+    ],
+    [{ label: i18n.t("note.action.delete"), icon: "i-material-symbols-delete-outline", color: "error", kbds: ["delete"], onSelect: () => void deleteFolder(folder) }]
+  ];
+}
+
+function folderKey(folder: NoteFolder, key: "rename" | "delete"): void {
+  if (key === "rename") board.naming.value = folder.id;
+  else void deleteFolder(folder);
+}
+
+function bookmarkHref(bookmark: NoteBookmark): string | null {
+  return bookmark.note === null ? null : hrefOf(bookmark.note);
+}
+
+let lineTurn = 0;
+
+function openBookmark(bookmark: NoteBookmark, event: MouseEvent): void {
+  if (bookmark.kind === "folder") {
+    if (bookmark.folder !== null) board.reveal(bookmark.folder.id);
+
+    return;
+  }
+
+  const note = bookmark.note;
+
+  if (note === null) return;
+
+  const newTab = event.ctrlKey || event.metaKey;
+
+  if (bookmark.kind === "line" && !newTab) {
+    if (!bookmark.anchored) island.say({ tone: "error", title: i18n.t("note.status.line_gone") });
+    else lineAsk.value = { key: `${note.access === "owner" ? "" : note.owner}/${note.id}/false`, block: bookmark.block ?? "", turn: (lineTurn += 1) };
+  }
+
+  choose(note, newTab);
+}
+
+function bookmarkItemsOf(bookmark: NoteBookmark): DropdownMenuItem[][] {
+  const note = bookmark.note;
+
+  return [
+    ...(note === null ? [] : [[{ label: i18n.t("note.search.new_tab"), icon: "i-material-symbols-open-in-new", onSelect: () => choose(note, true) }]]),
+    [{ label: i18n.t("note.action.unbookmark"), icon: "i-material-symbols-bookmark-remove-outline", onSelect: () => void board.removeBookmark(bookmark.id).catch(failed("note.error.bookmark_failed")) }]
+  ];
+}
+
+/** A line of the open note bookmarked, or its bookmark taken off where it stands. */
+async function markLine(line: LineAsk): Promise<void> {
+  const note = openNote.value;
+
+  if (note === null) return;
+
+  const standing = openLines.value.get(line.block);
+
+  try {
+    if (standing !== undefined) await board.removeBookmark(standing);
+    else await board.addBookmark({ kind: "line", noteId: note.id, ...(note.access === "owner" ? {} : { noteOwner: note.owner }), block: line.block, quote: line.quote });
+  } catch (error) {
+    failed("note.error.bookmark_failed")(error);
+  }
+}
+
+const acts: NavigatorActs = {
+  folderItemsOf,
+  bookmarkItemsOf,
+  bookmarkHref,
+  openBookmark,
+  nameFolder,
+  dropRow: (folder, row) => void dropRow(folder, row),
+  folderKey,
+  newFolder: () => newFolder(null),
+  get roomItems() {
+    return [
+      [
+        { label: i18n.t("note.action.new"), icon: "i-material-symbols-add", onSelect: () => void create() },
+        { label: i18n.t("note.action.new_folder"), icon: "i-material-symbols-create-new-folder-outline", onSelect: () => newFolder(null) }
+      ]
+    ];
+  }
+};
 
 function setWide(wide: boolean): void {
   if (openNote.value !== null) board.keep(withWide(board.prefs.value, noteKeyOf(openNote.value), wide));
@@ -323,7 +499,9 @@ const searchKbds = SCREEN_KBDS.search;
             :api="api"
             :note-key="{ id: chosenKey.id, owner: chosenKey.owner }"
             :trashed="chosenKey.trashed"
-            :pinned="pinnedOpen"
+            :bookmarked="bookmarkedOpen"
+            :marked-lines="markedLines"
+            :line="lineOpen"
             :wide="wideOpen"
             navigator-key="drawer"
             :name-of="nameOf"
@@ -335,6 +513,7 @@ const searchKbds = SCREEN_KBDS.search;
             @act="act"
             @wide="setWide"
             @saved="regionSaved"
+            @line="markLine"
           />
           <div v-else class="flex min-w-0 flex-1 flex-col">
             <div class="flex h-12 shrink-0 items-center border-b border-default ps-2 pe-3" data-note-bar>
@@ -344,13 +523,13 @@ const searchKbds = SCREEN_KBDS.search;
               <UIcon name="i-material-symbols-edit-note-outline" class="size-10 text-dimmed" />
               <p class="text-sm text-muted">{{ $t("note.empty.open") }}</p>
             </div>
-            <CreateButton :label="$t('note.action.new')" :loading="board.creating.value" @click="create" />
+            <CreateButton :label="$t('note.action.new')" :loading="board.creating.value" @click="create()" />
           </div>
         </div>
 
         <UDrawer v-model:open="drawerOpen" :title="$t('note.label.list')" :ui="{ ...FULL_SHEET, header: 'sr-only' }">
           <template #body>
-            <NoteNavigator :board="board" :chosen="chosenMark" drawn :items-of="itemsOf" :href-of="hrefOf" @open="(note, event) => choose(note, event.ctrlKey || event.metaKey)" @create="create" @search="openSearch" />
+            <NoteNavigator :board="board" :chosen="chosenMark" drawn :items-of="itemsOf" :href-of="hrefOf" :acts="acts" @open="(note, event) => choose(note, event.ctrlKey || event.metaKey)" @create="create()" @search="openSearch" />
           </template>
         </UDrawer>
       </template>
@@ -367,7 +546,7 @@ const searchKbds = SCREEN_KBDS.search;
         @expand="folded = false"
       >
         <template #navigator>
-          <NoteNavigator :board="board" :chosen="chosenMark" :drawn="false" :items-of="itemsOf" :href-of="hrefOf" @open="(note, event) => choose(note, event.ctrlKey || event.metaKey)" @create="create" @search="openSearch" @fold="toggleNavigator" />
+          <NoteNavigator :board="board" :chosen="chosenMark" :drawn="false" :items-of="itemsOf" :href-of="hrefOf" :acts="acts" @open="(note, event) => choose(note, event.ctrlKey || event.metaKey)" @create="create()" @search="openSearch" @fold="toggleNavigator" />
         </template>
         <template #note>
           <NoteOpen
@@ -376,7 +555,9 @@ const searchKbds = SCREEN_KBDS.search;
             :api="api"
             :note-key="{ id: chosenKey.id, owner: chosenKey.owner }"
             :trashed="chosenKey.trashed"
-            :pinned="pinnedOpen"
+            :bookmarked="bookmarkedOpen"
+            :marked-lines="markedLines"
+            :line="lineOpen"
             :wide="wideOpen"
             :navigator-key="navigatorKey"
             :name-of="nameOf"
@@ -388,6 +569,7 @@ const searchKbds = SCREEN_KBDS.search;
             @act="act"
             @wide="setWide"
             @saved="regionSaved"
+            @line="markLine"
           />
           <div v-else class="flex min-w-0 flex-1 flex-col">
             <div class="flex h-12 shrink-0 items-center border-b border-default ps-2 pe-3" data-note-bar>

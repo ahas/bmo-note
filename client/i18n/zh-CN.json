@@ -20,8 +20,6 @@
       "talk": "讨论",
       "turn_into": "转换为",
       "search": "搜索",
-      "pin": "添加到收藏",
-      "unpin": "从收藏中移除",
       "copy_link": "复制链接",
       "duplicate": "创建副本",
       "trash": "移到回收站",
@@ -34,7 +32,15 @@
       "remove_icon": "移除图标",
       "full_width": "全宽",
       "details": "详细信息",
-      "link": "链接"
+      "link": "链接",
+      "bookmark": "添加书签",
+      "unbookmark": "移除书签",
+      "bookmark_line": "为此行添加书签",
+      "unbookmark_line": "移除此行书签",
+      "new_folder": "新建文件夹",
+      "rename": "重命名",
+      "move_to": "移动到",
+      "delete": "删除"
     },
     "label": {
       "conflict": "冲突",
@@ -61,7 +67,9 @@
       "list": "笔记列表",
       "width": "列表宽度",
       "selection_bar": "选中工具栏",
-      "agent": "Agent"
+      "agent": "Agent",
+      "line_gone": "已删除的行",
+      "line_of": "{title} · {line}"
     },
     "mark": {
       "bold": "粗体",
@@ -109,7 +117,7 @@
       "shared": "没有分享给你的笔记。",
       "trash": "回收站是空的。",
       "open": "没有打开的笔记。",
-      "pinned": "收藏中没有内容。"
+      "folder": "文件夹是空的。"
     },
     "status": {
       "conflict": "此笔记已在其他地方保存。",
@@ -122,13 +130,18 @@
       "restored": "已恢复。",
       "purged": "已永久删除。",
       "duplicated": "已创建副本。",
-      "block_copied": "已复制。"
+      "block_copied": "已复制。",
+      "folder_deleted": "已删除文件夹。",
+      "moved": "已移动。",
+      "line_gone": "已添加书签的行已被删除。"
     },
     "question": {
       "leave": "有未保存的更改。要离开此页面吗？",
       "leave_effect": "未保存的内容将会丢失。",
       "purge": "要永久删除此笔记吗？",
-      "purge_effect": "此操作无法撤销。"
+      "purge_effect": "此操作无法撤销。",
+      "delete_folder": "要删除此文件夹吗？",
+      "delete_folder_effect": "其中的笔记和文件夹将上移一级。"
     },
     "error": {
       "action_failed": "无法修改笔记。",
@@ -140,7 +153,11 @@
       "too-large": "此笔记超出了可保存的大小。",
       "copy_failed": "无法复制链接。",
       "section_failed": "无法加载这些笔记。",
-      "image_too_large": "此图片超出了可保存的大小。"
+      "image_too_large": "此图片超出了可保存的大小。",
+      "folder_failed": "无法更改文件夹。",
+      "too_deep": "文件夹最多可嵌套八层。",
+      "folder_cycle": "不能将文件夹移动到其内部的文件夹中。",
+      "bookmark_failed": "无法更改书签。"
     },
     "agent": {
       "key": "Agent",
@@ -184,10 +201,10 @@
       "span_week": "7 天"
     },
     "section": {
-      "pinned": "收藏",
       "mine": "我的笔记",
       "shared": "分享给我的",
-      "trash": "回收站"
+      "trash": "回收站",
+      "bookmarks": "书签"
     },
     "sort": {
       "changed": "最后编辑",
@@ -253,6 +270,12 @@
       "failed": "评论发送失败。",
       "read_failed": "无法加载评论。",
       "list": "评论列表"
+    },
+    "folder": {
+      "name": "文件夹名称",
+      "new_name": "新建文件夹",
+      "top": "顶层",
+      "mark": "文件夹"
     }
   }
 }

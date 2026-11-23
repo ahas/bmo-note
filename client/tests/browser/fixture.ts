@@ -17,7 +17,7 @@ export const FIXTURE: {
   notes: FixtureNote[];
   trashed: FixtureNote;
   sharedByOther: FixtureNote;
-  words: { search: string; none: string };
+  words: { search: string; none: string; folder: string; inner: string };
 } = {
   "notes": [
     {
@@ -77,7 +77,9 @@ export const FIXTURE: {
   },
   "words": {
     "search": "\uc608\uc0b0\uc548",
-    "none": "\uc874\uc7ac\ud558\uc9c0\uc54a\ub294\uac80\uc0c9\uc5b4"
+    "none": "\uc874\uc7ac\ud558\uc9c0\uc54a\ub294\uac80\uc0c9\uc5b4",
+    "folder": "\ud504\ub85c\uc81d\ud2b8",
+    "inner": "\ud68c\uc758\ub85d"
   }
 };
 

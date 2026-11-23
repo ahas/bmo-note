@@ -2,7 +2,7 @@
 // (`docs/api.md`, 「Notes」). The caller hands the call itself — through the console's relay in the
 // browser, to a stand-in in a test — so this module names no address and no fetcher.
 
-import type { DocNode, FoundNote, MemberPermission, Note, NoteComment, NoteLink, NoteMember, NoteMeta, NoteThread, NotesSort, NotesView, OpenedNote, Page, SearchAsk, SharedNote } from "../../shared/types";
+import type { BookmarkAsk, DocNode, FoundNote, MemberPermission, Note, NoteBookmark, NoteComment, NoteFolder, NoteLink, NoteMember, NoteMeta, NoteThread, NotesSort, NotesView, OpenedNote, Page, SearchAsk, SharedNote } from "../../shared/types";
 
 export type Call = <T>(path: string, options?: { method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; body?: unknown; query?: Record<string, string | undefined> }) => Promise<T>;
 
@@ -58,18 +58,27 @@ export function keyOfNote(note: Pick<NoteMeta, "id" | "owner" | "access">): Note
 }
 
 export interface NoteApi {
-  list: (view: NotesView, after?: string, sort?: NotesSort, limit?: number) => Promise<Page<NoteMeta>>;
+  /** A page of a view; `folder` keeps the reader's live notes in the folder it names, or, empty, in none. */
+  list: (view: NotesView, after?: string, sort?: NotesSort, limit?: number, folder?: string) => Promise<Page<NoteMeta>>;
   /** One note; `opened` records that the reader opened it, `trashed` reads the reader's own from the trash. */
   read: (key: NoteKey, how?: { opened?: boolean; trashed?: boolean }) => Promise<Note>;
-  create: (write: { id: string; doc: DocNode }) => Promise<NoteMeta>;
+  create: (write: { id: string; doc: DocNode; folder?: string }) => Promise<NoteMeta>;
   save: (key: NoteKey, write: { version: number; doc?: DocNode; restore?: boolean }) => Promise<NoteMeta>;
   icon: (key: NoteKey, icon: string) => Promise<NoteMeta>;
   duplicate: (key: NoteKey, write: { id: string; title: string }) => Promise<NoteMeta>;
   trash: (id: string) => Promise<void>;
   purge: (id: string) => Promise<void>;
-  pinned: () => Promise<NoteMeta[]>;
-  pin: (key: NoteKey) => Promise<void>;
-  unpin: (key: NoteKey) => Promise<void>;
+  /** The reader's folders, and the writes on them (`docs/api.md`, 「Folders」). */
+  folders: () => Promise<NoteFolder[]>;
+  makeFolder: (write: { id: string; name: string; parent: string | null }) => Promise<NoteFolder>;
+  changeFolder: (id: string, write: { name?: string; parent?: string | null }) => Promise<NoteFolder>;
+  deleteFolder: (id: string) => Promise<void>;
+  /** Moves the reader's own note into a folder, or into none. */
+  fileNote: (id: string, folder: string | null) => Promise<NoteMeta>;
+  /** The reader's bookmarks, and the writes on them (`docs/api.md`, 「Bookmarks」). */
+  bookmarks: () => Promise<NoteBookmark[]>;
+  addBookmark: (ask: BookmarkAsk) => Promise<NoteBookmark>;
+  removeBookmark: (id: string) => Promise<void>;
   recent: (limit: number) => Promise<OpenedNote[]>;
   search: (ask: SearchAsk) => Promise<Page<FoundNote>>;
   /** The note's live link, or null where none stands. */
@@ -120,11 +129,12 @@ export function createNoteApi(call: Call): NoteApi {
   }
 
   return {
-    list: (view, after, sort, limit = 50) =>
+    list: (view, after, sort, limit = 50, folder) =>
       sent<Page<NoteMeta>>("/notes", {
         query: {
           deleted: view === "trash" ? "true" : undefined,
           shared: view === "shared" ? "true" : undefined,
+          folder,
           sort: sort === undefined || sort === "changed" ? undefined : sort,
           after,
           limit: String(limit)
@@ -140,9 +150,14 @@ export function createNoteApi(call: Call): NoteApi {
     duplicate: (key, write) => sent<NoteMeta>(`/notes/${segment(key.id)}/duplicate`, { method: "POST", body: write, query: ownerQuery(key) }),
     trash: (id) => sent<void>(`/notes/${segment(id)}`, { method: "DELETE" }),
     purge: (id) => sent<void>(`/notes/${segment(id)}?purge=true`, { method: "DELETE" }),
-    pinned: async () => (await sent<Page<NoteMeta>>("/notes/pinned")).items,
-    pin: (key) => sent<void>(`/notes/${segment(key.id)}/pin`, { method: "PUT", query: ownerQuery(key) }),
-    unpin: (key) => sent<void>(`/notes/${segment(key.id)}/pin`, { method: "DELETE", query: ownerQuery(key) }),
+    folders: async () => (await sent<Page<NoteFolder>>("/folders")).items,
+    makeFolder: (write) => sent<NoteFolder>("/folders", { method: "POST", body: write }),
+    changeFolder: (id, write) => sent<NoteFolder>(`/folders/${segment(id)}`, { method: "PATCH", body: write }),
+    deleteFolder: (id) => sent<void>(`/folders/${segment(id)}`, { method: "DELETE" }),
+    fileNote: (id, folder) => sent<NoteMeta>(`/notes/${segment(id)}/folder`, { method: "PUT", body: { folder } }),
+    bookmarks: async () => (await sent<Page<NoteBookmark>>("/bookmarks")).items,
+    addBookmark: (ask) => sent<NoteBookmark>("/bookmarks", { method: "POST", body: ask }),
+    removeBookmark: (id) => sent<void>(`/bookmarks/${segment(id)}`, { method: "DELETE" }),
     recent: async (limit) => (await sent<Page<OpenedNote>>("/notes/recent", { query: { limit: String(limit) } })).items,
     search: (ask) =>
       sent<Page<FoundNote>>("/notes/search", {

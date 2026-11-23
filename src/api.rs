@@ -29,7 +29,7 @@ use crate::model::{
 };
 use crate::own;
 use crate::share;
-use crate::store::{Copied, Saved, Written};
+use crate::store::{Copied, Saved, Written, held_by};
 use crate::wire::{
   Access, DeleteQuery, EventsQuery, Health, NewCopy, NewNote, Note, NoteEvent, NoteIcon, NoteMeta,
   NoteQuery, NoteSave, NotesQuery, Page, ReadQuery, StreamEvent,
@@ -81,6 +81,7 @@ fn screens() -> Router<Arc<App>> {
     .route("/notes/{noteId}/backlinks", get(backlinks))
     .merge(comments::routes())
     .merge(crate::agent::routes())
+    .merge(crate::folders::routes())
     .merge(own::routes())
     .merge(share::routes())
 }
@@ -176,12 +177,9 @@ impl Reach {
     }
   }
 
-  /// The note's metadata as the caller holds it.
+  /// The note's metadata as the caller holds it: a member is told nothing of the owner's folders.
   pub fn held(&self, meta: NoteMeta) -> NoteMeta {
-    NoteMeta {
-      access: self.access,
-      ..meta
-    }
+    held_by(meta, self.access)
   }
 }
 
@@ -219,7 +217,7 @@ pub(crate) fn audience(app: &App, owner: &str, note: &str) -> Vec<String> {
 }
 
 /// A note's event published to `audience`.
-fn publish_note(app: &App, kind: &str, owner: &str, note: &str, audience: Vec<String>) {
+pub(crate) fn publish_note(app: &App, kind: &str, owner: &str, note: &str, audience: Vec<String>) {
   let data = NoteEvent {
     note_id: note.to_owned(),
     owner: owner.to_owned(),
@@ -299,6 +297,15 @@ async fn list_notes(
       "The shared view holds no trash: name deleted or shared, not both.",
     ));
   }
+  let folder = given.folder.as_deref().map(str::trim);
+  if folder.is_some() && (shared || deleted) {
+    return Err(ApiError::bad_request("A folder narrows the caller's own live notes alone."));
+  }
+  if let Some(folder) = folder.filter(|folder| !folder.is_empty())
+    && !app.store.has_folder(&caller.owner, folder).map_err(ApiError::failed)?
+  {
+    return Err(ApiError::no_folder(folder));
+  }
   let order = given.sort.unwrap_or_default();
   let after = match given.after.as_deref() {
     None => None,
@@ -309,7 +316,7 @@ async fn list_notes(
   let (items, more) = if shared {
     app.store.list_shared(&caller.owner, order, after.as_ref(), limit)
   } else {
-    app.store.list(&caller.owner, deleted, order, after.as_ref(), limit)
+    app.store.list(&caller.owner, deleted, folder, order, after.as_ref(), limit)
   }
   .map_err(ApiError::failed)?;
   Ok(Json(Page { items, more }))
@@ -334,8 +341,17 @@ async fn create_note(
   };
   let doc = checked(&given.doc, app.settings.notes.max_doc_bytes)?;
   let said = derived(&given.doc);
+  let folder = given.folder.as_deref().map(str::trim).filter(|folder| !folder.is_empty());
+  if let Some(folder) = folder
+    && !app.store.has_folder(&caller.owner, folder).map_err(ApiError::failed)?
+  {
+    return Err(ApiError::no_folder(folder));
+  }
   let at = now_ms();
-  let (meta, made) = app.store.create(&caller.owner, &id, &doc, &said, at).map_err(ApiError::failed)?;
+  let (meta, made) = app
+    .store
+    .create(&caller.owner, &id, &doc, &said, folder, at)
+    .map_err(ApiError::failed)?;
   if made {
     publish_note(&app, "note.saved", &caller.owner, &id, vec![caller.owner.clone()]);
   }

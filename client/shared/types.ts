@@ -18,7 +18,39 @@ export interface NoteMeta {
   access: NoteAccess;
   /** The note's icon, one emoji; empty where it has none. */
   icon: string;
+  /** The owner's folder the note stands in; null where it stands in none, and always null to a member. */
+  folder: string | null;
 }
+
+/** One of the reader's folders (docs/api.md, 「Folders」). */
+export interface NoteFolder {
+  id: string;
+  /** The folder it stands in; null at the top. */
+  parent: string | null;
+  name: string;
+  createdAt: number;
+}
+
+/** What a bookmark names. */
+export type BookmarkKind = "folder" | "note" | "line";
+
+/** One of the reader's bookmarks, with what it names as the reader reads it now (docs/api.md, 「Bookmarks」). */
+export interface NoteBookmark {
+  id: string;
+  kind: BookmarkKind;
+  createdAt: number;
+  folder: NoteFolder | null;
+  note: NoteMeta | null;
+  /** The block id a line's is anchored to. */
+  block: string | null;
+  /** A line's words: the block's now, or the ones it held once the block is gone. */
+  quote: string | null;
+  /** Whether a line's block stands in the note; true for the others. */
+  anchored: boolean;
+}
+
+/** A bookmark to make. */
+export type BookmarkAsk = { kind: "folder"; folderId: string } | { kind: "note"; noteId: string; noteOwner?: string } | { kind: "line"; noteId: string; noteOwner?: string; block: string; quote: string };
 
 /** A node of a note's document, the ProseMirror JSON of its TipTap editor (docs/api.md, 「Notes」). */
 export interface DocNode {

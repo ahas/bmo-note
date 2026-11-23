@@ -40,12 +40,13 @@ Agent asks (「Agent」), is no part of its readiness: an ask answers for itself
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/notes?deleted=&shared=&sort=&after=&limit=` | The caller's notes in the order `sort` names, newest changed first where it names none — `{items, more}`; `deleted=true` answers the trash, `shared=true` the live notes other accounts share with the caller |
-| POST | `/notes` | Makes a note: `id?`, `doc` — 201, or 200 with the note as it stands where the id is already held (idempotent by id; the stored document unchanged) |
+| GET | `/notes?deleted=&shared=&folder=&sort=&after=&limit=` | The caller's notes in the order `sort` names, newest changed first where it names none — `{items, more}`; `deleted=true` answers the trash, `shared=true` the live notes other accounts share with the caller, and `folder` the caller's live notes standing in the folder it names, or, empty, in none |
+| POST | `/notes` | Makes a note: `id?`, `doc`, `folder?` — 201, or 200 with the note as it stands where the id is already held (idempotent by id; the stored document unchanged) |
 | GET | `/notes/{noteId}?owner=&opened=&deleted=` | One note with its document; `opened=true` records that the caller opened it (「What was opened」); `deleted=true` answers the caller's own note where it rests in the trash |
 | PATCH | `/notes/{noteId}?owner=` | Saves: `version` (required), `doc?`, `restore?` — 200, or 409 `version-conflict` answering the current metadata |
 | DELETE | `/notes/{noteId}?purge=` | Moves the note to the trash, or, with `purge=true`, deletes it for good where it stands trashed, with everything kept beside it (`docs/design.md`, 「Storage」) — 204 |
 | PUT | `/notes/{noteId}/icon?owner=` | Sets the note's icon: `icon` (empty clears it) — 200 the metadata. The version and `changedAt` stay as they stand |
+| PUT | `/notes/{noteId}/folder` | Moves the caller's own note, live or trashed, into a folder: `folder` (a folder id, or null for none) — 200 the metadata. The version and `changedAt` stay as they stand |
 | POST | `/notes/{noteId}/duplicate?owner=` | Makes a note of the caller's own from one the caller reads: `id?`, `title` — 201 the copy's metadata |
 | PUT | `/notes/{noteId}/blobs/{blobId}?owner=` | Stores one image with the live note: the body is its bytes, `content-type` its image type — 204; an id already held keeps the bytes it was first given (a re-upload answers the same 204 whatever it carries) |
 | GET | `/notes/{noteId}/blobs/{blobId}?owner=` | One stored image: its bytes with the type it was stored under, `cache-control: private, max-age=31536000, immutable`; 404 where none stands |
@@ -55,9 +56,10 @@ A note metadata is `id`, `owner` (the account key the note belongs to), `title` 
 screen names an empty one by its own word), `version` (a whole number from 1, held up on each save),
 `createdAt`, `changedAt`, `size` (stored doc bytes), `deletedAt` (null while the note lives),
 `access`, what the caller holds of it: `owner`, or the member's `edit` or `read`, `icon`, the note's
-icon (a short string, empty where it has none). A note read adds `doc`. A write's `id` is 1 to 64
-letters, digits, `-` and `_`, never one of the words `search`, `pinned` and `recent`, which name routes
-under `/notes`; one is made where none is given (lowercase hexadecimal).
+icon (a short string, empty where it has none), and `folder`, the id of the owner's folder it stands in,
+null where it stands in none and always null to a member (「Folders」). A note read adds `doc`. A write's
+`id` is 1 to 64 letters, digits, `-` and `_`, never one of the words `search` and `recent`, which name
+routes under `/notes`; one is made where none is given (lowercase hexadecimal).
 
 A `doc` is one JSON object whose `type` is `doc` and whose `content` is an array of nodes, each an object
 with a string `type`; anything else is 422 `bad-doc`. The service stores it as it came and reads from it,
@@ -70,7 +72,8 @@ on a trashed note is 422 `trashed`; a `purge` of a live note is 422 `not-trashed
 `version` is below the stored one answers 409 `version-conflict`; one at or above it saves (a writer
 who read ahead of the service loses nothing it did not already hold). `restore=true` with no `doc`
 moves a trashed note back to life and writes nothing else; on a live note it changes nothing.
-`deleted=true` with `shared=true` is 400 `bad-request`.
+`deleted=true` with `shared=true`, and `folder` beside either, is 400 `bad-request`. A `folder` on a
+creation, a list or a move that names no folder of the caller's is 422 `no-folder`.
 
 A list's `sort` is `changed` (newest changed first, the default), `created` (newest made first) or
 `title` (by title, letters compared without regard to case, untitled notes last, then by id). Its
@@ -91,7 +94,11 @@ taken off, its images, icon, text and links copied (the screen marks the title a
 language), and no threads; the source is any note the caller reads live, their own or one
 shared with them at either permission, and anything else is 404 `not-found` as a read is. Its `id` is
 chosen as a creation's is, and one the caller already holds is 400 `bad-request`; it publishes
-`note.saved` to the caller, as a creation does.
+`note.saved` to the caller, as a creation does. A copy of the caller's own note stands in the source's
+folder; a copy of a note shared with the caller stands in none.
+
+A move into a folder is the owner's alone (403 `forbidden` to a member), reaches the note live or in the
+trash, and publishes `note.filed` to the owner; it writes nothing else of the note.
 
 The blob routes stand under the note: a `PUT` needs the note live (a trashed note is 422 `trashed`, no
 note 404), its `content-type` must name an image, its `blobId` must be 1 to 128 letters, digits, `-`,
@@ -163,20 +170,52 @@ A service-token call on these routes answers for the `owner` it names; one namin
 - **Refusals.** 503 `no-agent` where no agency is named or its token cannot be read; 502 `unanswered` where
   agency refused a step, could not be reached, or the turn ended with no answer, the `error` naming why.
 
-### Pins
+### Folders
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/notes/pinned` | The notes the caller pinned, first pinned first — `{items, more}`, `more` always false |
-| PUT | `/notes/{noteId}/pin?owner=` | Pins the note for the caller — 204; a note already pinned keeps its place |
-| DELETE | `/notes/{noteId}/pin?owner=` | Takes the caller's pin off — 204, whether it stood or not |
+| GET | `/folders` | The caller's folders, by name, letters compared without regard to case, then by id — `{items, more}`, `more` always false |
+| POST | `/folders` | Makes a folder: `id?`, `name`, `parent?` — 201 the folder, or 200 the folder as it stands where the id is already held |
+| PATCH | `/folders/{folderId}` | Renames or moves it: `name?`, `parent?` (a folder id, or null for the top; left out, it stays) — 200 the folder |
+| DELETE | `/folders/{folderId}` | Deletes the folder: its notes and folders move up into its parent, or to the top, and its bookmarks go — 204, whether it stood or not |
 
-A pin is the caller's own, kept by their account, so a member pins a note shared with them as its owner
-pins their own, and neither sees the other's. Pinning needs a note the caller reads live (404
-`not-found` otherwise, 422 `trashed` for the caller's own note in the trash). The list answers only
-what the caller reads live at the moment of the read: a pinned note trashed, a share taken back or a
-note purged drops out of it, and comes back with a restore or a new share while its pin stands. A purge
-takes every pin of the note.
+- **A folder** is `id`, `parent` (the folder it stands in, null at the top), `name` and `createdAt`. It is
+  the caller's own (`docs/design.md`, 「Folders」): every route here answers the caller's account alone, and
+  no member reaches another's. An `id` is chosen as a note's is, 1 to 64 letters, digits, `-` and `_`; one is
+  made where none is given. A `name` is 1 to 100 characters, one line, its ends trimmed; outside those, 400
+  `bad-request`.
+- **Where it stands.** A `parent` that names no folder of the caller's is 422 `no-folder`; one that is the
+  folder itself or a folder it holds is 422 `folder-cycle`; one that would stand the folder, or the deepest
+  folder it holds, past the eighth level is 422 `too-deep`. A rename or a move of a folder that does not
+  stand is 404 `not-found`.
+- Each write publishes `folder.changed` to the caller, with the folder's id.
+
+### Bookmarks
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/bookmarks` | The caller's bookmarks, first made first — `{items, more}`, `more` always false |
+| POST | `/bookmarks` | Bookmarks a folder, a note or a line: `kind`, and `folderId`, or `noteId` and `noteOwner?`, and for a line `block` and `quote` — 201 the bookmark, or 200 the bookmark as it stands where the caller already holds one of the same |
+| DELETE | `/bookmarks/{bookmarkId}` | Takes the bookmark off — 204, whether it stood or not |
+
+- **A bookmark** is `id`, `kind` (`folder`, `note` or `line`), `createdAt`, `folder` (the folder, for a
+  folder's), `note` (the note's metadata as the caller holds it, for a note's and a line's), `block` and
+  `quote` (for a line's: the block id it is anchored to, and the words the block holds in the note's stored
+  document, one line of at most 300 characters, or the words it held when it was made where no block of
+  that id stands) and `anchored` (for a line's, whether a block of its id stands in the note's stored
+  document; true for the others). What a kind does not name is null.
+- **What it names.** A folder's names one of the caller's own folders (404 `not-found` otherwise). A note's
+  and a line's name a note the caller reads live: their own, with `noteOwner` left out or naming
+  themselves, or another account's shared with them, `noteOwner` naming that account (404 `not-found`
+  otherwise, 422 `trashed` for the caller's own note in the trash). A line's `block` is 1 to 64 letters,
+  digits, `-` and `_`, and its `quote` at most 300 characters; anything else is 400 `bad-request`. The
+  block is not looked for when the bookmark is made: `anchored` says whether it stands.
+- **Whose it is.** A bookmark is the caller's own, kept by their account, and neither the owner of a note
+  nor its members see one another's. The list answers only what the caller reads live at the moment of the
+  read: a bookmark of a note trashed, of a share taken back, or of a note purged drops out of it, and comes
+  back with a restore or a new share while it stands. A purge takes every bookmark of the note and of its
+  lines; a folder's deletion takes its bookmarks.
+- Each write publishes `bookmark.changed` to the caller.
 
 ### What was opened
 
@@ -186,7 +225,7 @@ takes every pin of the note.
 
 A read with `opened=true` records, for the caller's account, the moment it opened the note; the store
 keeps each account's latest 100 and lets older ones go. `limit` is 1 to 50, 20 where none is given. As
-the pins, the list answers only what the caller reads live at the moment of the read.
+the bookmarks, the list answers only what the caller reads live at the moment of the read.
 
 ### Search
 
@@ -258,12 +297,12 @@ A console call naming the owner with `owner` on the routes of one note reaches a
 the reader:
 
 - with `read`: `GET /notes/{noteId}` (without `deleted`), `GET /notes/{noteId}/blobs/{blobId}`, its
-  backlinks, its threads, the reader's own pin of it and a duplicate of it;
+  backlinks, its threads, the reader's own bookmarks of it and of its lines, and a duplicate of it;
 - with `edit`: those, and `PATCH /notes/{noteId}` without `restore`,
   `PUT /notes/{noteId}/blobs/{blobId}` and `PUT /notes/{noteId}/icon`, as the owner's own, and the
   comment writes as 「Comments」 opens them;
-- with either, nothing else: a write a `read` share does not open, a trash, a purge, a restore and the
-  sharing routes are 403 `forbidden`.
+- with either, nothing else: a write a `read` share does not open, a trash, a purge, a restore, a move into
+  a folder and the sharing routes are 403 `forbidden`.
 
 A note not shared with the reader, one in the trash, and one whose share was taken back are 404
 `not-found`, as a note that does not stand is.
@@ -310,8 +349,8 @@ The note uses the contract's share page and its sharing with members; the people
 are the console's people directory, which the bundle reads in the browser, so the service calls no
 unit for them.
 
-The screens' routes are the notes, their blobs, their icon, their backlinks, their threads, the Agent, their pins,
-what was opened, the search, their sharing, the share reads and the event stream. Where the credential is empty, or
+The screens' routes are the notes, their blobs, their icon, their folder, their backlinks, their threads, the
+Agent, the folders, the bookmarks, what was opened, the search, their sharing, the share reads and the event stream. Where the credential is empty, or
 the folder cannot be served, no face stands, the reason is written to the service's log, and the
 console's routes answer 404 `no-route`; the service's own routes are answered as ever.
 
@@ -325,9 +364,12 @@ which the console's routes refuse. A deployment's console probe runs it (bmo-tes
 `GET /events` is a server-sent stream in the platform's shape (`after` or `Last-Event-ID`, `kinds`;
 the same events as a page to `Accept: application/json`, with `after` and `limit`): `note.saved`,
 `note.trashed`, `note.restored` and `note.purged`, each carrying `noteId` and `owner`; `note.shared` and
-`note.unshared`, carrying `noteId`, `owner` and `member`, the shared one `permission` too; and
-`note.commented`, carrying `noteId`, `owner` and `thread`. A console reader is given the events of its own notes and of the notes shared with
-it when they were published, and a share's own two events where it is that share's owner or member;
+`note.unshared`, carrying `noteId`, `owner` and `member`, the shared one `permission` too;
+`note.commented`, carrying `noteId`, `owner` and `thread`; `note.filed`, carrying `noteId`, `owner` and
+`folder` (null for none); `folder.changed`, carrying `owner` and `folderId`; and `bookmark.changed`,
+carrying `owner`, the account whose bookmarks changed. A console reader is given the events of its own
+notes and of the notes shared with it when they were published, a share's own two events where it is that
+share's owner or member, and `note.filed`, `folder.changed` and `bookmark.changed` where they are its own;
 the service token reads every one. The service keeps
 the events since it started, at most the last 1000, numbered upward from its start's moment in
 milliseconds times 1000; a resume from before them is 410 `gone`.
@@ -357,6 +399,9 @@ Beside the common codes of bmo-chat's `docs/conventions.md` (`bad-request`, `una
 | `bad-doc` | a `doc` that is not a TipTap document (422) |
 | `trashed` | a write on a note standing in the trash (422) |
 | `not-trashed` | a purge of a note that does not stand in the trash (422) |
+| `no-folder` | a folder named for a note or a folder that is not one of the caller's (422) |
+| `folder-cycle` | a folder moved under itself or under a folder it holds (422) |
+| `too-deep` | a folder that would stand past the eighth level (422) |
 | `unanswered` | an Agent ask agency refused, could not answer, or whose agent said nothing it could read (502) |
 | `no-agent` | an Agent ask where no agency is named or its token cannot be read (503) |
 

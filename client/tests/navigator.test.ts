@@ -1,15 +1,15 @@
 import { describe, expect, test } from "bun:test";
 
-import { base64url, cursorOf, defaultPrefs, notePath, prefsOf, withWide } from "../app/domain/navigator";
+import { ancestorsOf, base64url, cursorOf, defaultPrefs, folderOrder, folderTree, holdsFolder, notePath, prefsOf, withOpen, withWide } from "../app/domain/navigator";
 
-import type { NoteMeta } from "../shared/types";
+import type { NoteFolder, NoteMeta } from "../shared/types";
 
 // The navigator's own reading (docs/design.md, 「The console surface」; docs/api.md, 「Notes」): the cursor a
 // section's next page is read by in each order, the address a row opens at, and what the reader set for
 // it in this browser, read back whatever was kept.
 
 function note(over: Partial<NoteMeta> = {}): NoteMeta {
-  return { id: "n1", owner: "1", title: "Plan: draft", version: 1, createdAt: 10, changedAt: 20, size: 3, deletedAt: null, access: "owner", icon: "", ...over };
+  return { id: "n1", owner: "1", title: "Plan: draft", version: 1, createdAt: 10, changedAt: 20, size: 3, deletedAt: null, access: "owner", icon: "", folder: null, ...over };
 }
 
 describe("the cursor", () => {
@@ -40,11 +40,20 @@ describe("the address a row opens at", () => {
 describe("the prefs", () => {
   test("read back what was kept, each part that does not read standing at its default", () => {
     expect(prefsOf(null)).toEqual(defaultPrefs());
-    expect(prefsOf({ folded: { mine: true, shared: "yes" }, sorts: { mine: "title", shared: "size" }, wide: ["1/a", 3] })).toEqual({
-      folded: { pinned: false, mine: true, shared: false },
+    expect(prefsOf({ folded: { mine: true, shared: "yes" }, sorts: { mine: "title", shared: "size" }, wide: ["1/a", 3], open: ["f1", null] })).toEqual({
+      folded: { bookmarks: false, mine: true, shared: false },
       sorts: { mine: "title", shared: "changed" },
-      wide: ["1/a"]
+      wide: ["1/a"],
+      open: ["f1"]
     });
+  });
+
+  test("unfold and fold a folder", () => {
+    const open = withOpen(defaultPrefs(), "f1", true);
+
+    expect(open.open).toEqual(["f1"]);
+    expect(withOpen(open, "f1", true).open).toEqual(["f1"]);
+    expect(withOpen(open, "f1", false).open).toEqual([]);
   });
 
   test("turn a note's full width on and off", () => {
@@ -53,5 +62,36 @@ describe("the prefs", () => {
     expect(on.wide).toEqual(["1/a"]);
     expect(withWide(on, "1/a", true).wide).toEqual(["1/a"]);
     expect(withWide(on, "1/a", false).wide).toEqual([]);
+  });
+});
+
+function folder(id: string, parent: string | null, name = id): NoteFolder {
+  return { id, parent, name, createdAt: 1 };
+}
+
+describe("the folder tree", () => {
+  // As the service answers them: by name.
+  const folders = [folder("a", null, "Alpha"), folder("c", "b", "Charlie"), folder("b", "a", "Bravo"), folder("z", null, "Zulu"), folder("o", "gone", "Orphan")];
+
+  test("stands each folder under its parent, a folder whose parent is gone at the top", () => {
+    const tree = folderTree(folders);
+
+    expect(tree.map((node) => node.folder.id)).toEqual(["a", "z", "o"]);
+    expect(folderOrder(tree).map((node) => `${node.folder.id}:${node.depth}`)).toEqual(["a:0", "b:1", "c:2", "z:0", "o:0"]);
+  });
+
+  test("names the folders one stands in, the top one first, and whether one holds another", () => {
+    expect(ancestorsOf(folders, "c")).toEqual(["a", "b"]);
+    expect(ancestorsOf(folders, "a")).toEqual([]);
+    expect(holdsFolder(folders, "a", "c")).toBe(true);
+    expect(holdsFolder(folders, "c", "c")).toBe(true);
+    expect(holdsFolder(folders, "c", "a")).toBe(false);
+  });
+
+  test("never walks round a loop", () => {
+    const looped = [folder("x", "y"), folder("y", "x")];
+
+    expect(ancestorsOf(looped, "x")).toEqual(["y"]);
+    expect(folderOrder(folderTree(looped))).toEqual([]);
   });
 });

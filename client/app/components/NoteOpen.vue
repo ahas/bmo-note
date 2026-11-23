@@ -1,12 +1,12 @@
 <script setup lang="ts">
 // The open note, the note region of the notes screen (`docs/design.md`, 「The console surface」, 「Editing
 // and saving」): its bar — the key that brings the navigator, the note's state as one key opening its
-// properties, and the pin star, the share key and the more menu — then the band a reader must act on, and
+// properties, and the bookmark key, the share key and the more menu — then the band a reader must act on, and
 // the format bar and the editor in one column, the page head standing at the top of the document's own
 // scroll and the backlinks under it. The note saves itself a short moment after each edit, and at once on
 // Ctrl+S. A note in the trash opens read only under its band; a note shared with the reader opens as the
 // share allows. The talk stands in the column beside the document; a comment opens in the flow of the note, under
-// its words.
+// its words. A line opened from its bookmark is scrolled into sight and marked a moment.
 
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from "vue-router";
@@ -15,6 +15,7 @@ import HintTip from "bmo-ui/app/components/HintTip.vue";
 import IconButton from "bmo-ui/app/components/IconButton.vue";
 import PropertyList from "bmo-ui/app/components/PropertyList.vue";
 import { useBackClose } from "bmo-ui/app/domain/layers";
+import { useIsland } from "bmo-ui/app/domain/island";
 import { askQuestion } from "bmo-ui/app/domain/question";
 
 import NoteBacklinks from "./NoteBacklinks.vue";
@@ -49,14 +50,25 @@ import type { NoteStreamEvent } from "../domain/stream";
 import type { Note, NoteMeta } from "../../shared/types";
 
 /** What the bar and the band ask the screen to do with the open note. */
-export type NoteAct = "share" | "pin" | "unpin" | "copy" | "duplicate" | "trash" | "restore" | "purge";
+export type NoteAct = "share" | "bookmark" | "unbookmark" | "copy" | "duplicate" | "trash" | "restore" | "purge";
+
+/** A line bookmarked or its bookmark taken off: its block id and its words. */
+export interface LineAsk {
+  block: string;
+  quote: string;
+}
 
 const props = defineProps<{
   api: NoteApi;
   noteKey: NoteKey;
   /** The reader's own note, read from the trash. */
   trashed: boolean;
-  pinned: boolean;
+  /** Whether the reader bookmarked the note. */
+  bookmarked: boolean;
+  /** The block ids of the lines the reader bookmarked in it. */
+  markedLines: readonly string[];
+  /** A line to bring into sight, asked again by a new turn. */
+  line: { block: string; turn: number } | null;
   /** Whether the note stands at full width in this browser. */
   wide: boolean;
   /** Whether a key brings the navigator: on a phone, or with the navigator folded. */
@@ -78,15 +90,17 @@ const emit = defineEmits<{
   wide: [wide: boolean];
   saved: [note: NoteMeta];
   open: [path: string, newTab: boolean];
+  line: [line: LineAsk];
 }>();
 
 const i18n = useI18n();
+const island = useIsland((key: string) => i18n.t(key));
 
 const note = shallowRef<Note | null>(null);
 const stand = ref<"loading" | "ready" | "missing" | "failed">("loading");
 const readCount = ref(0);
 const saveState = ref<SaveState>(
-  initialSaveState({ id: props.noteKey.id, owner: props.noteKey.owner ?? "", title: "", version: 1, createdAt: 0, changedAt: 0, size: 0, deletedAt: null, access: "owner", icon: "" })
+  initialSaveState({ id: props.noteKey.id, owner: props.noteKey.owner ?? "", title: "", version: 1, createdAt: 0, changedAt: 0, size: 0, deletedAt: null, access: "owner", icon: "", folder: null })
 );
 const editor = shallowRef<InstanceType<typeof NoteEditor> | null>(null);
 const holding = ref<Holding>({ words: 0 });
@@ -294,11 +308,61 @@ function talkRename(title: string): boolean {
   return editor.value?.rename(title) ?? false;
 }
 
-/** The editor has drawn the note: the count, the title and the places of the comment marks are read. */
+// Whether the editor has drawn the note, so a line asked for can be found in it.
+const drawn = ref(false);
+
+/** The editor has drawn the note: the count, the title and the places of the comment marks are read, and a line
+ * asked for is brought into sight. */
 function ready(): void {
   count();
   readTitle();
   comments.placesChanged();
+  drawn.value = true;
+}
+
+// A line asked for from its bookmark, once the editor has drawn the note; a line gone says so.
+let shownTurn = -1;
+
+watch(
+  [() => props.line, drawn],
+  ([line, isDrawn]) => {
+    if (line === null || !isDrawn || line.turn === shownTurn) return;
+
+    shownTurn = line.turn;
+
+    if (editor.value?.showLine(line.block) !== true) island.say({ tone: "error", title: i18n.t("note.status.line_gone") });
+  },
+  { flush: "post" }
+);
+
+/** Bookmarks the line at `pos`, or under the caret, or takes its bookmark off; a block given its id now is saved
+ * first, so the bookmark names a block the stored note holds. */
+async function bookmarkLine(pos?: number): Promise<void> {
+  const line = editor.value?.lineAt(pos) ?? null;
+
+  if (line === null) return;
+
+  if (line.wrote) {
+    if (debounce !== null) {
+      clearTimeout(debounce);
+      debounce = null;
+    }
+
+    await flush();
+  }
+
+  emit("line", { block: line.block, quote: line.quote });
+}
+
+// Whether the line under the caret is bookmarked, read as the more menu opens.
+const caretMarked = ref(false);
+
+function readCaret(open: boolean): void {
+  if (!open) return;
+
+  const block = readonly.value ? null : (editor.value?.caretBlock() ?? null);
+
+  caretMarked.value = block !== null && props.markedLines.includes(block);
 }
 
 /** Sends what the editor holds, naming the version it was made from (`docs/api.md`, 「Notes」). */
@@ -479,6 +543,15 @@ const moreItems = computed<DropdownMenuItem[][]>(() => {
     [
       { label: i18n.t("note.action.copy_link"), icon: "i-material-symbols-link", kbds: SCREEN_KBDS.link, onSelect: () => act("copy") },
       { label: i18n.t("note.action.duplicate"), icon: "i-material-symbols-content-copy-outline", disabled: props.trashed, onSelect: () => act("duplicate") },
+      ...(readonly.value
+        ? []
+        : [
+            {
+              label: i18n.t(caretMarked.value ? "note.action.unbookmark_line" : "note.action.bookmark_line"),
+              icon: caretMarked.value ? "i-material-symbols-bookmark" : "i-material-symbols-bookmark-outline",
+              onSelect: () => void bookmarkLine()
+            }
+          ]),
       {
         label: i18n.t("note.action.full_width"),
         icon: "i-material-symbols-width-full-outline",
@@ -558,16 +631,16 @@ const iconShown = computed(() => note.value?.icon ?? "");
       <div v-if="stand === 'ready' && note !== null" class="ms-auto flex shrink-0 items-center gap-1">
         <IconButton
           v-if="!props.trashed"
-          :label="props.pinned ? $t('note.action.unpin') : $t('note.action.pin')"
-          :icon="props.pinned ? 'i-material-symbols-star' : 'i-material-symbols-star-outline'"
-          :class="props.pinned ? 'text-warning' : ''"
+          :label="props.bookmarked ? $t('note.action.unbookmark') : $t('note.action.bookmark')"
+          :icon="props.bookmarked ? 'i-material-symbols-bookmark' : 'i-material-symbols-bookmark-outline'"
+          :class="props.bookmarked ? 'text-primary' : ''"
           size="sm"
-          :aria-pressed="props.pinned"
-          data-note-pin
-          @click="act(props.pinned ? 'unpin' : 'pin')"
+          :aria-pressed="props.bookmarked"
+          data-note-bookmark
+          @click="act(props.bookmarked ? 'unbookmark' : 'bookmark')"
         />
         <IconButton v-if="owns && !props.trashed" :label="$t('note.action.share')" icon="i-material-symbols-share-outline" size="sm" data-note-share @click="act('share')" />
-        <UDropdownMenu :items="moreItems" :content="{ align: 'end' }">
+        <UDropdownMenu :items="moreItems" :content="{ align: 'end' }" @update:open="readCaret">
           <IconButton :label="$t('note.action.more')" icon="i-material-symbols-more-vert" size="sm" data-note-more />
         </UDropdownMenu>
       </div>
@@ -632,12 +705,14 @@ const iconShown = computed(() => note.value?.icon ?? "");
           :chosen-thread="chosenThread"
           :gap="gap"
           :agent="readonly ? undefined : askAgent"
+          :marked="props.markedLines"
           @change="onEdit"
           @title="liveTitle = $event"
           @ready="ready"
           @link="openLink"
           @thread="openThread"
           @comment="draftComment"
+          @bookmark="(pos) => void bookmarkLine(pos)"
         >
           <template #barEnd>
             <NoteCommentList :comments="comments" @open="openThread" />

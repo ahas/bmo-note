@@ -24,6 +24,8 @@ pub struct NoteMeta {
   pub access: Access,
   /// The note's icon, one emoji; empty where it has none.
   pub icon: String,
+  /// The owner's folder the note stands in; none where it stands in none, and always none to a member.
+  pub folder: Option<String>,
 }
 
 /// What a caller holds of a note: the note's own account, or a member's share (`docs/design.md`, 「Who
@@ -149,6 +151,9 @@ pub struct NewNote {
   #[serde(default)]
   pub id: Option<String>,
   pub doc: Value,
+  /// The caller's folder the note is made in; none for the top.
+  #[serde(default)]
+  pub folder: Option<String>,
 }
 
 /// A save of a note: the version it was made from, and the fields it writes.
@@ -188,6 +193,9 @@ pub struct NotesQuery {
   /// Answers the live notes other accounts share with the caller.
   #[serde(default)]
   pub shared: Option<bool>,
+  /// Answers the caller's live notes standing in the folder it names, or, empty, in none.
+  #[serde(default)]
+  pub folder: Option<String>,
   /// The order the rows stand in; newest changed first where none is named.
   #[serde(default)]
   pub sort: Option<ListOrder>,
@@ -472,4 +480,141 @@ pub struct CommentEvent {
   pub note_id: String,
   pub owner: String,
   pub thread: String,
+}
+
+/// One of an account's folders (`docs/api.md`, 「Folders」).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Folder {
+  pub id: String,
+  /// The folder it stands in; none at the top.
+  pub parent: Option<String>,
+  pub name: String,
+  pub created_at: i64,
+}
+
+/// A folder to make.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewFolder {
+  /// 1 to 64 letters, digits, `-` and `_`; one is made where none is given.
+  #[serde(default)]
+  pub id: Option<String>,
+  pub name: String,
+  /// The folder it is made in; none for the top.
+  #[serde(default)]
+  pub parent: Option<String>,
+}
+
+/// A folder renamed or moved: a field left out stays as it stands, and a `parent` of null moves it to the
+/// top.
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderChange {
+  #[serde(default)]
+  pub name: Option<String>,
+  #[serde(default, deserialize_with = "given")]
+  pub parent: Option<Option<String>>,
+}
+
+/// A field that is told apart left out (none) from given as null (some none).
+fn given<'de, D: serde::Deserializer<'de>>(read: D) -> Result<Option<Option<String>>, D::Error> {
+  Option::<String>::deserialize(read).map(Some)
+}
+
+/// A note moved into a folder, or into none.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteFiling {
+  pub folder: Option<String>,
+}
+
+/// What a bookmark names (`docs/api.md`, 「Bookmarks」).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum BookmarkKind {
+  Folder,
+  Note,
+  Line,
+}
+
+impl BookmarkKind {
+  /// The word the store keeps the kind as.
+  pub fn word(self) -> &'static str {
+    match self {
+      Self::Folder => "folder",
+      Self::Note => "note",
+      Self::Line => "line",
+    }
+  }
+
+  /// The kind a stored word names; anything unknown reads as a note's.
+  pub fn of_word(word: &str) -> Self {
+    match word {
+      "folder" => Self::Folder,
+      "line" => Self::Line,
+      _ => Self::Note,
+    }
+  }
+}
+
+/// One of the caller's bookmarks, with what it names as the caller reads it now.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Bookmark {
+  pub id: String,
+  pub kind: BookmarkKind,
+  pub created_at: i64,
+  /// The folder, for a folder's.
+  pub folder: Option<Folder>,
+  /// The note as the caller holds it, for a note's and a line's.
+  pub note: Option<NoteMeta>,
+  /// The block id a line's is anchored to.
+  pub block: Option<String>,
+  /// A line's words: the block's now where it stands, else the ones it held when it was made.
+  pub quote: Option<String>,
+  /// Whether a line's block stands in the note's stored document; true for the other kinds.
+  pub anchored: bool,
+}
+
+/// A bookmark to make.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewBookmark {
+  pub kind: BookmarkKind,
+  #[serde(default)]
+  pub folder_id: Option<String>,
+  #[serde(default)]
+  pub note_id: Option<String>,
+  /// The account the note belongs to, where it is not the caller's own.
+  #[serde(default)]
+  pub note_owner: Option<String>,
+  #[serde(default)]
+  pub block: Option<String>,
+  #[serde(default)]
+  pub quote: Option<String>,
+}
+
+/// The data `note.filed` carries.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FiledEvent {
+  pub note_id: String,
+  pub owner: String,
+  pub folder: Option<String>,
+}
+
+/// The data `folder.changed` carries.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderEvent {
+  pub owner: String,
+  pub folder_id: String,
+}
+
+/// The data `bookmark.changed` carries: the account whose bookmarks changed.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountEvent {
+  pub owner: String,
 }

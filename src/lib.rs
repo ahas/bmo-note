@@ -10,6 +10,7 @@ pub mod console;
 pub mod doc;
 pub mod error;
 pub mod events;
+pub mod folders;
 pub mod model;
 pub mod own;
 pub mod search;

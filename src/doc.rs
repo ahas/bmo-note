@@ -131,6 +131,25 @@ fn strip_comments(node: &mut Value) {
   }
 }
 
+/// The most characters a line bookmark's words hold.
+pub const LINE_WORDS_MAX: usize = 300;
+
+/// The words the block whose `block` attribute is `id` holds, its lines laid on one line and cut to
+/// `LINE_WORDS_MAX` characters; none where no block of that id stands (`docs/design.md`, 「Bookmarks」).
+pub fn block_words(doc: &Value, id: &str) -> Option<String> {
+  let block = block_of(doc, id)?;
+  let mut lines = Vec::new();
+  lines_of(block, &mut lines);
+  Some(one_line(&lines.join(" ")).chars().take(LINE_WORDS_MAX).collect())
+}
+
+fn block_of<'a>(node: &'a Value, id: &str) -> Option<&'a Value> {
+  if kind(node) != "text" && attr(node, "block") == Some(id) {
+    return Some(node);
+  }
+  children(node).iter().find_map(|child| block_of(child, id))
+}
+
 fn kind(node: &Value) -> &str {
   node.get("type").and_then(Value::as_str).unwrap_or("")
 }

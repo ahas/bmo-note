@@ -15,8 +15,8 @@ repository. `docs/design.md` states what it is and `docs/api.md` its boundary.
 loopback port: notes written, read, saved, conflicted, trashed, restored and purged, each account's own
 (`notes.rs`); what the service reads of a document (`document.rs`); what stands beside a note's document — what
 it says, its links, its icon, a copy of it (`beside.rs`) — and the images it holds (`blobs.rs`); its comment
-threads (`comments.rs`); a note shared by link and with members (`sharing.rs`); each reader's own pins and record
-of what was opened (`own.rs`); the search (`search.rs`); the stream the writes publish (`events.rs`); the console
+threads (`comments.rs`); a note shared by link and with members (`sharing.rs`); each account's folders and its
+notes' places among them (`folders.rs`); each reader's own bookmarks and record of what was opened (`own.rs`); the search (`search.rs`); the stream the writes publish (`events.rs`); the console
 face the service serves, its manifest read through bmo-ui's own reading on the vendored release (`console.rs`);
 and the unit's own repository checks (`repository.rs`). The console bundle's check is `bun run check` inside
 `client/`, which installs, typechecks, builds the bundle and runs its unit tests; its browser tests under

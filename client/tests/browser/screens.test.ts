@@ -141,7 +141,8 @@ async function noSidewaysScroll(page: Page): Promise<void> {
 // The dev host builds the screen's sources and finds the packages they import the first time a screen asks
 // for them, reloading the page as it does. One pass over the screen and an open note lets that happen; then
 // the fixture's notes are written: the reader's own, one another account shares with them, one in their
-// trash, two pinned, and one opened so the search has something it was opened before typing.
+// trash, one in a folder of theirs, two bookmarked, and one opened so the search has something it was opened
+// before typing.
 async function settledAndSeeded(): Promise<void> {
   const once = WIDTHS[0]!;
   const host = stack!.host;
@@ -167,14 +168,25 @@ async function settledAndSeeded(): Promise<void> {
   }, FIXTURE.sharedByOther.id);
   await context.clearCookies({ name: READER_COOKIE });
   await page.evaluate(
-    async ({ trashed, pins, read }) => {
+    async ({ trashed, marks, read, folder, filed }) => {
+      const json = { "content-type": "application/json" };
+
       await fetch(`/proxy/note/notes/${trashed}`, { method: "DELETE" });
 
-      for (const pin of pins) await fetch(`/proxy/note/notes/${pin}/pin`, { method: "PUT" });
+      for (const mark of marks) await fetch("/proxy/note/bookmarks", { method: "POST", headers: json, body: JSON.stringify({ kind: "note", noteId: mark }) });
 
       for (const one of read) await fetch(`/proxy/note/notes/${one}?opened=true`);
+
+      await fetch("/proxy/note/folders", { method: "POST", headers: json, body: JSON.stringify({ id: "screens-folder", name: folder }) });
+      await fetch(`/proxy/note/notes/${filed}/folder`, { method: "PUT", headers: json, body: JSON.stringify({ folder: "screens-folder" }) });
     },
-    { trashed: FIXTURE.trashed.id, pins: [FIXTURE.notes[2]!.id, FIXTURE.notes[0]!.id], read: [FIXTURE.notes[1]!.id, FIXTURE.notes[0]!.id] }
+    {
+      trashed: FIXTURE.trashed.id,
+      marks: [FIXTURE.notes[2]!.id, FIXTURE.notes[0]!.id],
+      read: [FIXTURE.notes[1]!.id, FIXTURE.notes[0]!.id],
+      folder: FIXTURE.words.folder,
+      filed: FIXTURE.notes[3]!.id
+    }
   );
   await context.close();
 
@@ -284,7 +296,7 @@ async function navigatorShown(page: Page, width: Width): Promise<Locator> {
 
 describe.skipIf(!ready).each(WIDTHS.flatMap((width) => SCHEMES.map((scheme) => ({ width, scheme }))))("the notes screen at $width.name, $scheme", ({ width, scheme }) => {
   test(
-    "the navigator holds the favourites, the reader's own notes and the shared ones, and the trash at its foot",
+    "the navigator holds the bookmarks, the reader's own notes with their folders first, the shared ones, and the trash at its foot",
     async () => {
       const page = await opened(width, scheme, "/note");
 
@@ -293,8 +305,17 @@ describe.skipIf(!ready).each(WIDTHS.flatMap((width) => SCHEMES.map((scheme) => (
       const navigator = await navigatorShown(page, width);
       const sections = await navigator.locator("section").evaluateAll((all) => all.map((one) => one.getAttribute("aria-label")));
 
-      expect(sections).toEqual([WORDS.section.pinned, WORDS.section.mine, WORDS.section.shared]);
+      expect(sections).toEqual([WORDS.section.bookmarks, WORDS.section.mine, WORDS.section.shared]);
       expect(await navigator.locator("[data-navigator-foot]").textContent()).toContain(WORDS.section.trash);
+
+      // The own section's folder stands before its notes, and unfolds onto the note standing in it.
+      const mine = navigator.locator("[data-mine]");
+      const folder = mine.locator("[data-folder=screens-folder] button[aria-expanded]");
+
+      expect(await mine.locator("[data-section-room] > *").first().getAttribute("data-folders")).not.toBeNull();
+      await folder.click();
+      await mine.locator(`[data-folders] [data-note$="/${FIXTURE.notes[3]!.id}"]`).waitFor({ timeout: STANDING_MS });
+      expect(await mine.locator(`[data-folders] ~ ul [data-note$="/${FIXTURE.notes[3]!.id}"]`).count()).toBe(0);
 
       // Every row is one line: its icon and its title.
       const heights = await navigator.locator("[data-navigator-list] li a").evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
@@ -329,12 +350,12 @@ describe.skipIf(!ready).each(WIDTHS.flatMap((width) => SCHEMES.map((scheme) => (
   );
 
   test(
-    "a note open: its bar holds its state at the leading end and the star, share and more keys at the trailing end",
+    "a note open: its bar holds its state at the leading end and the bookmark, share and more keys at the trailing end",
     async () => {
       const page = await noteOpened(width, scheme);
       const bar = page.locator("[data-note-bar]");
 
-      for (const mark of ["[data-note-state]", "[data-note-pin]", "[data-note-share]", "[data-note-more]"]) expect(await bar.locator(mark).count()).toBe(1);
+      for (const mark of ["[data-note-state]", "[data-note-bookmark]", "[data-note-share]", "[data-note-more]"]) expect(await bar.locator(mark).count()).toBe(1);
 
       const state = (await bar.locator("[data-note-state]").boundingBox())!;
       const more = (await bar.locator("[data-note-more]").boundingBox())!;
@@ -451,7 +472,7 @@ describe.skipIf(!ready).each(WIDTHS.flatMap((width) => SCHEMES.map((scheme) => (
 
       await band.waitFor({ timeout: STANDING_MS });
       expect(await band.getByRole("button").allTextContents()).toEqual([WORDS.action.restore, WORDS.action.purge]);
-      expect(await page.locator("[data-note-pin], [data-note-share]").count()).toBe(0);
+      expect(await page.locator("[data-note-bookmark], [data-note-share]").count()).toBe(0);
       await noSidewaysScroll(page);
       await shot(page, width, scheme, "trashed");
       await page.context().close();

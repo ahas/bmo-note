@@ -341,7 +341,8 @@ async fn a_store_from_before_the_search_is_upgraded_in_place_and_opens_unchanged
   let scratch = Scratch::make("upgrade");
   let path = scratch.join("old.db");
   {
-    // The store as the unit kept it before icons, search, pins and what was opened.
+    // The store as the unit kept it before icons, search, folders, bookmarks and what was opened, its
+    // favourites kept in a table of their own.
     let old = rusqlite::Connection::open(&path).expect("an old store");
     old
       .execute_batch(
@@ -350,6 +351,10 @@ async fn a_store_from_before_the_search_is_upgraded_in_place_and_opens_unchanged
          PRIMARY KEY (owner, id)); \
          CREATE TABLE blobs (owner TEXT NOT NULL, note TEXT NOT NULL, id TEXT NOT NULL, mime TEXT NOT NULL, \
          bytes BLOB NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (owner, note, id)); \
+         CREATE TABLE pins (account TEXT NOT NULL, owner TEXT NOT NULL, note TEXT NOT NULL, \
+         pinned_at INTEGER NOT NULL, PRIMARY KEY (account, owner, note)); \
+         INSERT INTO pins VALUES ('1', '1', 'new', 30); \
+         INSERT INTO pins VALUES ('1', '1', 'old', 40); \
          INSERT INTO notes VALUES ('1', 'old', 'Kept from before', x'01', 3, 10, 20, NULL); \
          INSERT INTO notes VALUES ('1', 'new', '', CAST('{\"type\":\"doc\",\"content\":[{\"type\":\"title\",\"content\":[{\"type\":\"text\",\"text\":\"Written\"}]},{\"type\":\"paragraph\",\"content\":[{\"type\":\"mention\",\"attrs\":{\"id\":\"old\",\"owner\":\"1\",\"label\":\"x\"}}]}]}' AS BLOB), 1, 10, 20, NULL);",
       )
@@ -359,6 +364,20 @@ async fn a_store_from_before_the_search_is_upgraded_in_place_and_opens_unchanged
     let store = bmo_note::store::Store::open(&path).expect("the store opens");
     let meta = store.meta("1", "old", Some(false)).expect("a read").expect("the old note");
     assert_eq!((meta.title.as_str(), meta.version, meta.icon.as_str()), ("Kept from before", 3, ""));
+    assert_eq!(meta.folder, None, "a note of an earlier store stands in no folder");
+    let bookmarks = store.bookmarks("1").expect("the bookmarks");
+    let kept: Vec<_> = bookmarks
+      .iter()
+      .map(|one| (one.kind, one.created_at, one.note.as_ref().map(|note| note.id.clone())))
+      .collect();
+    assert_eq!(
+      kept,
+      vec![
+        (bmo_note::wire::BookmarkKind::Note, 30, Some("new".to_owned())),
+        (bmo_note::wire::BookmarkKind::Note, 40, Some("old".to_owned())),
+      ],
+      "every favourite is a note bookmark, made when it was"
+    );
     assert_eq!(store.foreign_documents(), 1, "the earlier editor's document is left for the migration");
     let written = store.meta("1", "new", Some(false)).expect("a read").expect("the new note");
     assert_eq!(written.title, "Written", "a document of the editor's format is read as the store opens");

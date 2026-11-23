@@ -6,7 +6,7 @@ use axum::response::{IntoResponse, Response};
 use crate::wire::WireError;
 
 /// Every code the service answers, each with its status and what it means.
-pub const CODES: [(&str, u16, &str); 15] = [
+pub const CODES: [(&str, u16, &str); 18] = [
   ("bad-request", 400, "the body or the query is not the shape the route takes"),
   ("unauthorized", 401, "the token is missing or wrong"),
   ("forbidden", 403, "the token is right but the caller may not do this"),
@@ -19,6 +19,9 @@ pub const CODES: [(&str, u16, &str); 15] = [
   ("bad-doc", 422, "a doc that is not a TipTap document"),
   ("trashed", 422, "a write on a note standing in the trash"),
   ("not-trashed", 422, "a purge of a note that does not stand in the trash"),
+  ("no-folder", 422, "a folder named that is not one of the caller's"),
+  ("folder-cycle", 422, "a folder moved under itself or under a folder it holds"),
+  ("too-deep", 422, "a folder that would stand past the last level"),
   ("unanswered", 502, "the note assistant's ask came back with no answer"),
   ("no-agent", 503, "no agency is named for the note assistant"),
   ("failed", 500, "the service failed"),
@@ -89,6 +92,18 @@ impl ApiError {
 
   pub fn trashed(id: &str) -> Self {
     Self::of("trashed", format!("The note {id} stands in the trash."))
+  }
+
+  pub fn no_folder(id: &str) -> Self {
+    Self::of("no-folder", format!("No folder {id} of the caller's stands."))
+  }
+
+  pub fn folder_cycle(id: &str) -> Self {
+    Self::of("folder-cycle", format!("Folder {id} cannot stand under itself or a folder it holds."))
+  }
+
+  pub fn too_deep() -> Self {
+    Self::of("too-deep", "Folders stand at most eight levels deep.")
   }
 
   pub fn not_trashed(id: &str) -> Self {

@@ -19,6 +19,7 @@ import NoteAgent from "./NoteAgent.vue";
 import NoteSelectionBar from "./NoteSelectionBar.vue";
 import NoteToolbar from "./NoteToolbar.vue";
 import { ImageRefused } from "../domain/blobs";
+import { BLOCK_ATTR, blockAround, blockIdAt, blockPos, blockWords, freshBlockId, LINE_SHOWN } from "../domain/blocks";
 import { countWords } from "../domain/count";
 import { commentPlaces, dropComment, snapshotOf, writeDoc } from "../domain/document";
 import { COMMENT_GAP, COMMENT_TINT, noteExtensions } from "../domain/extensions";
@@ -72,8 +73,10 @@ const props = withDefaults(
     gap?: GapTarget;
     /** The Agent the menu asks over a passage; none where the reader may not write. */
     agent?: AgentCall;
+    /** The block ids of the lines the reader bookmarked in this note. */
+    marked?: readonly string[];
   }>(),
-  { readonly: false, toolbar: true, comments: false, findNotes: undefined, openThreads: () => [], chosenThread: null, gap: null, agent: undefined }
+  { readonly: false, toolbar: true, comments: false, findNotes: undefined, openThreads: () => [], chosenThread: null, gap: null, agent: undefined, marked: () => [] }
 );
 
 const emit = defineEmits<{
@@ -85,6 +88,8 @@ const emit = defineEmits<{
   /** Marked words pressed, or the comment key: the thread, or a new one over the words chosen. */
   thread: [thread: string];
   comment: [draft: { quote: string; range: { from: number; to: number } }];
+  /** The block menu's bookmark: the block standing at the position. */
+  bookmark: [pos: number];
 }>();
 
 const i18n = useI18n();
@@ -226,7 +231,10 @@ const slashItems = computed(() => [
   ]
 ]);
 
-// The block the drag handle stands beside, and its menu: turn into, duplicate, copy and delete.
+// How long a line opened from its bookmark wears its mark before it fades.
+const LINE_SHOWN_MS = 1600;
+
+// The block the drag handle stands beside, and its menu: turn into, bookmark, duplicate, copy and delete.
 const handled = shallowRef<{ node: JSONContent; pos: number } | null>(null);
 
 function onHandleNode(chosen: { node: JSONContent; pos: number }): void {
@@ -251,7 +259,10 @@ const handleItems = computed<DropdownMenuItem[][]>(() => {
           icon: kind.icon,
           onSelect: () => turnInto(held.chain().focus().setTextSelection(chosen.pos + 1), kind.id).run()
         }))
-      }
+      },
+      blockIdAt(held.state.doc, chosen.pos) !== null && props.marked.includes(blockIdAt(held.state.doc, chosen.pos)!)
+        ? { label: i18n.t("note.action.unbookmark"), icon: "i-material-symbols-bookmark", onSelect: () => emit("bookmark", chosen.pos) }
+        : { label: i18n.t("note.action.bookmark"), icon: "i-material-symbols-bookmark-outline", onSelect: () => emit("bookmark", chosen.pos) }
     ],
     [
       { label: i18n.t("note.block.duplicate"), icon: "i-material-symbols-content-copy-outline", onSelect: () => duplicateBlock(chosen) },
@@ -509,7 +520,59 @@ function draftRange(fallback: { from: number; to: number }): { from: number; to:
   return target !== null && "draft" in target ? target.draft : fallback;
 }
 
+/** The block at `pos`, or around the caret where none is named, as a line bookmark names it: its id — given one
+ * where it holds none, a write the autosave carries — and its words. */
+function lineAt(pos?: number): { block: string; quote: string; wrote: boolean } | null {
+  const held = editor.value;
+
+  if (held === null) return null;
+
+  const at = pos ?? blockAround(held.state.doc, held.state.selection.from);
+  const node = at === null ? null : held.state.doc.nodeAt(at);
+
+  if (at === null || node === null || node === undefined) return null;
+
+  const standing = blockIdAt(held.state.doc, at);
+
+  if (standing !== null) return { block: standing, quote: blockWords(node), wrote: false };
+  if (props.readonly) return null;
+
+  const block = freshBlockId();
+
+  held.view.dispatch(held.state.tr.setNodeAttribute(at, BLOCK_ATTR, block));
+
+  return { block, quote: blockWords(node), wrote: true };
+}
+
+/** Scrolls the block of id `block` to the middle of the note's scroll and marks it a moment; false where no such
+ * block stands. */
+function showLine(block: string): boolean {
+  const held = editor.value;
+  const pos = held === null ? null : blockPos(held.state.doc, block);
+
+  if (held === null || pos === null) return false;
+
+  held.view.dispatch(held.state.tr.setMeta(LINE_SHOWN, block));
+
+  // The editor's element may stand in the page a frame after the note is read; the block is scrolled to once it does.
+  requestAnimationFrame(() => (held.view.nodeDOM(pos) as HTMLElement | null)?.scrollIntoView({ block: "center" }));
+  setTimeout(() => {
+    if (editor.value !== null && LINE_SHOWN.getState(editor.value.state) === block) editor.value.view.dispatch(editor.value.state.tr.setMeta(LINE_SHOWN, null));
+  }, LINE_SHOWN_MS);
+
+  return true;
+}
+
 defineExpose({
+  lineAt,
+  showLine,
+  /** The id of the block holding the caret, where it holds one. */
+  caretBlock: (): string | null => {
+    const held = editor.value;
+    const at = held === null ? null : blockAround(held.state.doc, held.state.selection.from);
+
+    return held === null || at === null ? null : blockIdAt(held.state.doc, at);
+  },
   /** The document as the save writes it, and the title it stands under. */
   snapshot: (): { doc: DocNode; title: string } | null => (editor.value === null ? null : snapshotOf(editor.value)),
   /** What the note holds now, for the bar's line. */
@@ -644,6 +707,15 @@ defineExpose({
 .note-editor-host :deep(.note-comment-open) {
   background-color: color-mix(in oklab, var(--ui-warning) 22%, transparent);
   cursor: pointer;
+}
+
+/* A line opened from its bookmark wears the chosen tint a moment, fading out. */
+.note-editor-host :deep([data-block]) {
+  transition: background-color var(--bmo-motion-unfold) var(--bmo-ease-exit);
+}
+
+.note-editor-host :deep(.note-line-shown) {
+  background-color: var(--ui-bg-accented);
 }
 
 /* The gap the comment's form or thread stands in, parted from the lines around it. */

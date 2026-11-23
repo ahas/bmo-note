@@ -1,7 +1,8 @@
 // The note editor's schema beyond what Nuxt UI's editor brings (`docs/design.md`, 「What a note is」): the
 // document holding one title node first, the title node itself, the comment mark, the note link, the image
-// named by its stored blob, to-do lists and tables. Nuxt UI's editor lays the starter kit — paragraphs,
-// headings, lists, quotes, code, dividers, hard breaks and the inline marks — and these stand beside it.
+// named by its stored blob, to-do lists and tables, and the block id every block carries. Nuxt UI's editor
+// lays the starter kit — paragraphs, headings, lists, quotes, code, dividers, hard breaks and the inline
+// marks — and these stand beside it.
 
 import { Extension, Mark, Node, mergeAttributes } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
@@ -10,6 +11,8 @@ import Mention from "@tiptap/extension-mention";
 import { TableKit } from "@tiptap/extension-table";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
+
+import { BlockIds } from "./blocks";
 
 import type { AnyExtension } from "@tiptap/core";
 import type { Node as ProseNode } from "@tiptap/pm/model";
@@ -323,6 +326,7 @@ export function noteExtensions(options: { href: NoteLinkHref; untitled: string; 
     noteImage(options.image),
     TaskList,
     TaskItem.configure({ nested: true }),
-    TableKit.configure({ table: { resizable: false } })
+    TableKit.configure({ table: { resizable: false } }),
+    BlockIds
   ];
 }

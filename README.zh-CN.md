@@ -12,7 +12,7 @@
 `cargo test`(通过 testbed 运行)在临时 SQLite 文件和回环端口上运行 crate 唯一的测试入口 `tests/main.rs`。覆盖内容如下:
 各账户笔记的写入、读取、保存、冲突、移入回收站、恢复和永久删除(`notes.rs`);服务从文档中读取的内容(`document.rs`);
 笔记文档旁边的内容 — 文档所述、链接、图标、副本(`beside.rs`)— 以及笔记持有的图片(`blobs.rs`);评论线程
-(`comments.rs`);通过链接和成员共享的笔记(`sharing.rs`);每位读者自己的收藏和打开记录(`own.rs`);搜索
+(`comments.rs`);通过链接和成员共享的笔记(`sharing.rs`);每个账号的文件夹及其中笔记的位置(`folders.rs`);每位读者自己的书签和打开记录(`own.rs`);搜索
 (`search.rs`);写入所发布的事件流(`events.rs`);服务提供的控制台界面，以及在引入的发布版本上通过 bmo-ui 自身读取的
 清单(`console.rs`);还有本单元自身的仓库检查(`repository.rs`)。控制台插件包的检查是 `client/` 中的 `bun run check`,
 它会安装依赖、进行类型检查、构建插件包并运行单元测试。`client/tests/browser/` 中的浏览器测试在测试套件的浏览器通道中运行。

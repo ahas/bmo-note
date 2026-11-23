@@ -1,7 +1,7 @@
 //! The unit's own store (`docs/design.md`, 「Storage」): one SQLite file — every note of every account with
 //! its document, every note's images, share link and members, every note's search text and the full-text
-//! index over it, its links and its comment threads, each account's pins and record of what it opened, and
-//! each converted note's former document. The service's truth stands here; what a document says is derived
+//! index over it, its links and its comment threads, each account's folders, bookmarks and record of what it
+//! opened, and each converted note's former document. The service's truth stands here; what a document says is derived
 //! from it in the same transaction that writes it.
 
 use std::path::Path;
@@ -10,9 +10,14 @@ use std::sync::{Arc, Mutex};
 use rusqlite::types::ToSql;
 use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
 
-use crate::doc::{Derived, derived, parsed};
+use std::collections::HashMap;
+
+use crate::doc::{Derived, block_words, derived, parsed};
 use crate::model::{CursorKey, ListCursor, fresh_id};
-use crate::wire::{Access, Comment, Link, ListOrder, Member, NoteMeta, Permission, SearchOrder, Thread};
+use crate::wire::{
+  Access, Bookmark, BookmarkKind, Comment, Folder, Link, ListOrder, Member, NoteMeta, Permission,
+  SearchOrder, Thread,
+};
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS notes (
@@ -76,14 +81,28 @@ CREATE TRIGGER IF NOT EXISTS texts_changed AFTER UPDATE ON texts BEGIN
   INSERT INTO texts_index (texts_index, rowid, title, body) VALUES ('delete', old.row, old.title, old.body);
   INSERT INTO texts_index (rowid, title, body) VALUES (new.row, new.title, new.body);
 END;
-CREATE TABLE IF NOT EXISTS pins (
-  account TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS folders (
   owner TEXT NOT NULL,
-  note TEXT NOT NULL,
-  pinned_at INTEGER NOT NULL,
-  PRIMARY KEY (account, owner, note)
+  id TEXT NOT NULL,
+  parent TEXT,
+  name TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (owner, id)
 );
-CREATE INDEX IF NOT EXISTS pins_note ON pins (owner, note);
+CREATE TABLE IF NOT EXISTS bookmarks (
+  account TEXT NOT NULL,
+  id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  owner TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  folder TEXT NOT NULL DEFAULT '',
+  block TEXT NOT NULL DEFAULT '',
+  quote TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (account, id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS bookmarks_target ON bookmarks (account, kind, owner, note, folder, block);
+CREATE INDEX IF NOT EXISTS bookmarks_note ON bookmarks (owner, note);
 CREATE TABLE IF NOT EXISTS opened (
   account TEXT NOT NULL,
   owner TEXT NOT NULL,
@@ -138,7 +157,7 @@ const BESIDE_A_NOTE: [&str; 10] = [
   "links",
   "members",
   "texts",
-  "pins",
+  "bookmarks",
   "opened",
   "note_links",
   "threads",
@@ -148,7 +167,20 @@ const BESIDE_A_NOTE: [&str; 10] = [
 
 /// The columns a table gained after it was first made, each with its declaration, added where an older
 /// store's table lacks them (`docs/design.md`, 「Storage」).
-const ADDED_COLUMNS: [(&str, &str, &str); 1] = [("notes", "icon", "TEXT NOT NULL DEFAULT ''")];
+const ADDED_COLUMNS: [(&str, &str, &str); 2] =
+  [("notes", "icon", "TEXT NOT NULL DEFAULT ''"), ("notes", "folder", "TEXT")];
+
+/// What stands on the added columns, made once they stand.
+const ON_ADDED_COLUMNS: &str = "CREATE INDEX IF NOT EXISTS notes_folder ON notes (owner, folder);";
+
+/// The favourites an earlier store kept, each turned into a note bookmark of the account that made it, at the
+/// moment it was made, before their table is dropped (`docs/design.md`, 「Storage」).
+const FAVOURITES_AS_BOOKMARKS: &str = "INSERT INTO bookmarks (account, id, kind, owner, note, created_at) \
+  SELECT account, lower(hex(randomblob(8))), 'note', owner, note, pinned_at FROM pins WHERE true \
+  ON CONFLICT DO NOTHING; DROP TABLE pins;";
+
+/// How many levels folders stand in, the top one first.
+pub const FOLDER_LEVELS: usize = 8;
 
 /// Every note's search row, made where a note has none: its title, and no text, derived on the same
 /// opening (`indexed` false until then).
@@ -159,12 +191,12 @@ const SEARCH_ROWS: &str = "INSERT INTO texts (owner, note, title) SELECT owner, 
 const OPENED_KEPT: i64 = 100;
 
 /// A note's metadata as every read selects it, the note standing as `n`: id, owner, title, version, the two
-/// moments, the document's length, the trash mark and the icon.
-const META: &str =
-  "n.id, n.owner, n.title, n.version, n.created_at, n.changed_at, length(n.doc), n.deleted_at, n.icon";
+/// moments, the document's length, the trash mark, the icon and the folder.
+const META: &str = "n.id, n.owner, n.title, n.version, n.created_at, n.changed_at, length(n.doc), n.deleted_at, \
+  n.icon, n.folder";
 
 /// How many columns `META` selects; what a read selects after them starts here.
-const META_COLUMNS: usize = 9;
+const META_COLUMNS: usize = 10;
 
 /// What a caller holds of a note it reads beside its own: `owner` for its own, the member's permission
 /// otherwise; the note's member row for the caller standing as `m`, the caller bound as `?1`.
@@ -213,6 +245,21 @@ pub enum Written {
   Missing,
   /// The note stands in the trash.
   Trashed,
+}
+
+/// How a write of a folder, or of a note's place among the folders, ended.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Filed<T> {
+  /// What stands after the write, and whether it was made now.
+  Done(T, bool),
+  /// No folder or note stands at the id the write names.
+  Missing,
+  /// The folder it would stand in is not one of the account's.
+  NoFolder,
+  /// The folder would stand under itself or under a folder it holds.
+  Cycle,
+  /// The folder, or the deepest one it holds, would stand past the last level.
+  TooDeep,
 }
 
 /// How a duplicate ended.
@@ -297,11 +344,13 @@ impl Store {
   }
 
   /// The live (`deleted` false) or trashed (true) notes of one account in `order`, as one page: at most
-  /// `limit` rows and whether anything stands past them.
+  /// `limit` rows and whether anything stands past them. `folder` keeps the notes standing in the folder it
+  /// names, or, empty, in none; none keeps every note.
   pub fn list(
     &self,
     owner: &str,
     deleted: bool,
+    folder: Option<&str>,
     order: ListOrder,
     after: Option<&ListCursor>,
     limit: i64,
@@ -309,6 +358,15 @@ impl Store {
     self.with(|connection| {
       let live = if deleted { "n.deleted_at IS NOT NULL" } else { "n.deleted_at IS NULL" };
       let mut given: Vec<Box<dyn ToSql>> = vec![Box::new(owner.to_owned())];
+      let placed = match folder {
+        None => String::new(),
+        Some("") => "AND n.folder IS NULL".to_owned(),
+        Some(folder) => {
+          given.push(Box::new(folder.to_owned()));
+          format!("AND n.folder = ?{}", given.len())
+        }
+      };
+      let live = format!("{live} {placed}");
       let walked = walked(order, after, false, &mut given);
       given.push(Box::new(limit + 1));
       let sql = format!(
@@ -348,22 +406,23 @@ impl Store {
     )
   }
 
-  /// A note made, with its search row. Answers its metadata and whether the row was made now; where the
-  /// account already holds one at `id`, the note as it stands, trashed included.
+  /// A note made, with its search row, in `folder` or in none. Answers its metadata and whether the row was
+  /// made now; where the account already holds one at `id`, the note as it stands, trashed included.
   pub fn create(
     &self,
     owner: &str,
     id: &str,
     doc: &[u8],
     said: &Derived,
+    folder: Option<&str>,
     at: i64,
   ) -> Result<(NoteMeta, bool), String> {
     self.with(|connection| {
       let transaction = connection.unchecked_transaction()?;
       let changed = transaction.execute(
-        "INSERT INTO notes (owner, id, title, doc, version, created_at, changed_at, deleted_at) \
-         VALUES (?1, ?2, ?3, ?4, 1, ?5, ?5, NULL) ON CONFLICT (owner, id) DO NOTHING",
-        params![owner, id, said.title, doc, at],
+        "INSERT INTO notes (owner, id, title, doc, version, created_at, changed_at, deleted_at, folder) \
+         VALUES (?1, ?2, ?3, ?4, 1, ?5, ?5, NULL, ?6) ON CONFLICT (owner, id) DO NOTHING",
+        params![owner, id, said.title, doc, at, folder],
       )?;
       if changed == 1 {
         write_derived(&transaction, owner, id, said)?;
@@ -450,8 +509,8 @@ impl Store {
     })
   }
 
-  /// A trashed note deleted for good, with its images, its link, its members, its search row, every pin of
-  /// it and every record of opening it. Answers whether a trashed row stood and went.
+  /// A trashed note deleted for good, with its images, its link, its members, its search row, every bookmark
+  /// of it and every record of opening it. Answers whether a trashed row stood and went.
   pub fn purge(&self, owner: &str, id: &str) -> Result<bool, String> {
     self.with(|connection| {
       let transaction = connection.unchecked_transaction()?;
@@ -493,10 +552,12 @@ impl Store {
       if found(&transaction, owner, id)?.is_some() {
         return Ok(Copied::Taken);
       }
+      // A copy of the account's own note stands in the source's folder; a copy of another's, in none.
+      let folder = if source_owner == owner { original.meta.folder.clone() } else { None };
       transaction.execute(
-        "INSERT INTO notes (owner, id, title, doc, version, created_at, changed_at, deleted_at, icon) \
-         VALUES (?1, ?2, ?3, ?4, 1, ?5, ?5, NULL, ?6)",
-        params![owner, id, said.title, doc, at, original.meta.icon],
+        "INSERT INTO notes (owner, id, title, doc, version, created_at, changed_at, deleted_at, icon, folder) \
+         VALUES (?1, ?2, ?3, ?4, 1, ?5, ?5, NULL, ?6, ?7)",
+        params![owner, id, said.title, doc, at, original.meta.icon, folder],
       )?;
       transaction.execute(
         "INSERT INTO blobs (owner, note, id, mime, bytes, created_at) \
@@ -581,38 +642,267 @@ impl Store {
     })
   }
 
-  /// `owner`'s note `note` pinned for `account`; a pin already standing keeps its place.
-  pub fn pin(&self, account: &str, owner: &str, note: &str, at: i64) -> Result<(), String> {
+  /// The account's folders, by name without regard to case, then by id.
+  pub fn folders(&self, owner: &str) -> Result<Vec<Folder>, String> {
+    self.with(|connection| folders_of(connection, owner))
+  }
+
+  /// A folder made under `parent`, or at the top. Where the account already holds one at `id`, the folder
+  /// as it stands.
+  pub fn make_folder(
+    &self,
+    owner: &str,
+    id: &str,
+    name: &str,
+    parent: Option<&str>,
+    at: i64,
+  ) -> Result<Filed<Folder>, String> {
     self.with(|connection| {
-      connection.execute(
-        "INSERT INTO pins (account, owner, note, pinned_at) VALUES (?1, ?2, ?3, ?4) \
-         ON CONFLICT (account, owner, note) DO NOTHING",
-        params![account, owner, note, at],
+      let transaction = connection.unchecked_transaction()?;
+      let tree = FolderTree::read(&transaction, owner)?;
+      if let Some(standing) = tree.folders.get(id) {
+        return Ok(Filed::Done(standing.clone(), false));
+      }
+      if let Some(parent) = parent {
+        if !tree.folders.contains_key(parent) {
+          return Ok(Filed::NoFolder);
+        }
+        if tree.level(parent) + 1 > FOLDER_LEVELS {
+          return Ok(Filed::TooDeep);
+        }
+      }
+      transaction.execute(
+        "INSERT INTO folders (owner, id, parent, name, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![owner, id, parent, name, at],
       )?;
+      transaction.commit()?;
+      Ok(Filed::Done(
+        Folder {
+          id: id.to_owned(),
+          parent: parent.map(str::to_owned),
+          name: name.to_owned(),
+          created_at: at,
+        },
+        true,
+      ))
+    })
+  }
+
+  /// A folder renamed where `name` is given, and moved under the folder `parent` names where it is given —
+  /// to the top for none.
+  pub fn change_folder(
+    &self,
+    owner: &str,
+    id: &str,
+    name: Option<&str>,
+    parent: Option<Option<&str>>,
+  ) -> Result<Filed<Folder>, String> {
+    self.with(|connection| {
+      let transaction = connection.unchecked_transaction()?;
+      let tree = FolderTree::read(&transaction, owner)?;
+      let Some(standing) = tree.folders.get(id).cloned() else {
+        return Ok(Filed::Missing);
+      };
+      let parent = match parent {
+        None => standing.parent.clone(),
+        Some(None) => None,
+        Some(Some(parent)) => {
+          if !tree.folders.contains_key(parent) {
+            return Ok(Filed::NoFolder);
+          }
+          if tree.holds(id, parent) {
+            return Ok(Filed::Cycle);
+          }
+          if tree.level(parent) + tree.height(id) > FOLDER_LEVELS {
+            return Ok(Filed::TooDeep);
+          }
+          Some(parent.to_owned())
+        }
+      };
+      let name = name.unwrap_or(&standing.name).to_owned();
+      transaction.execute(
+        "UPDATE folders SET name = ?3, parent = ?4 WHERE owner = ?1 AND id = ?2",
+        params![owner, id, name, parent],
+      )?;
+      transaction.commit()?;
+      Ok(Filed::Done(
+        Folder {
+          name,
+          parent,
+          ..standing
+        },
+        false,
+      ))
+    })
+  }
+
+  /// A folder deleted: its notes, live and trashed, and the folders it holds move up into the folder it
+  /// stood in, or to the top, and its bookmarks go. Answers whether it stood.
+  pub fn delete_folder(&self, owner: &str, id: &str) -> Result<bool, String> {
+    self.with(|connection| {
+      let transaction = connection.unchecked_transaction()?;
+      let Some(parent) = transaction
+        .prepare_cached("SELECT parent FROM folders WHERE owner = ?1 AND id = ?2")?
+        .query_row(params![owner, id], |row| row.get::<_, Option<String>>(0))
+        .optional()?
+      else {
+        return Ok(false);
+      };
+      transaction.execute(
+        "UPDATE notes SET folder = ?3 WHERE owner = ?1 AND folder = ?2",
+        params![owner, id, parent],
+      )?;
+      transaction.execute(
+        "UPDATE folders SET parent = ?3 WHERE owner = ?1 AND parent = ?2",
+        params![owner, id, parent],
+      )?;
+      transaction.execute(
+        "DELETE FROM bookmarks WHERE account = ?1 AND kind = 'folder' AND folder = ?2",
+        params![owner, id],
+      )?;
+      transaction.execute("DELETE FROM folders WHERE owner = ?1 AND id = ?2", params![owner, id])?;
+      transaction.commit()?;
+      Ok(true)
+    })
+  }
+
+  /// One of the account's notes, live or trashed, moved into `folder`, or into none; nothing else of it is
+  /// written.
+  pub fn file_note(&self, owner: &str, id: &str, folder: Option<&str>) -> Result<Filed<NoteMeta>, String> {
+    self.with(|connection| {
+      let transaction = connection.unchecked_transaction()?;
+      let Some(current) = found(&transaction, owner, id)? else {
+        return Ok(Filed::Missing);
+      };
+      if let Some(folder) = folder
+        && !FolderTree::read(&transaction, owner)?.folders.contains_key(folder)
+      {
+        return Ok(Filed::NoFolder);
+      }
+      transaction
+        .execute("UPDATE notes SET folder = ?3 WHERE owner = ?1 AND id = ?2", params![owner, id, folder])?;
+      transaction.commit()?;
+      Ok(Filed::Done(
+        NoteMeta {
+          folder: folder.map(str::to_owned),
+          ..current.meta
+        },
+        false,
+      ))
+    })
+  }
+
+  /// Whether the account holds a folder at `id`.
+  pub fn has_folder(&self, owner: &str, id: &str) -> Result<bool, String> {
+    self.with(|connection| {
+      connection
+        .prepare_cached("SELECT 1 FROM folders WHERE owner = ?1 AND id = ?2")?
+        .query_row(params![owner, id], |_| Ok(()))
+        .optional()
+        .map(|found| found.is_some())
+    })
+  }
+
+  /// A bookmark of `account`'s made, its target named by the fields its kind names, the others empty; where
+  /// the account already holds one of the same target, that one stands. Answers its id and whether it was
+  /// made now.
+  #[allow(clippy::too_many_arguments)]
+  pub fn add_bookmark(
+    &self,
+    account: &str,
+    kind: BookmarkKind,
+    owner: &str,
+    note: &str,
+    folder: &str,
+    block: &str,
+    quote: &str,
+    at: i64,
+  ) -> Result<(String, bool), String> {
+    self.with(|connection| {
+      let transaction = connection.unchecked_transaction()?;
+      let made = transaction.execute(
+        "INSERT INTO bookmarks (account, id, kind, owner, note, folder, block, quote, created_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) ON CONFLICT DO NOTHING",
+        params![account, fresh_id(), kind.word(), owner, note, folder, block, quote, at],
+      )?;
+      let id = transaction.query_row(
+        "SELECT id FROM bookmarks WHERE account = ?1 AND kind = ?2 AND owner = ?3 AND note = ?4 \
+         AND folder = ?5 AND block = ?6",
+        params![account, kind.word(), owner, note, folder, block],
+        |row| row.get::<_, String>(0),
+      )?;
+      transaction.commit()?;
+      Ok((id, made == 1))
+    })
+  }
+
+  /// One of `account`'s bookmarks taken off, whether it stood or not.
+  pub fn delete_bookmark(&self, account: &str, id: &str) -> Result<(), String> {
+    self.with(|connection| {
+      connection.execute("DELETE FROM bookmarks WHERE account = ?1 AND id = ?2", params![account, id])?;
       Ok(())
     })
   }
 
-  /// `account`'s pin of `owner`'s note `note` taken off, whether it stood or not.
-  pub fn unpin(&self, account: &str, owner: &str, note: &str) -> Result<(), String> {
+  /// `account`'s bookmarks, first made first, each with what it names as the account reads it now: a folder
+  /// of its own, or a note it reads live, a line's words read from the note's stored document. A bookmark
+  /// whose folder or note the account does not read now is left out, its row standing.
+  pub fn bookmarks(&self, account: &str) -> Result<Vec<Bookmark>, String> {
     self.with(|connection| {
-      connection.execute(
-        "DELETE FROM pins WHERE account = ?1 AND owner = ?2 AND note = ?3",
-        params![account, owner, note],
-      )?;
-      Ok(())
-    })
-  }
-
-  /// The notes `account` pinned and reads live, first pinned first.
-  pub fn pinned(&self, account: &str) -> Result<Vec<NoteMeta>, String> {
-    self.with(|connection| {
-      let sql = format!(
-        "SELECT {META}, {ACCESS} FROM pins p JOIN notes n ON n.owner = p.owner AND n.id = p.note \
-         LEFT JOIN members m ON m.owner = n.owner AND m.note = n.id AND m.member = ?1 \
-         WHERE p.account = ?1 AND {READ_LIVE} ORDER BY p.pinned_at, p.owner, p.note"
-      );
-      connection.prepare(&sql)?.query_map(params![account], held_meta)?.collect()
+      let stored = connection
+        .prepare_cached(
+          "SELECT id, kind, owner, note, folder, block, quote, created_at FROM bookmarks \
+           WHERE account = ?1 ORDER BY created_at, id",
+        )?
+        .query_map(params![account], |row| {
+          Ok(StoredBookmark {
+            id: row.get(0)?,
+            kind: BookmarkKind::of_word(&row.get::<_, String>(1)?),
+            owner: row.get(2)?,
+            note: row.get(3)?,
+            folder: row.get(4)?,
+            block: row.get(5)?,
+            quote: row.get(6)?,
+            created_at: row.get(7)?,
+          })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+      let tree = FolderTree::read(connection, account)?;
+      let mut answered = Vec::new();
+      for one in stored {
+        let mut bookmark = Bookmark {
+          id: one.id,
+          kind: one.kind,
+          created_at: one.created_at,
+          folder: None,
+          note: None,
+          block: None,
+          quote: None,
+          anchored: true,
+        };
+        match one.kind {
+          BookmarkKind::Folder => {
+            let Some(folder) = tree.folders.get(&one.folder) else {
+              continue;
+            };
+            bookmark.folder = Some(folder.clone());
+          }
+          BookmarkKind::Note | BookmarkKind::Line => {
+            let Some((row, access)) = read_live(connection, account, &one.owner, &one.note)? else {
+              continue;
+            };
+            if one.kind == BookmarkKind::Line {
+              let words = parsed(&row.doc).and_then(|doc| block_words(&doc, &one.block));
+              bookmark.anchored = words.is_some();
+              bookmark.quote = Some(words.unwrap_or(one.quote));
+              bookmark.block = Some(one.block);
+            }
+            bookmark.note = Some(held_by(row.meta, access));
+          }
+        }
+        answered.push(bookmark);
+      }
+      Ok(answered)
     })
   }
 
@@ -1038,6 +1328,15 @@ fn upgrade(connection: &Connection) -> rusqlite::Result<usize> {
       transaction.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {declared}"))?;
     }
   }
+  transaction.execute_batch(ON_ADDED_COLUMNS)?;
+  let favourites: bool = transaction.query_row(
+    "SELECT count(*) > 0 FROM sqlite_master WHERE type = 'table' AND name = 'pins'",
+    [],
+    |row| row.get(0),
+  )?;
+  if favourites {
+    transaction.execute_batch(FAVOURITES_AS_BOOKMARKS)?;
+  }
   transaction.execute(SEARCH_ROWS, [])?;
   let underived = transaction
     .prepare(
@@ -1188,6 +1487,7 @@ fn meta_of(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteMeta> {
     deleted_at: row.get(7)?,
     access: Access::Owner,
     icon: row.get(8)?,
+    folder: row.get(9)?,
   })
 }
 
@@ -1196,10 +1496,127 @@ fn meta_of(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteMeta> {
 fn held_meta(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteMeta> {
   let word: String = row.get(META_COLUMNS)?;
   let access = if word == "owner" { Access::Owner } else { Permission::of_word(&word).access() };
-  Ok(NoteMeta {
+  Ok(held_by(meta_of(row)?, access))
+}
+
+/// A note's metadata as a caller holding `access` reads it: a member is told nothing of the owner's folders.
+pub fn held_by(meta: NoteMeta, access: Access) -> NoteMeta {
+  let folder = if access == Access::Owner { meta.folder } else { None };
+  NoteMeta {
     access,
-    ..meta_of(row)?
-  })
+    folder,
+    ..meta
+  }
+}
+
+/// `owner`'s note `note` with what `account` holds of it, where the account reads it live: its own, or one
+/// shared with it.
+fn read_live(
+  connection: &Connection,
+  account: &str,
+  owner: &str,
+  note: &str,
+) -> rusqlite::Result<Option<(Row, Access)>> {
+  let Some(row) = found(connection, owner, note)?.filter(|row| row.meta.deleted_at.is_none()) else {
+    return Ok(None);
+  };
+  if owner == account {
+    return Ok(Some((row, Access::Owner)));
+  }
+  let permission = connection
+    .prepare_cached("SELECT permission FROM members WHERE owner = ?1 AND note = ?2 AND member = ?3")?
+    .query_row(params![owner, note, account], |row| row.get::<_, String>(0))
+    .optional()?;
+  Ok(permission.map(|word| (row, Permission::of_word(&word).access())))
+}
+
+/// A bookmark as its row holds it, the fields its kind does not name empty.
+struct StoredBookmark {
+  id: String,
+  kind: BookmarkKind,
+  owner: String,
+  note: String,
+  folder: String,
+  block: String,
+  quote: String,
+  created_at: i64,
+}
+
+/// One account's folders, read whole: few enough that a move is checked against all of them.
+struct FolderTree {
+  folders: HashMap<String, Folder>,
+}
+
+impl FolderTree {
+  fn read(connection: &Connection, owner: &str) -> rusqlite::Result<Self> {
+    let folders = folders_of(connection, owner)?
+      .into_iter()
+      .map(|folder| (folder.id.clone(), folder))
+      .collect();
+    Ok(Self { folders })
+  }
+
+  /// The level a folder stands at, 1 at the top; a parent that does not stand ends the walk.
+  fn level(&self, id: &str) -> usize {
+    let mut level = 0;
+    let mut at = Some(id);
+    while let Some(id) = at {
+      let Some(folder) = self.folders.get(id) else {
+        break;
+      };
+      level += 1;
+      if level > self.folders.len() {
+        break;
+      }
+      at = folder.parent.as_deref();
+    }
+    level
+  }
+
+  /// Whether `held` is `folder` itself or stands anywhere inside it.
+  fn holds(&self, folder: &str, held: &str) -> bool {
+    let mut at = Some(held);
+    let mut steps = 0;
+    while let Some(id) = at {
+      if id == folder {
+        return true;
+      }
+      steps += 1;
+      if steps > self.folders.len() {
+        return false;
+      }
+      at = self.folders.get(id).and_then(|one| one.parent.as_deref());
+    }
+    false
+  }
+
+  /// How many levels a folder and the folders inside it take, 1 for one holding none.
+  fn height(&self, id: &str) -> usize {
+    self
+      .folders
+      .values()
+      .filter(|folder| self.holds(id, &folder.id))
+      .map(|folder| self.level(&folder.id))
+      .max()
+      .map_or(1, |deepest| deepest + 1 - self.level(id))
+  }
+}
+
+/// The account's folders, by name without regard to case, then by id.
+fn folders_of(connection: &Connection, owner: &str) -> rusqlite::Result<Vec<Folder>> {
+  connection
+    .prepare_cached(
+      "SELECT id, parent, name, created_at FROM folders WHERE owner = ?1 ORDER BY name COLLATE NOCASE, id",
+    )?
+    .query_map(params![owner], |row| {
+      Ok(Folder {
+        id: row.get(0)?,
+        parent: row.get(1)?,
+        name: row.get(2)?,
+        created_at: row.get(3)?,
+      })
+    })?
+    .collect()
 }
 
 /// A member read from a row of id-less columns: the member, the permission word and the moment shared.

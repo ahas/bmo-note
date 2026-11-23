@@ -2,7 +2,9 @@
 // One row of the navigator (`docs/design.md`, 「The console surface」): the note's icon and its title on one
 // line, the open note's row standing chosen. A press opens the note, Ctrl or ⌘ held opens it in a new tab;
 // the row's actions are one menu, from the `…` key standing while the pointer or the keyboard's focus is
-// on the row, from a right press and from a held finger, the last through the layer's one long press.
+// on the row, from a right press and from a held finger, the last through the layer's one long press. A row
+// inside a folder stands one step further in for each level; the reader's own note is dragged under a pointer
+// onto a folder.
 
 import { computed, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
@@ -10,7 +12,9 @@ import HintTip from "bmo-ui/app/components/HintTip.vue";
 import IconButton from "bmo-ui/app/components/IconButton.vue";
 import { useHoldMenu } from "bmo-ui/app/domain/holdmenu";
 
+import { endDrag, startDrag } from "../domain/drag";
 import { NOTE_MARK } from "../domain/icons";
+import { rowInset } from "../domain/navigator";
 
 import type { DropdownMenuItem } from "@nuxt/ui";
 import type { NoteMeta } from "../../shared/types";
@@ -22,6 +26,8 @@ const props = defineProps<{
   items: DropdownMenuItem[][];
   /** Where the row leads, as an address the browser can open in a new tab. */
   href: string;
+  /** How many folders in it stands, 0 at the top. */
+  depth?: number;
 }>();
 
 const emit = defineEmits<{ open: [event: MouseEvent] }>();
@@ -32,6 +38,13 @@ const surface = useTemplateRef<HTMLElement>("surface");
 useHoldMenu({ surface: () => surface.value });
 
 const title = computed(() => (props.note.title === "" ? i18n.t("note.label.untitled") : props.note.title));
+
+// Only the reader's own note moves between folders.
+const movable = computed(() => props.note.access === "owner" && props.note.deletedAt === null);
+
+function dragged(event: DragEvent): void {
+  if (movable.value) startDrag(event, { kind: "note", id: props.note.id });
+}
 
 function pressed(event: MouseEvent): void {
   // A press with Ctrl or ⌘ held, or the middle button, is the browser's own: the link opens in a new tab.
@@ -44,10 +57,19 @@ function pressed(event: MouseEvent): void {
 
 <template>
   <UContextMenu :items="props.items" :modal="false">
-    <div ref="surface" class="group/row relative px-2" :data-note="`${props.note.owner}/${props.note.id}`">
+    <div
+      ref="surface"
+      class="group/row relative px-2"
+      :data-note="`${props.note.owner}/${props.note.id}`"
+      :draggable="movable"
+      @dragstart="dragged"
+      @dragend="endDrag"
+      @contextmenu.stop
+    >
       <a
         :href="props.href"
-        class="focus-inset flex h-8 min-w-0 items-center gap-2 rounded-md ps-2 pe-9 text-sm transition-colors select-none"
+        class="focus-inset flex h-8 min-w-0 items-center gap-2 rounded-md pe-9 text-sm transition-colors select-none"
+        :style="{ paddingInlineStart: rowInset(props.depth ?? 0) }"
         :class="props.chosen ? 'bg-elevated font-medium text-highlighted hover:bg-accented/75 active:bg-accented' : 'text-default hover:bg-elevated active:bg-accented'"
         :aria-current="props.chosen ? 'page' : undefined"
         draggable="false"

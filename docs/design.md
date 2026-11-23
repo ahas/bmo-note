@@ -41,8 +41,15 @@ search, links and comments, and shows the notes through a console bundle under i
   name a copy (「Storage」) and to take the comment marks off what a share link opens (「Sharing on the
   screens」).
 - Metadata beside the document: an id, the title, a version, creation and change moments, a deleted mark,
-  the document's size in bytes and an icon. The icon is one emoji the reader picked, or none; it stands
-  beside the document, not in it.
+  the document's size in bytes, an icon and the folder it stands in. The icon is one emoji the reader
+  picked, or none; it stands beside the document, not in it. The folder is the owner's (「Folders」), or
+  none.
+- **Every block carries a block id** in its `block` attribute: a paragraph, a heading, a quote, a code
+  block, a divider, an image, a table, a list and each of its items. The editor gives a block one as it is
+  written — a new block, a block split off another, a copy pasted or duplicated — and keeps it while the
+  block's words change and while the block is moved, so the id names the block and not where it stands
+  or what it says. A block written before the ids were kept takes one the first time its note is edited.
+  A line bookmark is anchored to it (「Bookmarks」).
 - **A document the earlier editor wrote is converted once.** A note stored by the BlockSuite editor the
   unit used before is converted to this format by the unit's migration, run once at the deployment that
   brought this editor; its former bytes are kept beside it (「Storage」). The service answers health not
@@ -77,6 +84,44 @@ search, links and comments, and shows the notes through a console bundle under i
   account key the owner shares with; the console's people directory is what offers only the company's people,
   and a key nobody signs in with opens the note to nobody.
 
+## Folders
+
+- **A folder is its owner's own arrangement of their notes.** Each account keeps folders of its own, each a
+  name and the folder it stands in, or none for one at the top, nested up to eight deep. A note of the
+  owner's stands in one folder or in none; a note that stands in none is at the top of the reader's own
+  notes, and a note made or moved before folders were kept stands in none.
+- **Folders are not shared.** A note shared with members keeps its sharing whatever folder it stands in:
+  the members find it in their shared section, never in the owner's folder, and they are told nothing of
+  the owner's folders, the note's place among them included. A member arranges no note of another's into a
+  folder; they bookmark it (「Bookmarks」).
+- **A note moves between folders** by its owner alone, live or in the trash; a note in the trash keeps its
+  folder and comes back into it on a restore. A copy of the owner's own note is made in the source's
+  folder; a copy of a note shared with the reader stands at the top of their own notes.
+- **A folder moves** under another of the owner's, or to the top, with everything it holds; it never moves
+  under itself or under a folder it holds, and never past the eighth level.
+- **Deleting a folder deletes the folder alone.** Its notes and the folders it holds move up into the folder
+  it stood in, or to the top, live and trashed notes alike, and their sharing stands; the bookmarks of the
+  folder go with it. Nothing is deleted with it, so the question before it names the folder and says that
+  what it holds moves up.
+- Search reads across every folder: a folder narrows nothing a search finds (「Search」).
+
+## Bookmarks
+
+- **A bookmark is the reader's own way back to a folder, a note or a line.** It is kept by the account that
+  made it, as what it opened is, so a member bookmarks a note shared with them, or a line of it, as the owner
+  does their own, and nobody reads another's. A folder bookmarked is one of the reader's own folders.
+- **A line bookmark is anchored to its block's id** (「What a note is」), so it follows the block as the
+  words in it and around it change and as it is moved. It shows the words its block holds now, read from
+  the note's stored document, and the words it held when it was bookmarked once the block is gone, saying
+  so: the line was deleted. A line is bookmarked by a reader who may write the note, since a block that
+  holds no id yet is given one and saved first.
+- **Bookmarks are the one way a reader keeps a note at hand.** They stand at the top of the navigator in
+  the order they were made; there are no favourites beside them. A store kept before bookmarks turns each
+  favourite into a note bookmark as it opens, at the moment the favourite was made.
+- Bookmarks answer only what the reader reads at the moment of the read: a bookmark of a note trashed or of
+  a share taken back drops out without its row being touched, and comes back with a restore or a new share.
+  A purge takes every bookmark of the note; deleting a folder takes its bookmarks.
+
 ## Editing and saving
 
 - The editor mounts in the browser only: the console bundle opens the stored document in it, or an
@@ -107,11 +152,13 @@ search, links and comments, and shows the notes through a console bundle under i
 ## Storage
 
 - One SQLite file under the unit's data directory holds the unit's tables: each note's owner, id, title,
-  document, version, timestamps, deleted mark and icon; each image's note, id, type and bytes; each share
+  document, version, timestamps, deleted mark, icon and folder; each account's folders, each its id, name,
+  the folder it stands in and the moment made; each image's note, id, type and bytes; each share
   link's token, note, moment made and end; each member share's note, member key, permission and moment
   shared; each note's search text — its title and the plain text derived from its document — and the
   full-text index over it; each note's links, the notes its document links to; each note's comment
-  threads and the comments in them; each account's pins, the note and the moment pinned; each account's
+  threads and the comments in them; each account's bookmarks, each its kind, what it names — a folder, a
+  note, or a note and a block id with the words the block held — and the moment made; each account's
   record of the notes it opened, the latest moment each; and each converted note's former document. A note
   is named by its owner and its id together, since ids are each account's own.
 - **An image is held before its block stands.** The editor uploads a picked or pasted image to its note's
@@ -125,12 +172,12 @@ search, links and comments, and shows the notes through a console bundle under i
   node and the comment marks taken off (a copy carries no threads), its images, its icon, its search text
   and its links.
 - A purge takes the note with its images, its link, its member shares, its search text, its links, its
-  threads and comments, its former document, every account's pin of it and every account's record of
-  opening it. A save that drops an image leaves its bytes standing until the note goes: the store
+  threads and comments, its former document, every account's bookmarks of it and of its lines, and every
+  account's record of opening it. A save that drops an image leaves its bytes standing until the note goes: the store
   collects no garbage of its own. A link another note holds to a purged note stands in that note's
   document and opens onto the note's absence.
-- **Pins and what was opened are the reader's, not the note's.** Each is kept by the account that made
-  it, so a member pins and opens a note shared with them as the owner does their own, and nobody reads
+- **Bookmarks and what was opened are the reader's, not the note's.** Each is kept by the account that made
+  it, so a member bookmarks and opens a note shared with them as the owner does their own, and nobody reads
   another's. They are answered only for what the account reads at the moment of the read — a share
   taken back or a note trashed drops out without its row being touched — and the record of what was
   opened keeps each account's latest hundred.
@@ -141,7 +188,9 @@ search, links and comments, and shows the notes through a console bundle under i
   matches, never who may read it (`docs/api.md`, 「Search」).
 - **The store upgrades itself in place as it opens.** There is no migration ladder: every table, index
   and trigger is made where it does not stand, each column a later version added is added where the
-  table lacks it (read from the table's own column list), and every note whose derived rows do not
+  table lacks it (read from the table's own column list) — a note's folder among them, so every note of an
+  earlier store stands in no folder — a table of favourites left by an earlier store is turned into note
+  bookmarks and dropped, and every note whose derived rows do not
   stand for its document — a note the migration converted, or one written before the rows were kept —
   has its title, search text and links derived again, all in one transaction, so a store from before
   any of it opens whole and a store already upgraded opens unchanged, however often it is opened. A
@@ -159,10 +208,13 @@ search, links and comments, and shows the notes through a console bundle under i
 
 - The service publishes `note.saved`, `note.trashed`, `note.restored` and `note.purged`, each naming
   its note and its owner, `note.shared` and `note.unshared`, naming the member too, and
-  `note.commented`, naming the thread, kept in the same in-memory ring every platform service keeps and
-  answered over the common stream route.
+  `note.commented`, naming the thread, `note.filed`, naming the folder the note now stands in, kept in the
+  same in-memory ring every platform service keeps and answered over the common stream route. Beside them,
+  `folder.changed` says one of an account's folders was made, renamed, moved or deleted, and
+  `bookmark.changed` that an account's bookmarks changed.
 - An event reaches the note's owner and the members the note is shared with as it is published; a
-  share's own two events reach its owner and that member. The console bundle subscribes through the
+  share's own two events reach its owner and that member; `note.filed` and `folder.changed` reach the owner
+  alone, and `bookmark.changed` the account whose bookmarks they are. The console bundle subscribes through the
   console and reads the navigator again, so a note shared with a reader appears in their shared section
   without a reload, and an open note reads its threads again on `note.commented`. A
   restart loses the ring, as every unit's does.
@@ -344,17 +396,45 @@ search, links and comments, and shows the notes through a console bundle under i
     a field-shaped key showing the search mark, the word for search and its key (Ctrl+K, ⌘K), which opens the
     search dialog; then the layer's one create button, a grey icon naming a new note and its key, `n`
     (on a phone, inside the drawer, it is the head's contained add); then the fold key on a wide screen.
-  - One scrolling list of sections, each headed by its name, which folds and unfolds the section: the favourites,
-    standing only while the reader has pinned something, in pin order; the reader's own notes; and the notes shared with the reader. The two
-    last carry a sort key at their head's trailing end, bmo-ui's one select (bmo-ui's `docs/components.md`,
-    「Choosing a value」) of last edited (the default), title and created, each kept in that browser with whether each section is folded.
+  - One scrolling list of sections, each headed by its name, which folds and unfolds the section: the
+    bookmarks, standing only while the reader has bookmarked something, in the order they were made; the
+    reader's own notes, as their folder tree; and the notes shared with the reader. The two last carry a sort
+    key at their head's trailing end, bmo-ui's one select (bmo-ui's `docs/components.md`, 「Choosing a
+    value」) of last edited (the default), title and created, each kept in that browser with whether each
+    section is folded; the own section's head carries the new folder key before it.
+  - **The own section is a tree.** Its folders stand first, by name, each a row of its own — the fold mark,
+    the folder mark and its name — and then the notes that stand in no folder. Pressing a folder's row
+    folds or unfolds it; an unfolded folder shows, one step further in, its own folders and then its notes
+    in the section's order, read thirty at a time as the section's are, and an empty folder one dimmed line
+    saying so. Which folders stand unfolded is kept in that browser.
+  - **A folder's actions stand in one menu,** from its `…` key, a right press and a held finger as a note
+    row's do: new note in it, new folder in it, rename (F2), move to, bookmark or take the bookmark off,
+    and delete (Delete), each key named beside its item and answered while the row holds the focus. A new
+    folder is made at once under the pack's word for a new folder, its row opening for
+    its name; rename opens the row's name the same way. Enter keeps the name, Escape keeps the one it had,
+    and leaving the field keeps what it holds; an empty name keeps the one it had. Delete asks first in the
+    shared question dialog, naming the folder and saying what it holds moves up (「Folders」). A right
+    press or a held finger on the section's empty room offers new note and new folder at the top.
+  - **A note or a folder is moved by dragging its row** under a pointer onto a folder's row, which it then
+    stands in, or onto the own section's head, the top. The row it would land in is marked while it is
+    held over it; a folder dragged onto itself or one it holds lands nowhere. A finger, and the keyboard,
+    reach the same through the row's menu: move to, a list of the top and every folder by its place in the
+    tree, the one it stands in marked. Only the owner's own notes move; a shared note's row carries no
+    move.
+  - **A bookmark's row** is its mark and its name on one line: a folder's name, a note's icon and title, or
+    a line's words with the line mark and the note's title in its tooltip. Pressing a folder's bookmark
+    unfolds the folder and the folders it stands in, scrolls its row into sight and marks it a moment;
+    a note's opens the note; a line's opens its note and scrolls the line into sight, marking it a moment,
+    and where the line was deleted, the row says so in the dimmed tone and the press opens the note and
+    says so on the message pill. Its menu takes the bookmark off; a note's or a line's also opens it in a new
+    tab.
   - A row is the note's icon — its emoji, or the note mark where it has none — and its title, on one
     line, cut with the shared tooltip where it does not fit; an untitled note says the pack's word for untitled in the dimmed
     tone. The open note's row stands chosen. A row is pressed to open its note; Ctrl- or ⌘-pressing it
     opens it in a new tab. Its actions stand in one menu: a `…` key at the row's trailing end, shown while
     the pointer is on the row or the keyboard's focus is in it and always under a finger, and the same menu
-    on a right press and a held finger. The menu offers adding to or taking from the favourites, share (the owner's
-    alone), copy link, duplicate and move to the trash (the owner's alone).
+    on a right press and a held finger. The menu offers bookmark or take the bookmark off, share (the owner's
+    alone), copy link, duplicate, move to (the owner's alone) and move to the trash (the owner's alone).
   - A section reads thirty rows at first and the next thirty as its end comes into sight, a skeleton of
     rows standing at its end while they come. The first read of each section reserves its rows with a
     skeleton of the row's shape; an empty section is one line; a section whose read failed says so in one
@@ -371,10 +451,11 @@ search, links and comments, and shows the notes through a console bundle under i
   whose note it is where it is shared (the name the people directory answers), when it was last edited,
   and the save state with that state's own icon and tone, the one place the save state stands. That key
   opens the note's properties in a popover: owner, made, last edited, words and size. At its trailing
-  end stand three icon keys, each named in its tooltip: the pin star (adding to and taking from the favourites), the
-  share key, the owner's alone, which opens bmo-ui's share dialog, and the more key, a menu of copy link
-  (Ctrl+L, ⌘L), duplicate, full width as a checked choice, move to the trash (the owner's alone), and, last, a line
-  of what the note holds — its words and its size. The title is not on the bar: the bar is the status and
+  end stand three icon keys, each named in its tooltip: the bookmark key (bookmark the note, or take its
+  bookmark off, standing filled while it is bookmarked), the share key, the owner's alone, which opens
+  bmo-ui's share dialog, and the more key, a menu of copy link (Ctrl+L, ⌘L), bookmark the line under the caret
+  (where the reader may write the note), duplicate, full width as a checked choice, move to the trash (the
+  owner's alone), and, last, a line of what the note holds — its words and its size. The title is not on the bar: the bar is the status and
   the actions, and the title heads the page under it.
 - **The page head** stands at the top of the document's own scroll, in the editor's column: the note's
   icon, large, over the title the editor draws large as the document's own title node, its placeholder
@@ -400,8 +481,8 @@ search, links and comments, and shows the notes through a console bundle under i
   Ctrl+L (⌘L) copies the open note's link; `n` makes a note (the create button's own); Ctrl+S (⌘S) saves.
   Each control a key presses names it in its tooltip.
 - **The navigator follows the service's events** (「Events」): a note saved, trashed, restored, purged,
-  shared or unshared reads the sections again in place, with no skeleton, and the open note's row with
-  them.
+  shared, unshared or filed, a folder changed and the bookmarks changed read the sections, the unfolded
+  folders and the bookmarks again in place, with no skeleton, and the open note's row with them.
 - The notes screen fills the console's content area, with no cap of its own: the navigator is a list
   reaching its region's edges, and the note region releases its width to the editor, whose column the
   screen caps at a reading width unless the note stands at full width.
@@ -429,10 +510,12 @@ search, links and comments, and shows the notes through a console bundle under i
   image — filtered by the words typed after it, each named in the console's language. It stands inside
   the screen at every width.
 - **Every block has its handle** under a pointer: Nuxt UI's drag handle stands beside whichever block the
-  pointer is over. Dragging it moves the block; pressing it opens the block's menu — turn into, duplicate,
-  copy and delete — each named in the console's language. A touch screen has no pointer to raise the
-  handle, so a phone reaches the same through the format bar, the slash menu and the phone's own choosing
-  of words.
+  pointer is over. Dragging it moves the block; pressing it opens the block's menu — turn into, bookmark (or
+  take the bookmark off), duplicate, copy and delete — each named in the console's language. A touch screen
+  has no pointer to raise the handle, so a phone reaches the same through the format bar, the slash menu, the
+  phone's own choosing of words and, for a bookmark, the bar's more menu.
+- **A line opened from its bookmark** is scrolled to the middle of the note's scroll and wears the chosen
+  tint a moment, fading out; a bookmarked line wears no mark of its own otherwise.
 - **An image** is put in from the bar's image key, the slash menu, or by pasting or dropping a picture on
   the document: the bytes go to the note's blob route first and the block stands once they are held, a
   picture past the store's cap refused on the pill before any upload. An image reads its bytes through
@@ -453,7 +536,7 @@ search, links and comments, and shows the notes through a console bundle under i
   every ask with a fenced block, starts the bundle's dev host relaying to it as the console would, writes a
   few notes of realistic Korean titles and text through the relay, and drives the screen in a real browser
   at 1,280 and 360 pixels wide, in the light and the dark scheme: the navigator with every section and the
-  trash at its foot; a note open, its bar holding the state at its leading end and the star, the share key
+  trash at its foot, the own section's folders standing first with one unfolded; a note open, its bar holding the state at its leading end and the star, the share key
   and the more key at its trailing end; the empty note region; the search dialog before typing, with results
   whose matches are marked and with none; the more menu; a note in the trash under its band; and, on a
   phone, the navigator risen in its drawer. On a wide screen the create button closes the navigator's head,
@@ -463,6 +546,15 @@ search, links and comments, and shows the notes through a console bundle under i
   a phone; a missing note keeps the bar with the navigator's key; and no screen scrolls sideways on a phone.
   It keeps a picture of each state, and runs in the suite's browser lane, apart from the client's own check,
   skipped where the browser build is not on the machine.
+- **The folders' browser test** stands on the same stack and holds, at 1,280 and 360 pixels wide, what a
+  person does with folders and bookmarks, reading what the browser draws: a folder made from the own
+  section's head and named in its row, one made inside it from its menu, both standing in the tree and
+  folding; a note moved into a folder by dragging its row under a pointer, and by the row's move to under a
+  finger, standing there after a reload; a folder renamed in its row; a folder deleted after its question,
+  its notes standing at the top again; a note, a folder and a line bookmarked, standing in the bookmarks
+  section; the line's bookmark opening its note with the line scrolled into sight and marked, and saying it
+  was deleted once the line is gone; the search finding a note inside a folder; and a member, shown the
+  shared note, seeing no folder of the owner's. It keeps a picture of each.
 - **The editor's browser test** stands on the same stack and holds, at 1,280 and 360 pixels wide, by a
   pointer and by a finger, in Korean, what a person does with the editor, reading what the browser draws:
   writing a title and lines past the scroll's foot, the caret kept in sight and the note saved and read back;
@@ -491,8 +583,9 @@ search, links and comments, and shows the notes through a console bundle under i
   read only: the format bar keeps its keys disabled, the talk key, the Agent, the selection toolbar, the
   share key and the icon key do not stand, nothing is saved, and the bar's state says the note is read
   only where it would tell the save state; a thread opens under its words to read. Opened by an `edit` member,
-  the screen is the owner's but for the share key and moving the note to the trash. Either member pins,
-  copies the link of and duplicates the note as their own.
+  the screen is the owner's but for the share key and moving the note to the trash. Either member
+  bookmarks the note, copies its link and duplicates it as their own; a member holding `edit` bookmarks its
+  lines too.
 - **The share page stands with no frame of the console's,** its own bar holding the note's title, and
   under it the document read only, its images read through the link, its comment marks taken off and its
   note links drawn as their titles alone, since the page opens no other note. A link that opens nothing
@@ -532,10 +625,13 @@ search, links and comments, and shows the notes through a console bundle under i
 
 ## Present limits
 
-- Notes do not nest, and there are no folders: every note stands in one list per view.
+- A folder is the owner's alone: it is not shared, a member sees none of the owner's folders, and a note
+  shared with a reader stands in their shared section, never in a folder of theirs.
+- Deleting a folder never deletes its notes: they move up, and a note goes to the trash on its own.
 - A note has no cover picture and no version history.
-- Rows are not dragged to reorder: the own and the shared sections sort by last edited, title or created, and
-  the pins keep the order they were pinned in.
+- Rows are not dragged to reorder: the own and the shared sections sort by last edited, title or created,
+  folders stand by name, and the bookmarks keep the order they were made in. A drag moves a row into a
+  folder, never between rows.
 - Search reads titles and the words of the document; the words inside an image are not searched.
 - A note link shows the title its note bore when it was linked.
 - The talk and the Agent read and write a block's words, not its inline marks: a block they rewrite stands as

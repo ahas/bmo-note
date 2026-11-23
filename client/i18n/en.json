@@ -20,8 +20,6 @@
       "talk": "Talk",
       "turn_into": "Turn into",
       "search": "Search",
-      "pin": "Add to favorites",
-      "unpin": "Remove from favorites",
       "copy_link": "Copy link",
       "duplicate": "Duplicate",
       "trash": "Move to trash",
@@ -34,7 +32,15 @@
       "remove_icon": "Remove icon",
       "full_width": "Full width",
       "details": "Details",
-      "link": "Link"
+      "link": "Link",
+      "bookmark": "Bookmark",
+      "unbookmark": "Remove bookmark",
+      "bookmark_line": "Bookmark line",
+      "unbookmark_line": "Remove line bookmark",
+      "new_folder": "New folder",
+      "rename": "Rename",
+      "move_to": "Move to",
+      "delete": "Delete"
     },
     "label": {
       "conflict": "Conflict",
@@ -61,7 +67,9 @@
       "list": "Notes",
       "width": "List width",
       "selection_bar": "Selection",
-      "agent": "Agent"
+      "agent": "Agent",
+      "line_gone": "Deleted line",
+      "line_of": "{title} · {line}"
     },
     "mark": {
       "bold": "Bold",
@@ -109,7 +117,7 @@
       "shared": "No notes are shared with you.",
       "trash": "The trash is empty.",
       "open": "No note is open.",
-      "pinned": "Nothing is in favorites."
+      "folder": "This folder is empty."
     },
     "status": {
       "conflict": "This note was saved from elsewhere.",
@@ -122,13 +130,18 @@
       "restored": "Restored.",
       "purged": "Deleted for good.",
       "duplicated": "Duplicated.",
-      "block_copied": "Copied."
+      "block_copied": "Copied.",
+      "folder_deleted": "Folder deleted.",
+      "moved": "Moved.",
+      "line_gone": "The bookmarked line was deleted."
     },
     "question": {
       "leave": "Changes are unsaved. Leave this screen?",
       "leave_effect": "What is not saved is lost.",
       "purge": "Delete this note for good?",
-      "purge_effect": "It cannot be brought back."
+      "purge_effect": "It cannot be brought back.",
+      "delete_folder": "Delete this folder?",
+      "delete_folder_effect": "The notes and folders inside it move up one level."
     },
     "error": {
       "action_failed": "The note could not be changed.",
@@ -140,7 +153,11 @@
       "too-large": "This note is past the size the store keeps.",
       "copy_failed": "The link could not be copied.",
       "section_failed": "These notes could not be read.",
-      "image_too_large": "This image is past the size the store keeps."
+      "image_too_large": "This image is past the size the store keeps.",
+      "folder_failed": "Couldn't change the folder.",
+      "too_deep": "Folders go up to eight levels deep.",
+      "folder_cycle": "A folder can't move into a folder inside it.",
+      "bookmark_failed": "Couldn't change the bookmark."
     },
     "agent": {
       "key": "Agent",
@@ -184,10 +201,10 @@
       "span_week": "7 days"
     },
     "section": {
-      "pinned": "Favorites",
       "mine": "My notes",
       "shared": "Shared with me",
-      "trash": "Trash"
+      "trash": "Trash",
+      "bookmarks": "Bookmarks"
     },
     "sort": {
       "changed": "Last edited",
@@ -253,6 +270,12 @@
       "failed": "The comment did not go.",
       "read_failed": "The comments could not be read.",
       "list": "Comments list"
+    },
+    "folder": {
+      "name": "Folder name",
+      "new_name": "New folder",
+      "top": "Top level",
+      "mark": "Folder"
     }
   }
 }

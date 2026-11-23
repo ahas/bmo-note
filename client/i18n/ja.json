@@ -20,8 +20,6 @@
       "talk": "相談",
       "turn_into": "種類を変更",
       "search": "検索",
-      "pin": "お気に入りに追加",
-      "unpin": "お気に入りから削除",
       "copy_link": "リンクをコピー",
       "duplicate": "複製",
       "trash": "ゴミ箱に移動",
@@ -34,7 +32,15 @@
       "remove_icon": "アイコンを削除",
       "full_width": "全幅表示",
       "details": "詳細",
-      "link": "リンク"
+      "link": "リンク",
+      "bookmark": "ブックマーク",
+      "unbookmark": "ブックマークを解除",
+      "bookmark_line": "行をブックマーク",
+      "unbookmark_line": "行のブックマークを解除",
+      "new_folder": "新しいフォルダー",
+      "rename": "名前を変更",
+      "move_to": "移動",
+      "delete": "削除"
     },
     "label": {
       "conflict": "競合",
@@ -61,7 +67,9 @@
       "list": "ノート一覧",
       "width": "一覧の幅",
       "selection_bar": "選択ツールバー",
-      "agent": "Agent"
+      "agent": "Agent",
+      "line_gone": "削除された行",
+      "line_of": "{title} · {line}"
     },
     "mark": {
       "bold": "太字",
@@ -109,7 +117,7 @@
       "shared": "共有されたノートはありません。",
       "trash": "ゴミ箱は空です。",
       "open": "開いているノートはありません。",
-      "pinned": "お気に入りはありません。"
+      "folder": "空のフォルダーです。"
     },
     "status": {
       "conflict": "このノートは別の場所で保存されました。",
@@ -122,13 +130,18 @@
       "restored": "復元しました。",
       "purged": "完全に削除しました。",
       "duplicated": "複製しました。",
-      "block_copied": "コピーしました。"
+      "block_copied": "コピーしました。",
+      "folder_deleted": "フォルダーを削除しました。",
+      "moved": "移動しました。",
+      "line_gone": "ブックマークした行は削除されました。"
     },
     "question": {
       "leave": "変更が保存されていません。この画面を離れますか?",
       "leave_effect": "保存していない内容は失われます。",
       "purge": "このノートを完全に削除しますか?",
-      "purge_effect": "元に戻すことはできません。"
+      "purge_effect": "元に戻すことはできません。",
+      "delete_folder": "このフォルダーを削除しますか？",
+      "delete_folder_effect": "中のノートとフォルダーは1つ上の階層に移動します。"
     },
     "error": {
       "action_failed": "ノートを変更できませんでした。",
@@ -140,7 +153,11 @@
       "too-large": "このノートは保存できるサイズを超えています。",
       "copy_failed": "リンクをコピーできませんでした。",
       "section_failed": "ノートを読み込めませんでした。",
-      "image_too_large": "この画像は保存できるサイズを超えています。"
+      "image_too_large": "この画像は保存できるサイズを超えています。",
+      "folder_failed": "フォルダーを変更できませんでした。",
+      "too_deep": "フォルダーは8階層まで作成できます。",
+      "folder_cycle": "フォルダーをその中のフォルダーへ移動することはできません。",
+      "bookmark_failed": "ブックマークを変更できませんでした。"
     },
     "agent": {
       "key": "Agent",
@@ -184,10 +201,10 @@
       "span_week": "7 日"
     },
     "section": {
-      "pinned": "お気に入り",
       "mine": "マイノート",
       "shared": "共有されたノート",
-      "trash": "ゴミ箱"
+      "trash": "ゴミ箱",
+      "bookmarks": "ブックマーク"
     },
     "sort": {
       "changed": "最終編集",
@@ -253,6 +270,12 @@
       "failed": "コメントを送信できませんでした。",
       "read_failed": "コメントを読み込めませんでした。",
       "list": "コメント一覧"
+    },
+    "folder": {
+      "name": "フォルダー名",
+      "new_name": "新しいフォルダー",
+      "top": "最上位",
+      "mark": "フォルダー"
     }
   }
 }
