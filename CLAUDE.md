@@ -25,7 +25,8 @@ Community Edition, kept so the unit can follow upstream. `docs/design.md` states
   formats it and lints every target with warnings denied), so `testbed.toml` declares no Cargo step;
   `cargo test` through the testbed; the client's `bun run check`; the screens' browser test under `client/tests/browser/`,
   which `client/package.json` declares to the suite's browser lane and the client's check leaves out.
-- **English only** in code, documents, tests and commits; Korean in the bundle's `ko` words alone.
+- **English only** in code, documents, tests and commits; Korean in the bundle's `ko` words alone, besides
+  the README's language line and its translations (`README.ko.md` and its siblings).
 - **No personal data, no names of agents, owners or hosts** in code, documents or commits. A note
   document's *content* is user data that stands in the store at runtime, never in the repository.
 - **Versions:** `0.1.0-rev.N` until a release the owner declares; no sibling version pins.

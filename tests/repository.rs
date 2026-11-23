@@ -196,8 +196,8 @@ fn no_unit_file_holds_personal_data() {
 #[test]
 fn korean_stands_only_where_the_ledger_of_the_unit_allows_it() {
   // English in code, comments, documents and commits; Korean in the bundle's `ko` words alone, the pack
-  // and the editor's word table inside the bundle's words folder, and in the test fixtures that read them
-  // (CLAUDE.md).
+  // and the editor's word table inside the bundle's words folder, in the test fixtures that read them, and
+  // in the README's language line, which names the Korean translation in its own script (CLAUDE.md).
   let mut refused = Vec::new();
   for path in unit_files() {
     let words = path.starts_with("client/i18n/") && path.ends_with("/ko.json");
@@ -205,9 +205,12 @@ fn korean_stands_only_where_the_ledger_of_the_unit_allows_it() {
     if allowed {
       continue;
     }
-    let Some(text) = text_of(&path) else {
+    let Some(mut text) = text_of(&path) else {
       continue;
     };
+    if path == "README.md" {
+      text = text.lines().skip(1).collect::<Vec<_>>().join("\n");
+    }
     let wordy = [".rs", ".md", ".json", ".toml"].iter().any(|tail| path.ends_with(tail));
     if wordy && text.chars().any(is_hangul) {
       refused.push(path);

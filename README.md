@@ -1,3 +1,5 @@
+**English** | [한국어](README.ko.md) | [日本語](README.ja.md) | [简体中文](README.zh-CN.md)
+
 # bmo-note
 
 The platform's editable notes as one service: each note a BlockSuite document, the editor of AFFiNE,
@@ -11,8 +13,11 @@ Edition this repository is, with `upstream` kept for later merges.
 
 `cargo test` (through the testbed) runs the crate's one harness, `tests/main.rs`, on a scratch SQLite
 file and a loopback port: notes written, read, saved, conflicted, trashed, restored and purged, each
-account's own (`notes.rs`), the stream the writes publish (`events.rs`), the console face the service
-serves, its manifest read through bmo-ui's own reading on the vendored release (`console.rs`), and the unit's own repository checks (`repository.rs`). The console bundle's
+account's own (`notes.rs`); what stands beside a note's document (`beside.rs`) and the images it holds
+(`blobs.rs`); a note shared by link and with members (`sharing.rs`); each reader's own pins and record of
+what was opened (`own.rs`); the search (`search.rs`); the stream the writes publish (`events.rs`); the
+console face the service serves, its manifest read through bmo-ui's own reading on the vendored release
+(`console.rs`); and the unit's own repository checks (`repository.rs`). The console bundle's
 check is `bun run check` inside `client/`, which copies the vendored editor, installs, transpiles its
 decorated sources with the TypeScript compiler, typechecks and tests (`docs/affine.md`, 「The client's
 build path to the vendored editor」).
