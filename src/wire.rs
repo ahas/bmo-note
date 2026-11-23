@@ -24,8 +24,6 @@ pub struct NoteMeta {
   pub access: Access,
   /// The note's icon, one emoji; empty where it has none.
   pub icon: String,
-  /// Whether the service holds the note's plain text for its stored document.
-  pub indexed: bool,
 }
 
 /// What a caller holds of a note: the note's own account, or a member's share (`docs/design.md`, 「Who
@@ -130,27 +128,27 @@ pub struct SharedNote {
   pub changed_at: i64,
   pub size: i64,
   pub expires_at: Option<i64>,
-  pub doc: String,
+  /// The document, its comment marks taken off.
+  pub doc: Value,
 }
 
-/// A note with its document, base64 (`docs/design.md`, 「What a note is」).
+/// A note with its document, its TipTap JSON (`docs/design.md`, 「What a note is」).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Note {
   #[serde(flatten)]
   pub meta: NoteMeta,
-  pub doc: String,
+  pub doc: Value,
 }
 
-/// A note to make.
+/// A note to make: its title is read from its document.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NewNote {
   /// 1 to 64 letters, digits, `-` and `_`; one is made where none is given.
   #[serde(default)]
   pub id: Option<String>,
-  pub title: String,
-  pub doc: String,
+  pub doc: Value,
 }
 
 /// A save of a note: the version it was made from, and the fields it writes.
@@ -159,13 +157,9 @@ pub struct NewNote {
 pub struct NoteSave {
   /// The version the writer read; a save from behind the stored one is refused.
   pub version: i64,
+  /// The whole document; the title, the text and the links are read from it.
   #[serde(default)]
-  pub title: Option<String>,
-  #[serde(default)]
-  pub doc: Option<String>,
-  /// The note's plain text, read out of the `doc` it rides with; it stands only with one.
-  #[serde(default)]
-  pub text: Option<String>,
+  pub doc: Option<Value>,
   /// Moves a trashed note back to life; writes nothing else on a live note.
   #[serde(default)]
   pub restore: Option<bool>,
@@ -230,15 +224,6 @@ pub struct ReadQuery {
   /// Answers the caller's own note where it rests in the trash.
   #[serde(default)]
   pub deleted: Option<bool>,
-}
-
-/// The plain text supplied for a note's stored document.
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NoteText {
-  /// The version the text was read from; it must be the stored one.
-  pub version: i64,
-  pub text: String,
 }
 
 /// A note's icon set or cleared.
@@ -417,4 +402,68 @@ pub struct ShareEvent {
   /// The permission given; none on `note.unshared`.
   #[serde(skip_serializing_if = "Option::is_none", default)]
   pub permission: Option<Permission>,
+}
+
+/// One comment of a thread (`docs/api.md`, 「Comments」).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Comment {
+  pub id: String,
+  /// The account key that wrote it.
+  pub author: String,
+  pub body: String,
+  pub created_at: i64,
+}
+
+/// A comment thread laid on words of a note.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Thread {
+  /// The id the comment marks laid for it carry.
+  pub id: String,
+  /// The words it was laid on, as they read then.
+  pub quote: String,
+  /// The account key that started it.
+  pub author: String,
+  pub created_at: i64,
+  /// Null while it is open.
+  pub resolved_at: Option<i64>,
+  pub resolved_by: Option<String>,
+  /// Whether the note's stored document holds a comment mark of the thread's id.
+  pub anchored: bool,
+  /// Oldest first.
+  pub comments: Vec<Comment>,
+}
+
+/// A thread to start, with its first comment.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewThread {
+  pub id: String,
+  #[serde(default)]
+  pub quote: String,
+  pub body: String,
+}
+
+/// A reply to a thread.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewComment {
+  pub body: String,
+}
+
+/// A thread resolved or reopened.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadChange {
+  pub resolved: bool,
+}
+
+/// The data `note.commented` carries.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommentEvent {
+  pub note_id: String,
+  pub owner: String,
+  pub thread: String,
 }

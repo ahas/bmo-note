@@ -4,7 +4,7 @@
 use axum::http::StatusCode;
 use serde_json::Value;
 
-use crate::support::{Ran, Scratch, TEST_BLOB_MAX, answered, doc_bytes, held_port, note_body, settings};
+use crate::support::{Ran, Scratch, TEST_BLOB_MAX, answered, held_port, note_body, sample_doc, settings};
 
 /// The bytes of a test image, under the test cap.
 fn image(mark: u8) -> Vec<u8> {
@@ -23,7 +23,7 @@ async fn note_up(ran: &Ran, key: &str, id: &str) {
   let (status, _) = answered(ran.as_reader("POST", "/notes", key, "member").json(&note_body(
     id,
     "Imaged",
-    &doc_bytes(1),
+    &sample_doc(1),
   )))
   .await;
   assert_eq!(status, StatusCode::CREATED);

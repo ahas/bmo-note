@@ -7,7 +7,7 @@
 use axum::http::StatusCode;
 use serde_json::{Value, json};
 
-use crate::support::{Ran, Scratch, answered, base64, doc_bytes, held_port, settings};
+use crate::support::{Ran, Scratch, answered, doc_of, held_port, note_body, sample_doc, settings};
 
 /// The owner, a member a note is shared with, and a stranger it is not.
 const OWNER: &str = "1";
@@ -21,23 +21,23 @@ async fn running(name: &str) -> (Scratch, Ran) {
   (scratch, ran)
 }
 
-/// A note of `owner`'s made and saved with its plain text.
+/// A note of `owner`'s made and saved, its document holding `title` and one paragraph a line of `text`.
 async fn written(ran: &Ran, owner: &str, id: &str, title: &str, text: &str) {
-  let (status, made) = answered(
-    ran
-      .as_reader("POST", "/notes", owner, "member")
-      .json(&json!({ "id": id, "title": title, "doc": base64(&doc_bytes(1)) })),
-  )
+  let (status, made) = answered(ran.as_reader("POST", "/notes", owner, "member").json(&note_body(
+    id,
+    title,
+    &sample_doc(1),
+  )))
   .await;
   assert_eq!(status, StatusCode::CREATED, "{made}");
+  let lines: Vec<&str> = text.split('\n').collect();
   let (status, saved) = answered(
     ran
       .as_reader("PATCH", &format!("/notes/{id}"), owner, "member")
-      .json(&json!({ "version": 1, "doc": base64(&doc_bytes(2)), "text": text })),
+      .json(&json!({ "version": 1, "doc": doc_of(title, &lines) })),
   )
   .await;
   assert_eq!(status, StatusCode::OK, "{saved}");
-  assert_eq!(saved["indexed"], true);
 }
 
 /// A search as `reader` puts it, answered.
@@ -235,33 +235,6 @@ async fn a_quoted_phrase_matches_exactly_and_terms_are_all_required() {
   let (_, page) = searched(&ran, OWNER, &format!("{}&titleOnly=true", q("PLAN"))).await;
   assert_eq!(found(&page), vec!["1/p2"]);
   assert!(page["items"][0]["snippet"].is_null());
-}
-
-#[tokio::test]
-async fn an_unindexed_note_is_found_by_its_title_and_a_text_supplied_later_finds_it() {
-  let (_scratch, ran) = running("search-fill").await;
-  let (_, made) = answered(
-    ran
-      .as_reader("POST", "/notes", OWNER, "member")
-      .json(&json!({ "id": "u1", "title": "Garden notes", "doc": base64(&doc_bytes(1)) })),
-  )
-  .await;
-  assert_eq!(made["indexed"], false);
-  let (_, page) = searched(&ran, OWNER, &q("tomatoes")).await;
-  assert!(found(&page).is_empty());
-  let (_, page) = searched(&ran, OWNER, &q("garden")).await;
-  assert_eq!(found(&page), vec!["1/u1"]);
-
-  let (status, meta) = answered(
-    ran
-      .as_reader("PUT", "/notes/u1/text", OWNER, "member")
-      .json(&json!({ "version": 1, "text": "tomatoes by the fence" })),
-  )
-  .await;
-  assert_eq!(status, StatusCode::OK, "{meta}");
-  assert_eq!((meta["indexed"].clone(), meta["version"].clone()), (json!(true), json!(1)));
-  let (_, page) = searched(&ran, OWNER, &q("tomatoes")).await;
-  assert_eq!(found(&page), vec!["1/u1"]);
 }
 
 #[tokio::test]

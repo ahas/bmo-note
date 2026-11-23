@@ -1,9 +1,12 @@
-//! The note service: editable BlockSuite notes kept as binary documents in the unit's own store,
-//! answered on its own port, with the console face that shows them (`docs/design.md`, `docs/api.md`).
+//! The note service: editable notes kept as TipTap documents in the unit's own store, with their links
+//! and comment threads, answered on its own port, with the console face that shows them
+//! (`docs/design.md`, `docs/api.md`).
 
 pub mod api;
 pub mod app;
+pub mod comments;
 pub mod console;
+pub mod doc;
 pub mod error;
 pub mod events;
 pub mod model;

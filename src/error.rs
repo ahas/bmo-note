@@ -16,7 +16,7 @@ pub const CODES: [(&str, u16, &str); 13] = [
   ("too-large", 413, "a document past the stored byte cap"),
   ("version-conflict", 409, "a save made from behind the stored version"),
   ("no-owner", 422, "a service-token call naming no account"),
-  ("bad-doc", 422, "a doc that is not base64 bytes"),
+  ("bad-doc", 422, "a doc that is not a TipTap document"),
   ("trashed", 422, "a write on a note standing in the trash"),
   ("not-trashed", 422, "a purge of a note that does not stand in the trash"),
   ("failed", 500, "the service failed"),

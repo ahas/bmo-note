@@ -8,6 +8,7 @@ use std::time::Duration as StdDuration;
 
 use axum::Router;
 use axum::body::Bytes;
+use axum::extract::DefaultBodyLimit;
 use axum::extract::rejection::QueryRejection;
 use axum::extract::{Path, Query, Request, State};
 use axum::http::{HeaderMap, StatusCode, header};
@@ -19,18 +20,19 @@ use futures_util::{StreamExt, stream};
 use serde::de::DeserializeOwned;
 
 use crate::app::App;
+use crate::comments;
+use crate::doc::{checked, derived, parsed, titled, without_comments};
 use crate::error::ApiError;
 use crate::events::Record;
 use crate::model::{
-  KEY_MAX, clean_icon, clean_text, clean_title, decode_doc, encode_doc, fresh_id, makeable_id, now_ms,
-  parse_list_cursor, valid_blob_id,
+  KEY_MAX, clean_icon, clean_title, fresh_id, makeable_id, now_ms, parse_list_cursor, valid_blob_id,
 };
 use crate::own;
 use crate::share;
 use crate::store::{Copied, Saved, Written};
 use crate::wire::{
   Access, DeleteQuery, EventsQuery, Health, NewCopy, NewNote, Note, NoteEvent, NoteIcon, NoteMeta,
-  NoteQuery, NoteSave, NoteText, NotesQuery, Page, ReadQuery, StreamEvent,
+  NoteQuery, NoteSave, NotesQuery, Page, ReadQuery, StreamEvent,
 };
 
 /// The most rows and events one page holds.
@@ -56,7 +58,12 @@ pub fn router(app: Arc<App>, face: Option<ConsoleFace>) -> Router {
   if let Some(face) = &face {
     routes = routes.merge(face.router());
   }
+  // A body is read whole up to the larger cap and a little room for the JSON around a document; the
+  // routes refuse past their own caps in the platform's shape.
+  let notes = &app.settings.notes;
+  let body_room = notes.max_doc_bytes.max(notes.max_blob_bytes) + 64 * 1024;
   routes
+    .layer(DefaultBodyLimit::max(body_room))
     .fallback(|| async { ApiError::no_route() })
     .method_not_allowed_fallback(|| async { ApiError::no_route() })
     .with_state(app)
@@ -69,9 +76,10 @@ fn screens() -> Router<Arc<App>> {
     .route("/notes", get(list_notes).post(create_note))
     .route("/notes/{noteId}", get(read_note).patch(save_note).delete(delete_note))
     .route("/notes/{noteId}/blobs/{blobId}", get(read_blob).put(put_blob))
-    .route("/notes/{noteId}/text", put(write_text))
     .route("/notes/{noteId}/icon", put(write_icon))
     .route("/notes/{noteId}/duplicate", post(duplicate_note))
+    .route("/notes/{noteId}/backlinks", get(backlinks))
+    .merge(comments::routes())
     .merge(own::routes())
     .merge(share::routes())
 }
@@ -140,7 +148,7 @@ pub(crate) fn caller(app: &App, headers: &HeaderMap, owner: Option<String>) -> A
 
 /// The note a route of one note reaches: the account it belongs to, and what the caller holds of it.
 #[derive(Clone, Debug)]
-pub(crate) struct Reach {
+pub struct Reach {
   /// The account the note belongs to.
   pub owner: String,
   /// The account the call answers for: the reader, or the service token's `owner`.
@@ -202,7 +210,7 @@ pub(crate) fn reach(app: &App, headers: &HeaderMap, owner: Option<String>, note:
 }
 
 /// The accounts an event of `owner`'s note `note` reaches: the owner and whoever it is shared with.
-fn audience(app: &App, owner: &str, note: &str) -> Vec<String> {
+pub(crate) fn audience(app: &App, owner: &str, note: &str) -> Vec<String> {
   let members = app.store.members(owner, note).unwrap_or_default();
   std::iter::once(owner.to_owned())
     .chain(members.into_iter().map(|member| member.user))
@@ -243,11 +251,25 @@ pub(crate) fn body<T: DeserializeOwned>(bytes: &Bytes) -> Answer<T> {
 
 async fn health(State(app): State<Arc<App>>, headers: HeaderMap) -> Answer<Json<Health>> {
   credential(&app, &headers)?;
+  let foreign = app.store.foreign_documents();
+  let reason = (foreign > 0).then(|| {
+    format!("{foreign} notes hold documents of the earlier editor; the migration has not converted them.")
+  });
   Ok(Json(Health {
-    ready: true,
-    reason: None,
+    ready: reason.is_none(),
+    reason,
     version: env!("CARGO_PKG_VERSION").to_owned(),
   }))
+}
+
+/// The document a stored note holds, as a read answers it; a document of another format is the
+/// migration's to convert, and no screen can open it.
+pub(crate) fn stored_doc(bytes: &[u8]) -> Answer<serde_json::Value> {
+  parsed(bytes).ok_or_else(|| {
+    ApiError::failed(
+      "The note holds a document of the earlier editor, which the migration has not converted.",
+    )
+  })
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -309,10 +331,10 @@ async fn create_note(
     }
     None => fresh_id(),
   };
-  let title = clean_title(&given.title)?;
-  let doc = decode_doc(&given.doc, app.settings.notes.max_doc_bytes)?;
+  let doc = checked(&given.doc, app.settings.notes.max_doc_bytes)?;
+  let said = derived(&given.doc);
   let at = now_ms();
-  let (meta, made) = app.store.create(&caller.owner, &id, &title, &doc, at).map_err(ApiError::failed)?;
+  let (meta, made) = app.store.create(&caller.owner, &id, &doc, &said, at).map_err(ApiError::failed)?;
   if made {
     publish_note(&app, "note.saved", &caller.owner, &id, vec![caller.owner.clone()]);
   }
@@ -344,7 +366,7 @@ async fn read_note(
       .map_err(ApiError::failed)?;
   }
   Ok(Json(Note {
-    doc: encode_doc(&row.doc),
+    doc: stored_doc(&row.doc)?,
     meta: reach.held(row.meta),
   }))
 }
@@ -366,26 +388,16 @@ async fn save_note(
   if restore {
     reach.owns()?;
   }
-  let title = given.title.as_deref().map(clean_title).transpose()?;
   let max = app.settings.notes.max_doc_bytes;
-  let doc = given.doc.as_deref().map(|doc| decode_doc(doc, max)).transpose()?;
-  if given.text.is_some() && doc.is_none() {
-    return Err(ApiError::bad_request("A text stands only with the doc it was read from."));
-  }
-  let text = given.text.as_deref().map(|text| clean_text(text, max)).transpose()?;
+  let doc = match &given.doc {
+    Some(doc) => Some((checked(doc, max)?, derived(doc))),
+    None => None,
+  };
   let at = now_ms();
+  let written = doc.as_ref().map(|(bytes, said)| (bytes.as_slice(), said));
   let saved = app
     .store
-    .save(
-      &reach.owner,
-      &id,
-      title.as_deref(),
-      doc.as_deref(),
-      text.as_deref(),
-      given.version,
-      restore,
-      at,
-    )
+    .save(&reach.owner, &id, written, given.version, restore, at)
     .map_err(ApiError::failed)?;
   let published =
     |kind: &str| publish_note(&app, kind, &reach.owner, &id, audience(&app, &reach.owner, &id));
@@ -459,25 +471,9 @@ fn conflict_answer(reach: &Reach, meta: NoteMeta) -> Response {
 fn written_answer(reach: &Reach, id: &str, written: Written) -> Answer<Response> {
   match written {
     Written::Done(meta) => Ok(json_answer(StatusCode::OK, reach.held(meta))),
-    Written::Conflict(meta) => Ok(conflict_answer(reach, meta)),
     Written::Missing => Err(ApiError::not_found(format!("No note {id} stands."))),
     Written::Trashed => Err(ApiError::trashed(id)),
   }
-}
-
-async fn write_text(
-  State(app): State<Arc<App>>,
-  headers: HeaderMap,
-  Path(id): Path<String>,
-  given_query: Result<Query<NoteQuery>, QueryRejection>,
-  bytes: Bytes,
-) -> Answer<Response> {
-  let reach = reach(&app, &headers, query(given_query)?.owner, &id)?;
-  reach.writes()?;
-  let given: NoteText = body(&bytes)?;
-  let text = clean_text(&given.text, app.settings.notes.max_doc_bytes)?;
-  let written = app.store.set_text(&reach.owner, &id, given.version, &text).map_err(ApiError::failed)?;
-  written_answer(&reach, &id, written)
 }
 
 async fn write_icon(
@@ -517,9 +513,18 @@ async fn duplicate_note(
     None => fresh_id(),
   };
   let title = clean_title(&given.title)?;
+  let source = app
+    .store
+    .note(&reach.owner, &id, Some(false))
+    .map_err(ApiError::failed)?
+    .ok_or_else(|| ApiError::not_found(format!("No note {id} stands live.")))?;
+  // The copy is the source's document under the copy's title, its comment marks taken off: a copy
+  // carries no threads.
+  let doc = titled(&without_comments(&stored_doc(&source.doc)?), &title);
+  let bytes = serde_json::to_vec(&doc).map_err(|why| ApiError::failed(why.to_string()))?;
   let copied = app
     .store
-    .duplicate(&reach.owner, &id, &reach.account, &copy, &title, now_ms())
+    .duplicate(&reach.owner, &id, &reach.account, &copy, &bytes, &derived(&doc), now_ms())
     .map_err(ApiError::failed)?;
   match copied {
     Copied::Made(meta) => {
@@ -529,6 +534,20 @@ async fn duplicate_note(
     Copied::Missing => Err(ApiError::not_found(format!("No note {id} stands live."))),
     Copied::Taken => Err(ApiError::bad_request(format!("The caller already holds a note at {copy}."))),
   }
+}
+
+async fn backlinks(
+  State(app): State<Arc<App>>,
+  headers: HeaderMap,
+  Path(id): Path<String>,
+  given: Result<Query<NoteQuery>, QueryRejection>,
+) -> Answer<Json<Page<NoteMeta>>> {
+  let reach = reach(&app, &headers, query(given)?.owner, &id)?;
+  if app.store.meta(&reach.owner, &id, Some(false)).map_err(ApiError::failed)?.is_none() {
+    return Err(ApiError::not_found(format!("No note {id} stands live.")));
+  }
+  let items = app.store.backlinks(&reach.account, &reach.owner, &id).map_err(ApiError::failed)?;
+  Ok(Json(Page { items, more: false }))
 }
 
 // ---------------------------------------------------------------------------------------------------------

@@ -6,7 +6,9 @@ use std::collections::BTreeSet;
 use axum::http::StatusCode;
 use serde_json::json;
 
-use crate::support::{Ran, Scratch, answered, base64, doc_bytes, held_port, note_body, settings};
+use crate::support::{
+  Ran, Scratch, answered, body_of, doc_of, held_port, note_body, sample_doc, settings, size_of,
+};
 
 /// The service every notes test runs against, with the store it keeps.
 async fn running(name: &str) -> (Scratch, Ran) {
@@ -19,7 +21,7 @@ async fn running(name: &str) -> (Scratch, Ran) {
 #[tokio::test]
 async fn a_note_is_made_and_reads_back_with_its_document() {
   let (_scratch, ran) = running("make").await;
-  let doc = doc_bytes(1);
+  let doc = sample_doc(1);
   let (status, meta) =
     answered(ran.as_reader("POST", "/notes", "1", "member").json(&note_body("a1", "Groceries", &doc)))
       .await;
@@ -27,20 +29,20 @@ async fn a_note_is_made_and_reads_back_with_its_document() {
   assert_eq!(meta["id"], "a1");
   assert_eq!(meta["title"], "Groceries");
   assert_eq!(meta["version"], 1);
-  assert_eq!(meta["size"], doc.len() as i64);
+  assert_eq!(meta["size"], size_of(&note_body("a1", "Groceries", &doc)["doc"]));
   assert!(meta["deletedAt"].is_null());
 
   let (status, note) = answered(ran.as_reader("GET", "/notes/a1", "1", "member")).await;
   assert_eq!(status, StatusCode::OK);
-  assert_eq!(note["doc"], base64(&doc));
+  assert_eq!(body_of(&note["doc"]), body_of(&doc));
   assert_eq!(note["version"], 1);
 }
 
 #[tokio::test]
 async fn a_second_make_of_an_id_held_answers_the_note_as_it_stands() {
   let (_scratch, ran) = running("idem").await;
-  let first = doc_bytes(1);
-  let second = doc_bytes(2);
+  let first = sample_doc(1);
+  let second = sample_doc(2);
   answered(
     ran
       .as_reader("POST", "/notes", "1", "member")
@@ -53,44 +55,44 @@ async fn a_second_make_of_an_id_held_answers_the_note_as_it_stands() {
   assert_eq!(meta["version"], 1);
   assert_eq!(meta["title"], "Groceries");
   let (_, note) = answered(ran.as_reader("GET", "/notes/a1", "1", "member")).await;
-  assert_eq!(note["doc"], base64(&first));
+  assert_eq!(body_of(&note["doc"]), body_of(&first));
 }
 
 #[tokio::test]
 async fn a_save_moves_the_version_up_and_one_from_behind_is_refused_what_stands() {
   let (_scratch, ran) = running("save").await;
-  let doc = doc_bytes(1);
+  let doc = sample_doc(1);
   answered(ran.as_reader("POST", "/notes", "1", "member").json(&note_body("a1", "Groceries", &doc))).await;
 
-  let held = doc_bytes(3);
+  let held = doc_of("Groceries and more", &["Words of the sample 3"]);
   let (status, meta) = answered(
     ran
       .as_reader("PATCH", "/notes/a1", "1", "member")
-      .json(&json!({ "version": 1, "title": "Groceries and more", "doc": base64(&held) })),
+      .json(&json!({ "version": 1, "doc": &held })),
   )
   .await;
   assert_eq!(status, StatusCode::OK);
   assert_eq!(meta["version"], 2);
-  assert_eq!(meta["title"], "Groceries and more");
-  assert_eq!(meta["size"], held.len() as i64);
+  assert_eq!(meta["title"], "Groceries and more", "the title is read from the document");
+  assert_eq!(meta["size"], size_of(&held));
 
   let (status, conflict) = answered(
     ran
       .as_reader("PATCH", "/notes/a1", "1", "member")
-      .json(&json!({ "version": 1, "doc": base64(&doc) })),
+      .json(&json!({ "version": 1, "doc": &doc })),
   )
   .await;
   assert_eq!(status, StatusCode::CONFLICT);
   assert_eq!(conflict["code"], "version-conflict");
   assert_eq!(conflict["note"]["version"], 2);
   let (_, note) = answered(ran.as_reader("GET", "/notes/a1", "1", "member")).await;
-  assert_eq!(note["doc"], base64(&held), "the refused save wrote nothing");
+  assert_eq!(body_of(&note["doc"]), body_of(&held), "the refused save wrote nothing");
 }
 
 #[tokio::test]
-async fn a_save_without_a_document_writes_the_title_alone() {
+async fn a_save_without_a_document_writes_nothing() {
   let (_scratch, ran) = running("title-only").await;
-  let doc = doc_bytes(1);
+  let doc = sample_doc(1);
   answered(ran.as_reader("POST", "/notes", "1", "member").json(&note_body("a1", "Groceries", &doc))).await;
   let (status, meta) = answered(
     ran
@@ -99,16 +101,25 @@ async fn a_save_without_a_document_writes_the_title_alone() {
   )
   .await;
   assert_eq!(status, StatusCode::OK);
-  assert_eq!(meta["title"], "Market run");
-  assert_eq!(meta["version"], 2);
-  let (_, note) = answered(ran.as_reader("GET", "/notes/a1", "1", "member")).await;
-  assert_eq!(note["doc"], base64(&doc));
+  assert_eq!((meta["title"].clone(), meta["version"].clone()), (json!("Groceries"), json!(1)));
+}
+
+#[tokio::test]
+async fn an_untitled_note_is_named_by_its_first_line_of_words() {
+  let (_scratch, ran) = running("first-line").await;
+  let (_, meta) = answered(
+    ran
+      .as_reader("POST", "/notes", "1", "member")
+      .json(&json!({ "id": "a1", "doc": doc_of("", &["", "  Shopping\tlist  ", "milk"]) })),
+  )
+  .await;
+  assert_eq!(meta["title"], "Shopping list");
 }
 
 #[tokio::test]
 async fn a_title_is_trimmed_to_one_line() {
   let (_scratch, ran) = running("title").await;
-  let doc = doc_bytes(1);
+  let doc = sample_doc(1);
   let (_, meta) = answered(ran.as_reader("POST", "/notes", "1", "member").json(&note_body(
     "a1",
     "  Hello\nWide  ",
@@ -121,7 +132,7 @@ async fn a_title_is_trimmed_to_one_line() {
 #[tokio::test]
 async fn notes_are_each_accounts_own() {
   let (_scratch, ran) = running("owners").await;
-  let doc = doc_bytes(1);
+  let doc = sample_doc(1);
   answered(ran.as_reader("POST", "/notes", "1", "member").json(&note_body("a1", "Mine", &doc))).await;
 
   let (status, _) = answered(ran.as_reader("GET", "/notes/a1", "2", "member")).await;
@@ -140,16 +151,16 @@ async fn the_list_pages_newest_changed_first() {
     answered(ran.as_reader("POST", "/notes", "1", "member").json(&note_body(
       id,
       "Title",
-      &doc_bytes(mark),
+      &sample_doc(mark),
     )))
     .await;
   }
   // Move "one" to the front of the order by saving it last.
-  let held = doc_bytes(9);
+  let held = sample_doc(9);
   answered(
     ran
       .as_reader("PATCH", "/notes/one", "1", "member")
-      .json(&json!({ "version": 1, "doc": base64(&held) })),
+      .json(&json!({ "version": 1, "doc": &held })),
   )
   .await;
 
@@ -187,7 +198,7 @@ async fn the_list_pages_newest_changed_first() {
 #[tokio::test]
 async fn a_service_token_call_answers_for_the_owner_it_names() {
   let (_scratch, ran) = running("service").await;
-  let doc = doc_bytes(1);
+  let doc = sample_doc(1);
   let (status, _) =
     answered(ran.call("POST", "/notes?owner=3").json(&note_body("a1", "Owned", &doc))).await;
   assert_eq!(status, StatusCode::CREATED);
@@ -219,40 +230,34 @@ async fn calls_without_a_credential_or_a_reader_are_refused() {
 #[tokio::test]
 async fn a_document_outside_its_shape_is_refused() {
   let (_scratch, ran) = running("doc").await;
-  let (status, refusal) = answered(
-    ran
-      .as_reader("POST", "/notes", "1", "member")
-      .json(&json!({ "id": "a1", "title": "T", "doc": "!!" })),
-  )
-  .await;
-  assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-  assert_eq!(refusal["code"], "bad-doc");
+  // Bytes of the earlier editor, a page that is no document and a node with no type are each refused.
+  for wrong in [
+    json!("AQID"),
+    json!({ "type": "page", "content": [] }),
+    json!({ "type": "doc", "content": [{ "text": "untyped" }] }),
+    json!({ "type": "doc" }),
+  ] {
+    let (status, refusal) = answered(
+      ran
+        .as_reader("POST", "/notes", "1", "member")
+        .json(&json!({ "id": "a1", "doc": wrong })),
+    )
+    .await;
+    assert_eq!((status, refusal["code"].as_str()), (StatusCode::UNPROCESSABLE_ENTITY, Some("bad-doc")));
+  }
 
   let (status, refusal) = answered(
     ran
       .as_reader("POST", "/notes", "1", "member")
-      .json(&json!({ "id": "a1", "title": "T", "doc": "" })),
-  )
-  .await;
-  assert_eq!(refusal["code"], "bad-doc");
-  assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-
-  let (status, refusal) = answered(
-    ran
-      .as_reader("POST", "/notes", "1", "member")
-      .json(&json!({ "id": "a b", "title": "T", "doc": base64(&doc_bytes(1)) })),
+      .json(&json!({ "id": "a b", "doc": &sample_doc(1) })),
   )
   .await;
   assert_eq!(status, StatusCode::BAD_REQUEST);
   assert_eq!(refusal["code"], "bad-request");
 
-  let over = base64(&vec![7u8; crate::support::TEST_DOC_MAX + 8]);
-  let (status, refusal) = answered(
-    ran
-      .as_reader("POST", "/notes", "1", "member")
-      .json(&json!({ "title": "T", "doc": over })),
-  )
-  .await;
+  let over = doc_of("T", &[&"x".repeat(crate::support::TEST_DOC_MAX)]);
+  let (status, refusal) =
+    answered(ran.as_reader("POST", "/notes", "1", "member").json(&json!({ "doc": over }))).await;
   assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
   assert_eq!(refusal["code"], "too-large");
 }
@@ -260,7 +265,7 @@ async fn a_document_outside_its_shape_is_refused() {
 #[tokio::test]
 async fn a_note_is_trashed_restored_and_purged() {
   let (_scratch, ran) = running("trash").await;
-  let doc = doc_bytes(1);
+  let doc = sample_doc(1);
   answered(ran.as_reader("POST", "/notes", "1", "member").json(&note_body("a1", "Draft", &doc))).await;
 
   let (status, _) = answered(ran.as_reader("DELETE", "/notes/a1", "1", "member")).await;
@@ -275,7 +280,7 @@ async fn a_note_is_trashed_restored_and_purged() {
   let (status, refusal) = answered(
     ran
       .as_reader("PATCH", "/notes/a1", "1", "member")
-      .json(&json!({ "version": 1, "doc": base64(&doc) })),
+      .json(&json!({ "version": 1, "doc": &doc })),
   )
   .await;
   assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
@@ -324,7 +329,7 @@ async fn the_store_keeps_its_notes_across_a_restart() {
   let scratch = Scratch::make("restart");
   let (listener, listen) = held_port().await;
   let ran = Ran::start(settings(&scratch, listen), listener).await;
-  let doc = doc_bytes(1);
+  let doc = sample_doc(1);
   answered(ran.as_reader("POST", "/notes", "1", "member").json(&note_body("a1", "Kept", &doc))).await;
   drop(ran);
 
@@ -333,5 +338,5 @@ async fn the_store_keeps_its_notes_across_a_restart() {
   let ran = Ran::start(settings(&scratch, listen), listener).await;
   let (_, note) = answered(ran.as_reader("GET", "/notes/a1", "1", "member")).await;
   assert_eq!(note["title"], "Kept");
-  assert_eq!(note["doc"], base64(&doc));
+  assert_eq!(body_of(&note["doc"]), body_of(&doc));
 }

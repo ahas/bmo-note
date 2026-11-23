@@ -1,7 +1,8 @@
 //! The unit's own store (`docs/design.md`, 「Storage」): one SQLite file — every note of every account with
-//! its document bytes, every note's images, share link and members, every note's search text and the
-//! full-text index over it, and each account's pins and record of what it opened. The service's truth
-//! stands here; it rebuilds nothing.
+//! its document, every note's images, share link and members, every note's search text and the full-text
+//! index over it, its links and its comment threads, each account's pins and record of what it opened, and
+//! each converted note's former document. The service's truth stands here; what a document says is derived
+//! from it in the same transaction that writes it.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -9,8 +10,9 @@ use std::sync::{Arc, Mutex};
 use rusqlite::types::ToSql;
 use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
 
-use crate::model::{CursorKey, ListCursor};
-use crate::wire::{Access, Link, ListOrder, Member, NoteMeta, Permission, SearchOrder};
+use crate::doc::{Derived, derived, parsed};
+use crate::model::{CursorKey, ListCursor, fresh_id};
+use crate::wire::{Access, Comment, Link, ListOrder, Member, NoteMeta, Permission, SearchOrder, Thread};
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS notes (
@@ -91,13 +93,65 @@ CREATE TABLE IF NOT EXISTS opened (
 );
 CREATE INDEX IF NOT EXISTS opened_latest ON opened (account, opened_at DESC);
 CREATE INDEX IF NOT EXISTS opened_note ON opened (owner, note);
+CREATE TABLE IF NOT EXISTS note_links (
+  owner TEXT NOT NULL,
+  note TEXT NOT NULL,
+  to_owner TEXT NOT NULL,
+  to_note TEXT NOT NULL,
+  PRIMARY KEY (owner, note, to_owner, to_note)
+);
+CREATE INDEX IF NOT EXISTS note_links_to ON note_links (to_owner, to_note);
+CREATE TABLE IF NOT EXISTS threads (
+  owner TEXT NOT NULL,
+  note TEXT NOT NULL,
+  id TEXT NOT NULL,
+  quote TEXT NOT NULL,
+  author TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  resolved_at INTEGER,
+  resolved_by TEXT,
+  PRIMARY KEY (owner, note, id)
+);
+CREATE TABLE IF NOT EXISTS comments (
+  owner TEXT NOT NULL,
+  note TEXT NOT NULL,
+  thread TEXT NOT NULL,
+  id TEXT NOT NULL,
+  author TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (owner, note, id)
+);
+CREATE INDEX IF NOT EXISTS comments_thread ON comments (owner, note, thread, created_at);
+CREATE TABLE IF NOT EXISTS legacy_docs (
+  owner TEXT NOT NULL,
+  note TEXT NOT NULL,
+  doc BLOB NOT NULL,
+  migrated_at INTEGER NOT NULL,
+  PRIMARY KEY (owner, note)
+);
 ";
+
+/// The tables a purge empties of the note beside its own row, each keyed by `owner` and `note`.
+const BESIDE_A_NOTE: [&str; 10] = [
+  "blobs",
+  "links",
+  "members",
+  "texts",
+  "pins",
+  "opened",
+  "note_links",
+  "threads",
+  "comments",
+  "legacy_docs",
+];
 
 /// The columns a table gained after it was first made, each with its declaration, added where an older
 /// store's table lacks them (`docs/design.md`, 「Storage」).
 const ADDED_COLUMNS: [(&str, &str, &str); 1] = [("notes", "icon", "TEXT NOT NULL DEFAULT ''")];
 
-/// Every note's search row, made where a note has none: its title, and no text.
+/// Every note's search row, made where a note has none: its title, and no text, derived on the same
+/// opening (`indexed` false until then).
 const SEARCH_ROWS: &str = "INSERT INTO texts (owner, note, title) SELECT owner, id, title FROM notes WHERE true \
   ON CONFLICT (owner, note) DO NOTHING";
 
@@ -105,12 +159,12 @@ const SEARCH_ROWS: &str = "INSERT INTO texts (owner, note, title) SELECT owner, 
 const OPENED_KEPT: i64 = 100;
 
 /// A note's metadata as every read selects it, the note standing as `n`: id, owner, title, version, the two
-/// moments, the document's length, the trash mark, the icon and whether its text is supplied.
-const META: &str = "n.id, n.owner, n.title, n.version, n.created_at, n.changed_at, length(n.doc), n.deleted_at, \
-  n.icon, EXISTS (SELECT 1 FROM texts x WHERE x.owner = n.owner AND x.note = n.id AND x.indexed = 1)";
+/// moments, the document's length, the trash mark and the icon.
+const META: &str =
+  "n.id, n.owner, n.title, n.version, n.created_at, n.changed_at, length(n.doc), n.deleted_at, n.icon";
 
 /// How many columns `META` selects; what a read selects after them starts here.
-const META_COLUMNS: usize = 10;
+const META_COLUMNS: usize = 9;
 
 /// What a caller holds of a note it reads beside its own: `owner` for its own, the member's permission
 /// otherwise; the note's member row for the caller standing as `m`, the caller bound as `?1`.
@@ -150,13 +204,11 @@ pub enum Saved {
   Unchanged(NoteMeta),
 }
 
-/// How a write beside the document — a text, an icon — ended.
+/// How a write beside the document — an icon — ended.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Written {
   /// The note as it stands after the write.
   Done(NoteMeta),
-  /// The note as it stands, at a version other than the one the write was made for.
-  Conflict(NoteMeta),
   /// No note stands at the id, live or trashed.
   Missing,
   /// The note stands in the trash.
@@ -212,6 +264,8 @@ pub struct Found {
 #[derive(Clone)]
 pub struct Store {
   connection: Arc<Mutex<Connection>>,
+  /// How many notes held a document of another format as the store opened.
+  foreign: usize,
 }
 
 impl Store {
@@ -224,10 +278,17 @@ impl Store {
     let connection = Connection::open(path).map_err(|why| format!("{}: {why}", path.display()))?;
     connection.pragma_update(None, "journal_mode", "WAL").map_err(|why| why.to_string())?;
     connection.pragma_update(None, "busy_timeout", 5000).map_err(|why| why.to_string())?;
-    upgrade(&connection).map_err(|why| format!("{}: {why}", path.display()))?;
+    let foreign = upgrade(&connection).map_err(|why| format!("{}: {why}", path.display()))?;
     Ok(Self {
       connection: Arc::new(Mutex::new(connection)),
+      foreign,
     })
+  }
+
+  /// How many notes held a document not of the editor's format as the store opened: documents the earlier
+  /// editor wrote that the migration has not converted (`docs/design.md`, 「What a note is」).
+  pub fn foreign_documents(&self) -> usize {
+    self.foreign
   }
 
   fn with<T>(&self, work: impl FnOnce(&Connection) -> rusqlite::Result<T>) -> Result<T, String> {
@@ -293,8 +354,8 @@ impl Store {
     &self,
     owner: &str,
     id: &str,
-    title: &str,
     doc: &[u8],
+    said: &Derived,
     at: i64,
   ) -> Result<(NoteMeta, bool), String> {
     self.with(|connection| {
@@ -302,13 +363,10 @@ impl Store {
       let changed = transaction.execute(
         "INSERT INTO notes (owner, id, title, doc, version, created_at, changed_at, deleted_at) \
          VALUES (?1, ?2, ?3, ?4, 1, ?5, ?5, NULL) ON CONFLICT (owner, id) DO NOTHING",
-        params![owner, id, title, doc, at],
+        params![owner, id, said.title, doc, at],
       )?;
       if changed == 1 {
-        transaction.execute(
-          "INSERT INTO texts (owner, note, title) VALUES (?1, ?2, ?3) ON CONFLICT (owner, note) DO NOTHING",
-          params![owner, id, title],
-        )?;
+        write_derived(&transaction, owner, id, said)?;
       }
       transaction.commit()?;
       let row = found(connection, owner, id)?.expect("the row stands after the insert");
@@ -317,16 +375,13 @@ impl Store {
   }
 
   /// A save of a note: `version` is the version the writer read; a save from behind the stored one
-  /// answers the note as it stands. A restore writes no bytes and holds no version. A document saved
-  /// carries its plain text, or leaves the note unindexed where it carries none.
-  #[allow(clippy::too_many_arguments)]
+  /// answers the note as it stands. A restore writes no document and holds no version. A document saved
+  /// writes what it says beside it: its title, its search text and its links.
   pub fn save(
     &self,
     owner: &str,
     id: &str,
-    title: Option<&str>,
-    doc: Option<&[u8]>,
-    text: Option<&str>,
+    doc: Option<(&[u8], &Derived)>,
     version: i64,
     restore: bool,
     at: i64,
@@ -351,50 +406,17 @@ impl Store {
       if version < current.meta.version {
         return Ok(Saved::Conflict(current.meta));
       }
-      if title.is_none() && doc.is_none() {
+      let Some((doc, said)) = doc else {
         return Ok(Saved::Unchanged(current.meta));
-      }
-      let title = title.unwrap_or(&current.meta.title).to_owned();
+      };
       transaction.execute(
-        "UPDATE notes SET title = ?3, doc = COALESCE(?4, doc), version = ?5, changed_at = ?6 \
-         WHERE owner = ?1 AND id = ?2",
-        params![owner, id, title, doc, current.meta.version + 1, at],
+        "UPDATE notes SET title = ?3, doc = ?4, version = ?5, changed_at = ?6 WHERE owner = ?1 AND id = ?2",
+        params![owner, id, said.title, doc, current.meta.version + 1, at],
       )?;
-      search_row(&transaction, owner, id, &title)?;
-      if doc.is_some() {
-        transaction.execute(
-          "UPDATE texts SET body = ?3, indexed = ?4 WHERE owner = ?1 AND note = ?2",
-          params![owner, id, text.unwrap_or(""), text.is_some()],
-        )?;
-      }
+      write_derived(&transaction, owner, id, said)?;
       transaction.commit()?;
       let row = found(connection, owner, id)?.expect("the row stands after the save");
       Ok(Saved::Saved(row.meta))
-    })
-  }
-
-  /// The plain text of a live note's stored document, written where `version` is the stored one; the
-  /// document, the version and the moment changed stand as they stood.
-  pub fn set_text(&self, owner: &str, id: &str, version: i64, text: &str) -> Result<Written, String> {
-    self.with(|connection| {
-      let transaction = connection.unchecked_transaction()?;
-      let Some(current) = found(&transaction, owner, id)? else {
-        return Ok(Written::Missing);
-      };
-      if current.meta.deleted_at.is_some() {
-        return Ok(Written::Trashed);
-      }
-      if version != current.meta.version {
-        return Ok(Written::Conflict(current.meta));
-      }
-      search_row(&transaction, owner, id, &current.meta.title)?;
-      transaction.execute(
-        "UPDATE texts SET body = ?3, indexed = 1 WHERE owner = ?1 AND note = ?2",
-        params![owner, id, text],
-      )?;
-      transaction.commit()?;
-      let row = found(connection, owner, id)?.expect("the row stands after the write");
-      Ok(Written::Done(row.meta))
     })
   }
 
@@ -438,7 +460,7 @@ impl Store {
         params![owner, id],
       )?;
       if changed == 1 {
-        for table in ["blobs", "links", "members", "texts", "pins", "opened"] {
+        for table in BESIDE_A_NOTE {
           transaction
             .execute(&format!("DELETE FROM {table} WHERE owner = ?1 AND note = ?2"), params![owner, id])?;
         }
@@ -448,15 +470,17 @@ impl Store {
     })
   }
 
-  /// A new note of `owner`'s own at `id`, titled `title`, holding the document, the images, the icon and
-  /// the text of `source_owner`'s live note `source`.
+  /// A new note of `owner`'s own at `id` holding `doc`, the copy of `source_owner`'s live note `source` the
+  /// caller made of its document, with what `doc` says, and the source's images and icon.
+  #[allow(clippy::too_many_arguments)]
   pub fn duplicate(
     &self,
     source_owner: &str,
     source: &str,
     owner: &str,
     id: &str,
-    title: &str,
+    doc: &[u8],
+    said: &Derived,
     at: i64,
   ) -> Result<Copied, String> {
     self.with(|connection| {
@@ -472,20 +496,14 @@ impl Store {
       transaction.execute(
         "INSERT INTO notes (owner, id, title, doc, version, created_at, changed_at, deleted_at, icon) \
          VALUES (?1, ?2, ?3, ?4, 1, ?5, ?5, NULL, ?6)",
-        params![owner, id, title, original.doc, at, original.meta.icon],
+        params![owner, id, said.title, doc, at, original.meta.icon],
       )?;
       transaction.execute(
         "INSERT INTO blobs (owner, note, id, mime, bytes, created_at) \
          SELECT ?1, ?2, id, mime, bytes, ?3 FROM blobs WHERE owner = ?4 AND note = ?5",
         params![owner, id, at, source_owner, source],
       )?;
-      transaction.execute(
-        "INSERT INTO texts (owner, note, title, body, indexed) \
-         SELECT ?1, ?2, ?3, body, indexed FROM texts WHERE owner = ?4 AND note = ?5 \
-         ON CONFLICT (owner, note) DO NOTHING",
-        params![owner, id, title, source_owner, source],
-      )?;
-      search_row(&transaction, owner, id, title)?;
+      write_derived(&transaction, owner, id, said)?;
       transaction.commit()?;
       let row = found(connection, owner, id)?.expect("the copy stands after the insert");
       Ok(Copied::Made(row.meta))
@@ -823,12 +841,191 @@ impl Store {
         .optional()
     })
   }
+
+  /// The notes `account` reads live whose documents link to `owner`'s note `note`, newest changed first,
+  /// the note itself left out.
+  pub fn backlinks(&self, account: &str, owner: &str, note: &str) -> Result<Vec<NoteMeta>, String> {
+    self.with(|connection| {
+      let sql = format!(
+        "SELECT {META}, {ACCESS} FROM note_links l JOIN notes n ON n.owner = l.owner AND n.id = l.note \
+         LEFT JOIN members m ON m.owner = n.owner AND m.note = n.id AND m.member = ?1 \
+         WHERE l.to_owner = ?2 AND l.to_note = ?3 AND NOT (n.owner = ?2 AND n.id = ?3) AND {READ_LIVE} \
+         ORDER BY n.changed_at DESC, n.owner, n.id"
+      );
+      connection.prepare(&sql)?.query_map(params![account, owner, note], held_meta)?.collect()
+    })
+  }
+
+  /// The note's threads, oldest first, each with its comments oldest first; `anchored` marks the ones the
+  /// note's document carries a mark of.
+  pub fn threads(
+    &self,
+    owner: &str,
+    note: &str,
+    anchored: &dyn Fn(&str) -> bool,
+  ) -> Result<Vec<Thread>, String> {
+    self.with(|connection| {
+      let mut threads = connection
+        .prepare_cached(
+          "SELECT id, quote, author, created_at, resolved_at, resolved_by FROM threads \
+           WHERE owner = ?1 AND note = ?2 ORDER BY created_at, id",
+        )?
+        .query_map(params![owner, note], thread_of)?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+      let mut statement = connection.prepare_cached(
+        "SELECT thread, id, author, body, created_at FROM comments WHERE owner = ?1 AND note = ?2 \
+         ORDER BY created_at, id",
+      )?;
+      let comments = statement
+        .query_map(params![owner, note], |row| Ok((row.get::<_, String>(0)?, comment_of(row, 1)?)))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+      for thread in &mut threads {
+        thread.anchored = anchored(&thread.id);
+        thread.comments = comments
+          .iter()
+          .filter(|(of, _)| *of == thread.id)
+          .map(|(_, comment)| comment.clone())
+          .collect();
+      }
+      Ok(threads)
+    })
+  }
+
+  /// One thread of the note with its comments, where it stands.
+  pub fn thread(&self, owner: &str, note: &str, id: &str) -> Result<Option<Thread>, String> {
+    self.with(|connection| thread_in(connection, owner, note, id))
+  }
+
+  /// A thread started on the note with its first comment; where one stands at `id`, that thread as it
+  /// stands. Answers the thread and whether it was made now.
+  #[allow(clippy::too_many_arguments)]
+  pub fn start_thread(
+    &self,
+    owner: &str,
+    note: &str,
+    id: &str,
+    quote: &str,
+    author: &str,
+    body: &str,
+    at: i64,
+  ) -> Result<(Thread, bool), String> {
+    self.with(|connection| {
+      let transaction = connection.unchecked_transaction()?;
+      let made = transaction.execute(
+        "INSERT INTO threads (owner, note, id, quote, author, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6) \
+         ON CONFLICT (owner, note, id) DO NOTHING",
+        params![owner, note, id, quote, author, at],
+      )? == 1;
+      if made {
+        transaction.execute(
+          "INSERT INTO comments (owner, note, thread, id, author, body, created_at) \
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+          params![owner, note, id, fresh_id(), author, body, at],
+        )?;
+      }
+      transaction.commit()?;
+      let thread = thread_in(connection, owner, note, id)?.expect("the thread stands after the insert");
+      Ok((thread, made))
+    })
+  }
+
+  /// A reply under a thread of the note; none where the thread does not stand.
+  pub fn reply(
+    &self,
+    owner: &str,
+    note: &str,
+    thread: &str,
+    author: &str,
+    body: &str,
+    at: i64,
+  ) -> Result<Option<Comment>, String> {
+    self.with(|connection| {
+      if thread_in(connection, owner, note, thread)?.is_none() {
+        return Ok(None);
+      }
+      let comment = Comment {
+        id: fresh_id(),
+        author: author.to_owned(),
+        body: body.to_owned(),
+        created_at: at,
+      };
+      connection.execute(
+        "INSERT INTO comments (owner, note, thread, id, author, body, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![owner, note, thread, comment.id, author, body, at],
+      )?;
+      Ok(Some(comment))
+    })
+  }
+
+  /// A thread resolved by `by` at `at`, or reopened; none where it does not stand.
+  pub fn resolve(
+    &self,
+    owner: &str,
+    note: &str,
+    thread: &str,
+    resolved: bool,
+    by: &str,
+    at: i64,
+  ) -> Result<Option<Thread>, String> {
+    self.with(|connection| {
+      let (moment, who) = if resolved { (Some(at), Some(by)) } else { (None, None) };
+      connection.execute(
+        "UPDATE threads SET resolved_at = ?4, resolved_by = ?5 WHERE owner = ?1 AND note = ?2 AND id = ?3",
+        params![owner, note, thread, moment, who],
+      )?;
+      thread_in(connection, owner, note, thread)
+    })
+  }
+
+  /// A thread deleted whole with its comments. Answers whether it stood.
+  pub fn delete_thread(&self, owner: &str, note: &str, thread: &str) -> Result<bool, String> {
+    self.with(|connection| {
+      let transaction = connection.unchecked_transaction()?;
+      let gone = transaction.execute(
+        "DELETE FROM threads WHERE owner = ?1 AND note = ?2 AND id = ?3",
+        params![owner, note, thread],
+      )?;
+      transaction.execute(
+        "DELETE FROM comments WHERE owner = ?1 AND note = ?2 AND thread = ?3",
+        params![owner, note, thread],
+      )?;
+      transaction.commit()?;
+      Ok(gone == 1)
+    })
+  }
+
+  /// One comment of a thread deleted, and the thread with it where it was the last. Answers whether it
+  /// stood.
+  pub fn delete_comment(
+    &self,
+    owner: &str,
+    note: &str,
+    thread: &str,
+    comment: &str,
+  ) -> Result<bool, String> {
+    self.with(|connection| {
+      let transaction = connection.unchecked_transaction()?;
+      let gone = transaction.execute(
+        "DELETE FROM comments WHERE owner = ?1 AND note = ?2 AND thread = ?3 AND id = ?4",
+        params![owner, note, thread, comment],
+      )?;
+      transaction.execute(
+        "DELETE FROM threads WHERE owner = ?1 AND note = ?2 AND id = ?3 AND NOT EXISTS \
+         (SELECT 1 FROM comments c WHERE c.owner = ?1 AND c.note = ?2 AND c.thread = ?3)",
+        params![owner, note, thread],
+      )?;
+      transaction.commit()?;
+      Ok(gone == 1)
+    })
+  }
 }
 
 /// The store brought up to this version, in one transaction: every table, index and trigger made where it
-/// does not stand, every column added since a table was first made added where it lacks it, and every note
-/// given its search row. Run again, it changes nothing.
-fn upgrade(connection: &Connection) -> rusqlite::Result<()> {
+/// does not stand, every column added since a table was first made added where it lacks it, every note
+/// given its search row, and every note whose search row does not stand for its document given what its
+/// document says. Answers how many notes hold a document not of the editor's format, which are left as
+/// they stand. Run again, it changes nothing.
+fn upgrade(connection: &Connection) -> rusqlite::Result<usize> {
   let transaction = connection.unchecked_transaction()?;
   transaction.execute_batch(SCHEMA)?;
   for (table, column, declared) in ADDED_COLUMNS {
@@ -841,16 +1038,52 @@ fn upgrade(connection: &Connection) -> rusqlite::Result<()> {
     }
   }
   transaction.execute(SEARCH_ROWS, [])?;
-  transaction.commit()
+  let underived = transaction
+    .prepare(
+      "SELECT n.owner, n.id, n.doc FROM notes n JOIN texts t ON t.owner = n.owner AND t.note = n.id \
+       WHERE t.indexed = 0",
+    )?
+    .query_map([], |row| {
+      Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Vec<u8>>(2)?))
+    })?
+    .collect::<rusqlite::Result<Vec<_>>>()?;
+  for (owner, id, bytes) in underived {
+    if let Some(doc) = parsed(&bytes) {
+      let said = derived(&doc);
+      transaction.execute(
+        "UPDATE notes SET title = ?3 WHERE owner = ?1 AND id = ?2",
+        params![owner, id, said.title],
+      )?;
+      write_derived(&transaction, &owner, &id, &said)?;
+    }
+  }
+  let foreign = transaction
+    .prepare("SELECT doc FROM notes")?
+    .query_map([], |row| row.get::<_, Vec<u8>>(0))?
+    .collect::<rusqlite::Result<Vec<_>>>()?
+    .iter()
+    .filter(|bytes| parsed(bytes).is_none())
+    .count();
+  transaction.commit()?;
+  Ok(foreign)
 }
 
-/// A note's search row made where it has none, and its title written there.
-fn search_row(connection: &Connection, owner: &str, note: &str, title: &str) -> rusqlite::Result<()> {
+/// What a note's document says, written beside it: its search row holding its title and text, standing
+/// for the document, and its links in place of the ones it held.
+fn write_derived(connection: &Connection, owner: &str, note: &str, said: &Derived) -> rusqlite::Result<()> {
   connection.execute(
-    "INSERT INTO texts (owner, note, title) VALUES (?1, ?2, ?3) \
-     ON CONFLICT (owner, note) DO UPDATE SET title = excluded.title WHERE texts.title <> excluded.title",
-    params![owner, note, title],
+    "INSERT INTO texts (owner, note, title, body, indexed) VALUES (?1, ?2, ?3, ?4, 1) \
+     ON CONFLICT (owner, note) DO UPDATE SET title = excluded.title, body = excluded.body, indexed = 1 \
+     WHERE texts.title <> excluded.title OR texts.body <> excluded.body OR texts.indexed <> 1",
+    params![owner, note, said.title, said.text],
   )?;
+  connection.execute("DELETE FROM note_links WHERE owner = ?1 AND note = ?2", params![owner, note])?;
+  for (to_owner, to_note) in &said.links {
+    connection.execute(
+      "INSERT INTO note_links (owner, note, to_owner, to_note) VALUES (?1, ?2, ?3, ?4) ON CONFLICT DO NOTHING",
+      params![owner, note, to_owner, to_note],
+    )?;
+  }
   Ok(())
 }
 
@@ -954,7 +1187,6 @@ fn meta_of(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteMeta> {
     deleted_at: row.get(7)?,
     access: Access::Owner,
     icon: row.get(8)?,
-    indexed: row.get(9)?,
   })
 }
 
@@ -1014,4 +1246,55 @@ fn members_in(connection: &Connection, owner: &str, note: &str) -> rusqlite::Res
     )?
     .query_map(params![owner, note], member_of)?
     .collect()
+}
+
+/// A thread read from a row of its id, quote, author, moment made and resolution, with no comments yet.
+fn thread_of(row: &rusqlite::Row<'_>) -> rusqlite::Result<Thread> {
+  Ok(Thread {
+    id: row.get(0)?,
+    quote: row.get(1)?,
+    author: row.get(2)?,
+    created_at: row.get(3)?,
+    resolved_at: row.get(4)?,
+    resolved_by: row.get(5)?,
+    anchored: false,
+    comments: Vec::new(),
+  })
+}
+
+/// A comment read from a row whose columns from `at` are its id, author, words and moment.
+fn comment_of(row: &rusqlite::Row<'_>, at: usize) -> rusqlite::Result<Comment> {
+  Ok(Comment {
+    id: row.get(at)?,
+    author: row.get(at + 1)?,
+    body: row.get(at + 2)?,
+    created_at: row.get(at + 3)?,
+  })
+}
+
+/// One thread of a note with its comments, its anchoring left to the caller.
+fn thread_in(
+  connection: &Connection,
+  owner: &str,
+  note: &str,
+  id: &str,
+) -> rusqlite::Result<Option<Thread>> {
+  let Some(mut thread) = connection
+    .prepare_cached(
+      "SELECT id, quote, author, created_at, resolved_at, resolved_by FROM threads \
+       WHERE owner = ?1 AND note = ?2 AND id = ?3",
+    )?
+    .query_row(params![owner, note, id], thread_of)
+    .optional()?
+  else {
+    return Ok(None);
+  };
+  thread.comments = connection
+    .prepare_cached(
+      "SELECT id, author, body, created_at FROM comments WHERE owner = ?1 AND note = ?2 AND thread = ?3 \
+       ORDER BY created_at, id",
+    )?
+    .query_map(params![owner, note, id], |row| comment_of(row, 0))?
+    .collect::<rusqlite::Result<Vec<_>>>()?;
+  Ok(Some(thread))
 }

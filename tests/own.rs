@@ -4,7 +4,7 @@
 use axum::http::StatusCode;
 use serde_json::{Value, json};
 
-use crate::support::{Ran, Scratch, answered, doc_bytes, held_port, note_body, settings};
+use crate::support::{Ran, Scratch, answered, held_port, note_body, sample_doc, settings};
 
 const OWNER: &str = "1";
 const MEMBER: &str = "2";
@@ -21,7 +21,7 @@ async fn made(ran: &Ran, owner: &str, id: &str, title: &str) {
   let (status, _) = answered(ran.as_reader("POST", "/notes", owner, "member").json(&note_body(
     id,
     title,
-    &doc_bytes(1),
+    &sample_doc(1),
   )))
   .await;
   assert_eq!(status, StatusCode::CREATED);

@@ -11,10 +11,11 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::{get, patch};
 
-use crate::api::{Answer, Reach, blob_answer, body, credential, json_answer, query, reach};
+use crate::api::{Answer, Reach, blob_answer, body, credential, json_answer, query, reach, stored_doc};
 use crate::app::App;
+use crate::doc::without_comments;
 use crate::error::ApiError;
-use crate::model::{KEY_MAX, encode_doc, fresh_token, now_ms};
+use crate::model::{KEY_MAX, fresh_token, now_ms};
 use crate::wire::{
   Link, Member, MemberChange, NewLink, NewMembers, NoteMeta, NoteQuery, Page, Permission, ShareEvent,
   SharedNote,
@@ -233,7 +234,8 @@ async fn shared_note(
 ) -> Answer<Json<SharedNote>> {
   let (row, expires_at) = opened(&app, &headers, &token)?;
   Ok(Json(SharedNote {
-    doc: encode_doc(&row.doc),
+    // A link opens the note's words, never its comments.
+    doc: without_comments(&stored_doc(&row.doc)?),
     id: row.meta.id,
     title: row.meta.title,
     changed_at: row.meta.changed_at,

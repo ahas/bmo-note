@@ -1,4 +1,4 @@
-//! What stands beside a note's document (`docs/api.md`, 「Notes」): its plain text, its icon, a copy of it,
+//! What stands beside a note's document (`docs/api.md`, 「Notes」): what it says, its links, its icon, a copy of it,
 //! the orders its lists stand in, its read from the trash — and a store from before any of it, upgraded in
 //! place as it opens (`docs/design.md`, 「Storage」).
 
@@ -6,7 +6,7 @@ use axum::http::StatusCode;
 use base64::Engine;
 use serde_json::{Value, json};
 
-use crate::support::{Ran, Scratch, answered, base64, doc_bytes, held_port, note_body, settings};
+use crate::support::{Ran, Scratch, answered, body_of, held_port, note_body, sample_doc, settings};
 
 const OWNER: &str = "1";
 const MEMBER: &str = "2";
@@ -23,7 +23,7 @@ async fn made(ran: &Ran, owner: &str, id: &str, title: &str) -> Value {
   let (status, meta) = answered(ran.as_reader("POST", "/notes", owner, "member").json(&note_body(
     id,
     title,
-    &doc_bytes(1),
+    &sample_doc(1),
   )))
   .await;
   assert_eq!(status, StatusCode::CREATED, "{meta}");
@@ -50,79 +50,78 @@ fn ids(page: &Value) -> Vec<String> {
 }
 
 #[tokio::test]
-async fn a_text_rides_its_doc_and_a_text_alone_is_written_for_the_stored_version() {
-  let (_scratch, ran) = running("text").await;
-  let meta = made(&ran, OWNER, "t1", "Notes").await;
-  assert_eq!((meta["indexed"].clone(), meta["icon"].clone()), (json!(false), json!("")));
-
-  // A text with no doc is refused; one past the cap too.
-  let (status, _) = answered(
+async fn the_title_text_and_links_are_read_from_the_document_on_every_write() {
+  let (_scratch, ran) = running("derived").await;
+  made(&ran, OWNER, "t1", "Notes").await;
+  made(&ran, OWNER, "t2", "Target").await;
+  let doc = json!({ "type": "doc", "content": [
+    { "type": "title", "content": [{ "type": "text", "text": "Garden" }] },
+    { "type": "paragraph", "content": [
+      { "type": "text", "text": "tomatoes by the fence, see " },
+      { "type": "mention", "attrs": { "id": "t2", "owner": OWNER, "label": "Target" } }
+    ] },
+    { "type": "table", "content": [{ "type": "tableRow", "content": [
+      { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "basil rows" }] }] }
+    ] }] }
+  ] });
+  let (status, saved) = answered(
     ran
       .as_reader("PATCH", "/notes/t1", OWNER, "member")
-      .json(&json!({ "version": 1, "text": "alone" })),
+      .json(&json!({ "version": 1, "doc": doc })),
   )
   .await;
-  assert_eq!(status, StatusCode::BAD_REQUEST);
-  let (status, _) = answered(
-    ran
-      .as_reader("PUT", "/notes/t1/text", OWNER, "member")
-      .json(&json!({ "version": 1, "text": "x".repeat(2048) })),
-  )
-  .await;
-  assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+  assert_eq!((status, saved["title"].clone()), (StatusCode::OK, json!("Garden")));
+  for words in ["tomatoes", "basil", "Target"] {
+    let (_, found) =
+      answered(ran.as_reader("GET", &format!("/notes/search?q={words}"), OWNER, "member")).await;
+    assert!(ids(&found).contains(&"t1".to_owned()), "{words} is found in the note's text");
+  }
+  let (_, linking) = answered(ran.as_reader("GET", "/notes/t2/backlinks", OWNER, "member")).await;
+  assert_eq!(ids(&linking), vec!["t1"]);
 
-  // A text for another version than the stored one is a conflict, answering the note as it stands.
-  let (status, conflict) = answered(
-    ran
-      .as_reader("PUT", "/notes/t1/text", OWNER, "member")
-      .json(&json!({ "version": 2, "text": "later" })),
-  )
-  .await;
-  assert_eq!((status, conflict["code"].as_str()), (StatusCode::CONFLICT, Some("version-conflict")));
-  assert_eq!(conflict["note"]["version"], 1);
-
-  let (status, written) = answered(
-    ran
-      .as_reader("PUT", "/notes/t1/text", OWNER, "member")
-      .json(&json!({ "version": 1, "text": "now" })),
-  )
-  .await;
-  assert_eq!(status, StatusCode::OK);
-  assert_eq!((written["indexed"].clone(), written["version"].clone()), (json!(true), json!(1)));
-  assert_eq!(written["changedAt"], meta["changedAt"], "the text moves no moment");
-
-  // A doc saved without its text leaves the note unindexed again.
-  let (_, saved) = answered(
+  // A save that drops the link drops the backlink with it.
+  answered(
     ran
       .as_reader("PATCH", "/notes/t1", OWNER, "member")
-      .json(&json!({ "version": 1, "doc": base64(&doc_bytes(4)) })),
+      .json(&json!({ "version": 2, "doc": crate::support::doc_of("Garden", &["no links"]) })),
   )
   .await;
-  assert_eq!((saved["indexed"].clone(), saved["version"].clone()), (json!(false), json!(2)));
+  let (_, linking) = answered(ran.as_reader("GET", "/notes/t2/backlinks", OWNER, "member")).await;
+  assert!(ids(&linking).is_empty());
+}
 
-  // A member writes the text as far as their share opens writes.
-  share(&ran, "t1", "read").await;
-  let (status, _) = answered(
-    ran
-      .as_reader("PUT", &format!("/notes/t1/text?owner={OWNER}"), MEMBER, "member")
-      .json(&json!({ "version": 2, "text": "member" })),
-  )
-  .await;
-  assert_eq!(status, StatusCode::FORBIDDEN);
-  share(&ran, "t1", "edit").await;
-  let (status, _) = answered(
-    ran
-      .as_reader("PUT", &format!("/notes/t1/text?owner={OWNER}"), MEMBER, "member")
-      .json(&json!({ "version": 2, "text": "member" })),
-  )
-  .await;
-  assert_eq!(status, StatusCode::OK);
-  let (status, _) = answered(
-    ran
-      .as_reader("PUT", &format!("/notes/t1/text?owner={OWNER}"), STRANGER, "member")
-      .json(&json!({ "version": 2, "text": "stranger" })),
-  )
-  .await;
+#[tokio::test]
+async fn backlinks_answer_only_live_notes_the_reader_reads() {
+  let (_scratch, ran) = running("backlinks").await;
+  made(&ran, OWNER, "target", "Target").await;
+  share(&ran, "target", "read").await;
+  let link = |id: &str| {
+    json!({ "id": id, "doc": { "type": "doc", "content": [
+      { "type": "title", "content": [{ "type": "text", "text": id }] },
+      { "type": "paragraph", "content": [{ "type": "mention", "attrs": { "id": "target", "owner": OWNER, "label": "Target" } }] }
+    ] } })
+  };
+  // The owner's own linking note, one the member does not read, and the member's own.
+  answered(ran.as_reader("POST", "/notes", OWNER, "member").json(&link("private"))).await;
+  answered(ran.as_reader("POST", "/notes", OWNER, "member").json(&link("open"))).await;
+  share(&ran, "open", "read").await;
+  answered(ran.as_reader("POST", "/notes", MEMBER, "member").json(&link("theirs"))).await;
+  answered(ran.as_reader("POST", "/notes", OWNER, "member").json(&link("trashed"))).await;
+  answered(ran.as_reader("DELETE", "/notes/trashed", OWNER, "member")).await;
+
+  let (_, owners) = answered(ran.as_reader("GET", "/notes/target/backlinks", OWNER, "member")).await;
+  let mut seen = ids(&owners);
+  seen.sort();
+  assert_eq!(seen, vec!["open", "private"]);
+  let (_, members) =
+    answered(ran.as_reader("GET", &format!("/notes/target/backlinks?owner={OWNER}"), MEMBER, "member"))
+      .await;
+  let mut seen = ids(&members);
+  seen.sort();
+  assert_eq!(seen, vec!["open", "theirs"]);
+  let (status, _) =
+    answered(ran.as_reader("GET", &format!("/notes/target/backlinks?owner={OWNER}"), STRANGER, "member"))
+      .await;
   assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
@@ -187,10 +186,16 @@ async fn a_duplicate_is_the_callers_own_with_the_document_images_icon_and_text()
     .expect("answered");
   assert_eq!(image.status(), StatusCode::NO_CONTENT);
   answered(ran.as_reader("PUT", "/notes/d1/icon", OWNER, "member").json(&json!({ "icon": "🍲" }))).await;
+  let commented = json!({ "type": "doc", "content": [
+    { "type": "title", "content": [{ "type": "text", "text": "Recipe" }] },
+    { "type": "paragraph", "content": [
+      { "type": "text", "text": "simmer slowly", "marks": [{ "type": "comment", "attrs": { "thread": "th1" } }] }
+    ] }
+  ] });
   answered(
     ran
-      .as_reader("PUT", "/notes/d1/text", OWNER, "member")
-      .json(&json!({ "version": 1, "text": "simmer slowly" })),
+      .as_reader("PATCH", "/notes/d1", OWNER, "member")
+      .json(&json!({ "version": 1, "doc": commented })),
   )
   .await;
 
@@ -208,13 +213,20 @@ async fn a_duplicate_is_the_callers_own_with_the_document_images_icon_and_text()
       copy["owner"].clone(),
       copy["title"].clone(),
       copy["icon"].clone(),
-      copy["indexed"].clone(),
       copy["access"].clone()
     ),
-    (json!(MEMBER), json!("Recipe (copy)"), json!("🍲"), json!(true), json!("owner"))
+    (json!(MEMBER), json!("Recipe (copy)"), json!("🍲"), json!("owner"))
   );
   let (_, note) = answered(ran.as_reader("GET", "/notes/d2", MEMBER, "member")).await;
-  assert_eq!(note["doc"], base64(&doc_bytes(1)));
+  assert_eq!(
+    note["doc"]["content"][0]["content"][0]["text"], "Recipe (copy)",
+    "the copy's title is in its document"
+  );
+  assert_eq!(
+    body_of(&note["doc"]),
+    vec![json!({ "type": "paragraph", "content": [{ "type": "text", "text": "simmer slowly" }] })],
+    "the copy carries no comment marks"
+  );
   let blob = ran
     .as_reader("GET", "/notes/d2/blobs/img1", MEMBER, "member")
     .send()
@@ -249,7 +261,7 @@ async fn a_duplicate_is_the_callers_own_with_the_document_images_icon_and_text()
   let (status, _) = answered(ran.as_reader("POST", "/notes", OWNER, "member").json(&note_body(
     "recent",
     "x",
-    &doc_bytes(1),
+    &sample_doc(1),
   )))
   .await;
   assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -338,17 +350,20 @@ async fn a_store_from_before_the_search_is_upgraded_in_place_and_opens_unchanged
          PRIMARY KEY (owner, id)); \
          CREATE TABLE blobs (owner TEXT NOT NULL, note TEXT NOT NULL, id TEXT NOT NULL, mime TEXT NOT NULL, \
          bytes BLOB NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (owner, note, id)); \
-         INSERT INTO notes VALUES ('1', 'old', 'Kept from before', x'01', 3, 10, 20, NULL);",
+         INSERT INTO notes VALUES ('1', 'old', 'Kept from before', x'01', 3, 10, 20, NULL); \
+         INSERT INTO notes VALUES ('1', 'new', '', CAST('{\"type\":\"doc\",\"content\":[{\"type\":\"title\",\"content\":[{\"type\":\"text\",\"text\":\"Written\"}]},{\"type\":\"paragraph\",\"content\":[{\"type\":\"mention\",\"attrs\":{\"id\":\"old\",\"owner\":\"1\",\"label\":\"x\"}}]}]}' AS BLOB), 1, 10, 20, NULL);",
       )
       .expect("the old tables");
   }
   for _ in 0..2 {
     let store = bmo_note::store::Store::open(&path).expect("the store opens");
     let meta = store.meta("1", "old", Some(false)).expect("a read").expect("the old note");
-    assert_eq!(
-      (meta.title.as_str(), meta.version, meta.icon.as_str(), meta.indexed),
-      ("Kept from before", 3, "", false)
-    );
+    assert_eq!((meta.title.as_str(), meta.version, meta.icon.as_str()), ("Kept from before", 3, ""));
+    assert_eq!(store.foreign_documents(), 1, "the earlier editor's document is left for the migration");
+    let written = store.meta("1", "new", Some(false)).expect("a read").expect("the new note");
+    assert_eq!(written.title, "Written", "a document of the editor's format is read as the store opens");
+    let linking = store.backlinks("1", "1", "old").expect("the backlinks");
+    assert_eq!(linking.iter().map(|meta| meta.id.as_str()).collect::<Vec<_>>(), vec!["new"]);
     let (rows, _) = store
       .search(&bmo_note::store::Search {
         account: "1".to_owned(),

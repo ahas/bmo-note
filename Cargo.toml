@@ -33,7 +33,7 @@ toml = { version = "0.8.23", default-features = false, features = ["parse"] }
 
 [package]
 name = "bmo-note"
-description = "The note service: editable BlockSuite notes kept as binary documents, shown in the console."
+description = "The note service: editable TipTap notes with links and comments, shown in the console."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -52,7 +52,7 @@ test = false
 [dependencies]
 # The routes the service answers on.
 axum.workspace = true
-# The note documents, base64 on the wire.
+# The list cursors and the share tokens, base64url.
 base64.workspace = true
 # The console face: the manifest, the bundle's files and their guard, by bmo-ui's console plugin contract.
 bmo-console-face = { path = "../../base/chat/console-face" }

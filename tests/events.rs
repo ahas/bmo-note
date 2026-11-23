@@ -6,7 +6,7 @@ use axum::http::StatusCode;
 use futures_util::StreamExt;
 use serde_json::json;
 
-use crate::support::{Ran, Scratch, answered, base64, doc_bytes, held_port, note_body, settings};
+use crate::support::{Ran, Scratch, answered, held_port, note_body, sample_doc, settings};
 
 async fn running(name: &str) -> (Scratch, Ran) {
   let scratch = Scratch::make(name);
@@ -29,13 +29,13 @@ async fn page(ran: &Ran, key: &str, query: &str) -> Vec<serde_json::Value> {
 #[tokio::test]
 async fn every_write_publishes_one_event_to_its_owner() {
   let (_scratch, ran) = running("events").await;
-  let doc = doc_bytes(1);
+  let doc = sample_doc(1);
   answered(ran.as_reader("POST", "/notes", "1", "member").json(&note_body("a1", "Seen", &doc))).await;
-  let held = doc_bytes(2);
+  let held = sample_doc(2);
   answered(
     ran
       .as_reader("PATCH", "/notes/a1", "1", "member")
-      .json(&json!({ "version": 1, "doc": base64(&held) })),
+      .json(&json!({ "version": 1, "doc": &held })),
   )
   .await;
   answered(ran.as_reader("DELETE", "/notes/a1", "1", "member")).await;
@@ -69,7 +69,7 @@ async fn every_write_publishes_one_event_to_its_owner() {
 #[tokio::test]
 async fn a_reader_is_given_its_own_notes_events_alone() {
   let (_scratch, ran) = running("own-stream").await;
-  let doc = doc_bytes(1);
+  let doc = sample_doc(1);
   answered(ran.as_reader("POST", "/notes", "1", "member").json(&note_body("a1", "One", &doc))).await;
   answered(ran.as_reader("POST", "/notes", "9", "member").json(&note_body("b1", "Nine", &doc))).await;
 
@@ -119,7 +119,7 @@ async fn a_live_stream_carries_what_comes_after_it_opens() {
     "the answer is a stream"
   );
 
-  let doc = doc_bytes(1);
+  let doc = sample_doc(1);
   answered(ran.as_reader("POST", "/notes", "1", "member").json(&note_body("late", "Late", &doc))).await;
 
   let mut bytes = response.bytes_stream();

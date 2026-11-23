@@ -138,24 +138,51 @@ impl Ran {
   }
 }
 
-/// A note made as the client would make one: its id, a title, and document bytes for the tests to read.
-pub fn note_body(id: &str, title: &str, bytes: &[u8]) -> Value {
+/// A note made as the client would make one: its id, and its document under `title`.
+pub fn note_body(id: &str, title: &str, doc: &Value) -> Value {
   serde_json::json!({
     "id": id,
-    "title": title,
-    "doc": base64(bytes),
+    "doc": bmo_note::doc::titled(doc, title),
   })
 }
 
-/// The bytes a document stands for in the tests: not a Yjs state, only opaque bytes the service stores.
-pub fn doc_bytes(mark: u8) -> Vec<u8> {
-  vec![mark, mark ^ 0x5a, 0x79, 0x4a, 0x73]
+/// A document as the editor writes one: an empty title node and one paragraph of words that tell it from
+/// the documents of other marks.
+pub fn sample_doc(mark: u8) -> Value {
+  doc_of("", &[&format!("Words of the sample {mark}")])
 }
 
-/// Bytes as they travel on the wire.
-pub fn base64(bytes: &[u8]) -> String {
-  use base64::Engine;
-  base64::engine::general_purpose::STANDARD.encode(bytes)
+/// A document of `title` and one paragraph a line.
+pub fn doc_of(title: &str, lines: &[&str]) -> Value {
+  let paragraphs = lines.iter().map(|line| {
+    if line.is_empty() {
+      serde_json::json!({ "type": "paragraph" })
+    } else {
+      serde_json::json!({ "type": "paragraph", "content": [{ "type": "text", "text": line }] })
+    }
+  });
+  let title_node = if title.is_empty() {
+    serde_json::json!({ "type": "title" })
+  } else {
+    serde_json::json!({ "type": "title", "content": [{ "type": "text", "text": title }] })
+  };
+  serde_json::json!({ "type": "doc", "content": std::iter::once(title_node).chain(paragraphs).collect::<Vec<_>>() })
+}
+
+/// A document's blocks, its title node set aside: what a test compares a read document by.
+pub fn body_of(doc: &Value) -> Vec<Value> {
+  doc["content"]
+    .as_array()
+    .expect("a document holds its nodes")
+    .iter()
+    .filter(|node| node["type"] != "title")
+    .cloned()
+    .collect()
+}
+
+/// The bytes a document is stored in.
+pub fn size_of(doc: &Value) -> i64 {
+  serde_json::to_vec(doc).expect("a document writes").len() as i64
 }
 
 /// A port held for a test service: the open listener and the address it answers at. A test hands the

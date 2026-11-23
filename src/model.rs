@@ -1,4 +1,4 @@
-//! The shapes the routes read a note through: the id rules, the title rules, the base64 of a document,
+//! The shapes the routes read a note through: the id rules, the title rules, the words of a comment,
 //! and the moments (`docs/api.md`, 「Notes」).
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -26,8 +26,8 @@ pub fn valid_id(id: &str) -> bool {
     && id.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
 }
 
-/// Whether an id is a BlockSuite blob key: the base64url of the bytes' digest — letters, digits, `-`,
-/// `_` and the `=` padding — 1 to 128 of them.
+/// Whether an id names an image: letters, digits, `-`, `_` and `=`, 1 to 128 of them — the editor's ids,
+/// and the base64url digests the earlier editor named its images by.
 pub fn valid_blob_id(id: &str) -> bool {
   (1..=128).contains(&id.len())
     && id
@@ -56,28 +56,6 @@ pub fn clean_title(title: &str) -> Result<String, ApiError> {
     return Err(ApiError::bad_request(format!("The title is over {TITLE_MAX} characters.")));
   }
   Ok(title)
-}
-
-/// A document as it is stored, from its base64 on the wire; at least one byte, at most `max` decoded.
-pub fn decode_doc(given: &str, max: usize) -> Result<Vec<u8>, ApiError> {
-  if given.len() > max * 4 / 3 + 8 {
-    return Err(ApiError::too_large(max));
-  }
-  let bytes = base64::engine::general_purpose::STANDARD
-    .decode(given)
-    .map_err(|_| ApiError::bad_doc("The doc is not base64."))?;
-  if bytes.is_empty() {
-    return Err(ApiError::bad_doc("The doc holds no bytes."));
-  }
-  if bytes.len() > max {
-    return Err(ApiError::too_large(max));
-  }
-  Ok(bytes)
-}
-
-/// The document as it travels: bytes to base64.
-pub fn encode_doc(bytes: &[u8]) -> String {
-  base64::engine::general_purpose::STANDARD.encode(bytes)
 }
 
 /// Where a list page starts: the last row's key in the order named, its id, and, in the shared view, its
@@ -149,14 +127,6 @@ pub fn clean_icon(icon: &str) -> Result<String, ApiError> {
   Ok(icon.to_owned())
 }
 
-/// A note's plain text as it is stored, at most `max` bytes.
-pub fn clean_text(text: &str, max: usize) -> Result<String, ApiError> {
-  if text.len() > max {
-    return Err(ApiError::too_large(max));
-  }
-  Ok(text.to_owned())
-}
-
 /// The bytes of randomness a link's token is made of.
 const TOKEN_BYTES: usize = 24;
 
@@ -172,3 +142,24 @@ pub fn fresh_token() -> Result<String, String> {
 
 /// The most characters an account key holds, as the console's `Owner-Key` is held to.
 pub const KEY_MAX: usize = 200;
+
+/// The most characters a comment's words hold, and the words a thread was laid on.
+pub const COMMENT_MAX: usize = 10_000;
+pub const QUOTE_MAX: usize = 1_000;
+
+/// A comment's words as they are stored: their ends trimmed, 1 to `COMMENT_MAX` characters.
+pub fn clean_comment(body: &str) -> Result<String, ApiError> {
+  let body = body.trim();
+  if body.is_empty() || body.chars().count() > COMMENT_MAX {
+    return Err(ApiError::bad_request(format!("A comment is 1 to {COMMENT_MAX} characters.")));
+  }
+  Ok(body.to_owned())
+}
+
+/// The words a thread was laid on, as they are stored: at most `QUOTE_MAX` characters.
+pub fn clean_quote(quote: &str) -> Result<String, ApiError> {
+  if quote.chars().count() > QUOTE_MAX {
+    return Err(ApiError::bad_request(format!("A quote is at most {QUOTE_MAX} characters.")));
+  }
+  Ok(quote.to_owned())
+}

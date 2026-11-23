@@ -5,7 +5,7 @@
 use axum::http::StatusCode;
 use serde_json::{Value, json};
 
-use crate::support::{Ran, Scratch, answered, base64, doc_bytes, held_port, note_body, settings};
+use crate::support::{Ran, Scratch, answered, body_of, held_port, note_body, sample_doc, settings};
 
 /// The owner, a member and a stranger, as the console names their accounts.
 const OWNER: &str = "1";
@@ -23,7 +23,7 @@ async fn shared_ground(name: &str) -> (Scratch, Ran) {
   let (status, _) = answered(ran.as_reader("POST", "/notes", OWNER, "member").json(&note_body(
     "n1",
     "Plans",
-    &doc_bytes(1),
+    &sample_doc(1),
   )))
   .await;
   assert_eq!(status, StatusCode::CREATED);
@@ -74,7 +74,7 @@ async fn a_note_shared_by_link_is_read_with_its_token_alone() {
   let (status, note) = answered(ran.as_console("GET", &format!("/shares/{token}"))).await;
   assert_eq!(status, StatusCode::OK, "{note}");
   assert_eq!(note["title"], "Plans");
-  assert_eq!(note["doc"], base64(&doc_bytes(1)));
+  assert_eq!(body_of(&note["doc"]), body_of(&sample_doc(1)));
   assert!(note.get("owner").is_none(), "a share read names nothing of the owner's account");
   let image = ran
     .as_console("GET", &format!("/shares/{token}/blobs/img1"))
@@ -166,7 +166,7 @@ async fn a_member_reads_a_note_shared_with_them_and_writes_nothing() {
 
   let (status, note) = answered(ran.as_reader("GET", "/notes/n1?owner=1", MEMBER, "member")).await;
   assert_eq!(status, StatusCode::OK, "{note}");
-  assert_eq!(note["doc"], base64(&doc_bytes(1)));
+  assert_eq!(body_of(&note["doc"]), body_of(&sample_doc(1)));
   assert_eq!((&note["owner"], &note["access"]), (&json!(OWNER), &json!("read")));
   assert_eq!(
     status_of(ran.as_reader("GET", "/notes/n1/blobs/img1?owner=1", MEMBER, "member")).await,
@@ -186,7 +186,7 @@ async fn a_member_reads_a_note_shared_with_them_and_writes_nothing() {
   // Read opens the reads alone: every write and the sharing itself are the owner's.
   let save = ran
     .as_reader("PATCH", "/notes/n1?owner=1", MEMBER, "member")
-    .json(&json!({ "version": 1, "doc": base64(&doc_bytes(2)) }));
+    .json(&json!({ "version": 1, "doc": &sample_doc(2) }));
   assert_eq!(status_of(save).await, StatusCode::FORBIDDEN);
   assert_eq!(
     status_of(ran.as_reader("DELETE", "/notes/n1?owner=1", MEMBER, "member")).await,
@@ -216,16 +216,16 @@ async fn an_edit_member_saves_through_the_versioned_door() {
 
   let save = ran
     .as_reader("PATCH", "/notes/n1?owner=1", MEMBER, "member")
-    .json(&json!({ "version": 1, "doc": base64(&doc_bytes(2)) }));
+    .json(&json!({ "version": 1, "doc": &sample_doc(2) }));
   let (status, meta) = answered(save).await;
   assert_eq!(status, StatusCode::OK, "{meta}");
   assert_eq!((&meta["version"], &meta["access"]), (&json!(2), &json!("edit")));
   let (_, note) = answered(ran.as_reader("GET", "/notes/n1", OWNER, "member")).await;
-  assert_eq!(note["doc"], base64(&doc_bytes(2)), "the owner reads the member's save");
+  assert_eq!(body_of(&note["doc"]), body_of(&sample_doc(2)), "the owner reads the member's save");
 
   let behind = ran
     .as_reader("PATCH", "/notes/n1?owner=1", MEMBER, "member")
-    .json(&json!({ "version": 1, "doc": base64(&doc_bytes(3)) }));
+    .json(&json!({ "version": 1, "doc": &sample_doc(3) }));
   assert_eq!(status_of(behind).await, StatusCode::CONFLICT);
   let restore = ran
     .as_reader("PATCH", "/notes/n1?owner=1", MEMBER, "member")
@@ -252,7 +252,7 @@ async fn a_reader_the_note_is_not_shared_with_finds_no_note() {
   }
   let save = ran
     .as_reader("PATCH", "/notes/n1?owner=1", STRANGER, "member")
-    .json(&json!({ "version": 1, "doc": base64(&doc_bytes(2)) }));
+    .json(&json!({ "version": 1, "doc": &sample_doc(2) }));
   assert_eq!(status_of(save).await, StatusCode::NOT_FOUND);
   let (_, shared) = answered(ran.as_reader("GET", "/notes?shared=true", STRANGER, "member")).await;
   assert_eq!(shared["items"], json!([]));
@@ -318,7 +318,7 @@ async fn a_member_hears_of_the_share_and_of_the_notes_shared_with_them() {
   share_with_member(&ran, "read").await;
   let save = ran
     .as_reader("PATCH", "/notes/n1", OWNER, "member")
-    .json(&json!({ "version": 1, "title": "Plans 2" }));
+    .json(&json!({ "version": 1, "doc": crate::support::doc_of("Plans 2", &[]) }));
   assert_eq!(status_of(save).await, StatusCode::OK);
   assert_eq!(
     status_of(ran.as_reader("DELETE", "/notes/n1/members/2", OWNER, "member")).await,
