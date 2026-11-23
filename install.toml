@@ -1,0 +1,52 @@
+# What installing the note service on a fresh machine needs, read by the testbed's install verb (bmo-testbed's
+# docs/install.md, 「The install declaration」). The settings are docs/api.md's 「Settings」.
+
+install = 1
+
+restart = "systemctl --user restart bmo-note.service"
+
+[[needs]]
+program = "cargo"
+what = "Builds the service; the Rust toolchain from https://rustup.rs."
+
+[[needs]]
+program = "bun"
+what = "Builds the console bundle and its vendored editor at every release; the Bun runtime from https://bun.sh."
+
+[[port]]
+name = "note.server"
+number = 13129
+
+[[token]]
+name = "note.service"
+file = "env/note-service.token"
+
+[[token]]
+name = "note.console"
+file = "env/note-console.token"
+
+# The release's settings.local.toml. The store stands under the data root, outside every release.
+[[settings]]
+file = "env/note.toml"
+text = """
+[server]
+listen = "127.0.0.1:{{port.note.server}}"
+token = "{{token.note.service}}"
+data_root = "{{data_root}}"
+
+[console]
+token = "{{token.note.console}}"
+
+[store]
+path = "{{data_root}}/note/note.db"
+"""
+
+[[line]]
+file = "env/web-console.env"
+key = "NOTE_ADDRESS"
+value = "http://127.0.0.1:{{port.note.server}}"
+
+[[line]]
+file = "env/web-console.env"
+key = "NOTE_TOKEN"
+value = "{{token.note.console}}"

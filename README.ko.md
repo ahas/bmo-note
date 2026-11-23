@@ -34,7 +34,7 @@ editor」).
 | `tools/`, `scripts/` | 포크 업스트림의 도구와 릴리스 스크립트. 이 유닛에서는 쓰지 않습니다 |
 | `.github/`, `.cargo/`, `.codesandbox/`, `.devcontainer/`, `.docker/`, `.husky/`, `.render/` | 포크 업스트림의 설정과 CI 폴더. 이 유닛에서는 쓰지 않습니다 |
 
-루트에는 Cargo 매니페스트와 lockfile, `testbed.toml`, `rustfmt.toml`, `settings.toml`(바이너리에 내장되는
+루트에는 Cargo 매니페스트와 lockfile, `testbed.toml`, `install.toml`, `rustfmt.toml`, `settings.toml`(바이너리에 내장되는
 기본값), `CLAUDE.md`, `PERSONAL-DATA.md`, 라이선스 파일, 그리고 포크 자체의 JavaScript 매니페스트와 tsconfig들이
 있습니다.
 

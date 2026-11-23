@@ -36,7 +36,7 @@ build path to the vendored editor」).
 | `tools/`, `scripts/` | The fork's upstream tooling and release scripts, inactive for this unit |
 | `.github/`, `.cargo/`, `.codesandbox/`, `.devcontainer/`, `.docker/`, `.husky/`, `.render/` | The fork's upstream configuration and CI folders, inactive for this unit |
 
-At the root stand the Cargo manifest and lock, `testbed.toml`, `rustfmt.toml`, `settings.toml` (the
+At the root stand the Cargo manifest and lock, `testbed.toml`, `install.toml`, `rustfmt.toml`, `settings.toml` (the
 defaults built into the binary), `CLAUDE.md`, `PERSONAL-DATA.md`, the licence files, and the fork's
 own JavaScript manifests and tsconfigs.
 

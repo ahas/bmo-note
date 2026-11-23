@@ -31,7 +31,7 @@
 | `tools/`、`scripts/` | fork 上游的工具和发布脚本，本单元不使用 |
 | `.github/`、`.cargo/`、`.codesandbox/`、`.devcontainer/`、`.docker/`、`.husky/`、`.render/` | fork 上游的配置和 CI 目录，本单元不使用 |
 
-根目录下有 Cargo 清单和 lockfile、`testbed.toml`、`rustfmt.toml`、`settings.toml`（内置于二进制文件的默认值）、
+根目录下有 Cargo 清单和 lockfile、`testbed.toml`、`install.toml`、`rustfmt.toml`、`settings.toml`（内置于二进制文件的默认值）、
 `CLAUDE.md`、`PERSONAL-DATA.md`、许可证文件，以及 fork 自身的 JavaScript 清单和各个 tsconfig。
 
 ## 命令

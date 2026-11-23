@@ -35,7 +35,7 @@ Edition のフォークであり、今後のマージのために `upstream` を
 | `tools/`、`scripts/` | フォーク元アップストリームのツールとリリーススクリプト。このユニットでは使いません |
 | `.github/`、`.cargo/`、`.codesandbox/`、`.devcontainer/`、`.docker/`、`.husky/`、`.render/` | フォーク元アップストリームの設定と CI のフォルダー。このユニットでは使いません |
 
-ルートには、Cargo のマニフェストとロックファイル、`testbed.toml`、`rustfmt.toml`、`settings.toml`(バイナリに
+ルートには、Cargo のマニフェストとロックファイル、`testbed.toml`、`install.toml`、`rustfmt.toml`、`settings.toml`(バイナリに
 組み込まれるデフォルト値)、`CLAUDE.md`、`PERSONAL-DATA.md`、ライセンスファイル、そしてフォーク自身の JavaScript
 マニフェストと tsconfig 群があります。
 
