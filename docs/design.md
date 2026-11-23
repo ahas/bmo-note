@@ -1,42 +1,53 @@
 # bmo-note
 
 The note unit keeps the platform's editable notes: a person opens the console, writes a note,
-closes the tab, and finds it again. Each note is one BlockSuite document, the editor of AFFiNE;
-the unit stores the document's bytes and its own metadata, and shows the notes through a console
-bundle under its sidebar entry. `docs/api.md` states the boundary and `docs/affine.md` what was
-studied of AFFiNE and under which licence.
+closes the tab, and finds it again. Each note is one rich-text document of Nuxt UI's editor, a
+TipTap editor over ProseMirror; the unit stores the document with its own metadata, reads it for
+search, links and comments, and shows the notes through a console bundle under its sidebar entry.
+`docs/api.md` states the boundary.
 
-## Where the idea came from, and what was not taken
+## What the unit stands on
 
-- The unit answers the same need AFFiNE serves — rich documents a person owns — but it does not run
-  AFFiNE's application or its server. AFFiNE's server is a NestJS + Prisma + GraphQL + Socket.IO stack
-  on PostgreSQL and Redis whose source stands under the Enterprise Edition licence; the Community
-  Edition path cannot be vendored or derived for a BMO unit. What is borrowed instead is the *editor*,
-  the MIT BlockSuite tree this repository forks, and the CE *mechanism* of storing whole Yjs documents
-  as binary state.
+- The editor is Nuxt UI's (`UEditor` and its menus), the component library every console screen is
+  built from, over TipTap and ProseMirror, all MIT. The unit runs no other product's application or
+  server and carries no other product's source.
 - The platform pattern the unit follows is bmo-calendar: a service answering a loopback port, a console
   plugin bundle built as its own project, its own settings file under the data root, its own user unit,
   its own data directory, and its own `testbed.toml`.
 
 ## What a note is
 
-- A note is one BlockSuite document: a `Store` (a Yjs document with the AFFiNE block schema) holding a
-  root block, a note container and text blocks. The unit treats the document as opaque bytes: the
-  client serialises it with `Y.encodeStateAsUpdate` and loads it back with `Y.applyUpdate`; the service
-  never parses blocks, only stores the byte blob with its metadata.
-- Metadata the service does read: an id, a title, a version, creation and change moments, a deleted
-  mark, the byte size and an icon. The title is written by the client on each save: the document's own
-  title where it stands, else the first line of its content, so the list answers titles without opening
-  the bytes. The icon is one emoji the reader picked, or none; it stands beside the document, not in it.
-- **The note's plain text is the client's to supply.** The service cannot read the document, so the
-  client reads the text out of it — the editor's own reading of its blocks, one line a block, the marks
-  the talk protocol wears taken off — and hands it with each save. The service keeps it beside the
-  document for search alone and answers it to nobody. A document saved without its text stands
-  unindexed until one comes; the screen supplies it quietly for a note saved before the text was asked
-  for, as the navigator lists it or the reader opens it, through a route that writes the text for the
-  stored version and moves nothing else.
-- The document's own format belongs to BlockSuite. An upgrade of the editor may read documents the old
-  one wrote (the schema carries its versions); the unit adds no format of its own.
+- **A note is one TipTap document,** stored as its ProseMirror JSON: a `doc` node holding one `title`
+  node first and the note's blocks after it. The title node holds plain words, no marks; the blocks
+  are the editor's schema:
+  - paragraphs, headings of levels 1 to 6, quotes, code blocks with their language, dividers and hard
+    line breaks;
+  - bulleted and numbered lists and to-do lists, each item holding blocks and lists nested under it;
+  - tables of rows of header and body cells, each cell holding blocks;
+  - images, each naming the stored image it shows by its blob id, never by an address;
+  - inline marks: bold, italic, underline, strike, code, a link to an address, and the comment mark
+    (「Comments」);
+  - the note link, an inline node naming another note (「Note links」).
+- **The format is JSON rather than the editor's collaborative Yjs state, because one writer at a time is
+  the truth** (「Editing and saving」): every save carries the whole document under the version it was made
+  from, so nothing needs a merge, and the service must read the document — for its search text, its links
+  and the places its comments stand — which a JSON tree gives it with a plain parser and a Yjs state does
+  not. A move to concurrent editing would put the Yjs state beside the JSON, never in its place.
+- **The service reads the document; the client alone writes it.** On every save the service walks the
+  tree and derives three things from it, never asking the client for any: the title, the plain text and
+  the note links (「Storage」). The title is the title node's words, else the first line of words the
+  blocks hold, cut to 300 characters; the plain text is every block's words, one line a block, a table's
+  cells and a note link's title among them. The service never edits a document a writer sent, except to
+  name a copy (「Storage」) and to take the comment marks off what a share link opens (「Sharing on the
+  screens」).
+- Metadata beside the document: an id, the title, a version, creation and change moments, a deleted mark,
+  the document's size in bytes and an icon. The icon is one emoji the reader picked, or none; it stands
+  beside the document, not in it.
+- **A document the earlier editor wrote is converted once.** A note stored by the BlockSuite editor the
+  unit used before is converted to this format by the unit's migration, run once at the deployment that
+  brought this editor; its former bytes are kept beside it (「Storage」). The service answers health not
+  ready while any stored document is not this format, so a release never serves a store the migration
+  has not reached.
 
 ## Who owns a note, and who it is shared with
 
@@ -51,10 +62,10 @@ studied of AFFiNE and under which licence.
     organization unit the owner's own unit belongs to, as the console's people directory finds them.
     Each member is kept by the account key with a permission.
 - **A member's permission is `read` or `edit`, and a member is given `read`.**
-  - `read` opens the note and its images, read only.
+  - `read` opens the note, its images, its backlinks and its comments, read only.
   - `edit` opens the saves and the image uploads as well, through the same versioned door the owner's
     edits go through, so a member's save and the owner's are refused, not merged, when one is made from
-    behind the other.
+    behind the other; and it opens commenting (「Comments」).
   - Neither opens the trash, the purge, a restore or the sharing itself: the owner alone grants, changes
     and takes back a share and makes or ends the link.
 - **A shared note opens only while it lives.** A note in the trash opens to its owner alone; its link
@@ -68,52 +79,56 @@ studied of AFFiNE and under which licence.
 
 ## Editing and saving
 
-- The editor mounts in the browser only: the console bundle creates an empty document, edits it and
-  autosaves it to the service. There is no realtime collaboration: one writer at a time per note is
-  the v1 truth. A concurrent writer is refused, not merged:
+- The editor mounts in the browser only: the console bundle opens the stored document in it, or an
+  empty one for a new note, and autosaves it to the service. There is no realtime collaboration: one
+  writer at a time per note is the truth. A concurrent writer is refused, not merged:
   - each save names the version it was made from; a stored version past that answers `version-conflict`
     with the current metadata, and the screen offers the reader a reload;
-  - autosave is debounced on the document's update events, and an unsaved state is marked on the screen.
-- The full current state is stored on each save, replacing the previous bytes. Incremental
-  update logs, the shape AFFiNE's server keeps, are not copied: a note this small does not earn them,
-  and whole-state saves keep the service's one table and one version number honest.
-- **The caret stays in sight as words are written.** A new line, a deleted one, a typed word or an arrow key
-  that carries the caret past the foot or the head of the note's scroll moves that scroll until the caret stands
-  inside it with a little room around it. The fork measures the caret against its own viewport, which grows as
-  tall as the document while the screen's scroll is the host around it, so the screen keeps the caret in sight
-  itself.
-- The note's history is the fork's own: the document's store is put through its load lifecycle when
-  the note opens, which is the only thing that readies the history extension — a store standing
-  unloaded answers `canUndo` false forever, and the editor's own `Mod-z` binding guards on that and
-  does nothing.
+  - autosave is debounced on the editor's document changes, and an unsaved state is marked on the screen.
+- The whole document is stored on each save, replacing the previous one: a note this small earns no
+  log of steps, and whole-document saves keep the service's one table and one version number honest.
+- **The caret stays in sight as words are written.** The note's scroll is the editor's own scroll parent, and
+  the editor scrolls the caret into it as a key moves or writes it, keeping a margin of room around it, so a
+  new line written past the foot of the scroll, a deleted one or an arrow key that carries the caret past
+  either edge moves the scroll until the caret stands inside it.
+- The note's history is the editor's own: each change is a step of its undo history, and the history
+  starts with the document as it was opened.
 - The screen answers the history keys, wherever on it the focus stands: `Ctrl+Z` (`⌘Z`) undoes and
-  `Ctrl+Shift+Z` (`⌘⇧Z`) or `Ctrl+Y` redoes. The fork binds the same keys too, but only while its
-  own event flow is active, which misses the change the reader most wants back — a talk apply, a
-  bar action — while focus rests off the editor body; the screen's route answers everywhere, catches
-  the key on the way down before the editor sees it, yields it to a plain text field the reader is
-  typing into (the talk's and the ask's own inputs keep their undo), and stands down while the
-  keyboard is composing.
-- What the undo takes back is the change as the reader made it: one keystroke run, one bar action,
-  one insert, and each change the talk applies — an anchored patch, a whole-body rewrite, a rename —
-  land as one transaction, so one press undoes one change. An undone change rides the document's
-  update events like any other, so autosave, the page head's title and the navigator all follow it.
+  `Ctrl+Shift+Z` (`⌘⇧Z`) or `Ctrl+Y` redoes. The editor binds the same keys while it holds the focus;
+  the screen's route answers everywhere else too — after a talk apply or a bar action, with the focus
+  resting off the editor's body — catches the key on the way down, yields it to a plain text field the
+  reader is typing into (the talk's, the ask's and the comments' own inputs keep their undo), and stands
+  down while the keyboard is composing.
+- What the undo takes back is the change as the reader made it: one keystroke run, one bar action, one
+  insert, and each change the talk applies — an anchored patch, a whole-body rewrite, a rename — lands
+  as one transaction, so one press undoes one change. An undone change is a document change like any
+  other, so autosave, the page head's title and the navigator all follow it.
 
 ## Storage
 
 - One SQLite file under the unit's data directory holds the unit's tables: each note's owner, id, title,
-  doc bytes, version, timestamps, deleted mark and icon; each attachment's note, id, type and bytes; each
-  share link's token, note, moment made and end; each member share's note, member key, permission and
-  moment shared; each note's search text — its title and the plain text the client supplied, with
-  whether that text stands for the stored document — and the full-text index over it; each account's
-  pins, the note and the moment pinned; and each account's record of the notes it opened, the latest
-  moment each. A note is named by its owner and its id together, since ids are each account's own. An
-  attachment is an image only: the editor uploads one to its note's blob route before an image block
-  stands, and reads it back through the same route, so no block ever stands on bytes the service does
-  not hold. The document itself never carries image bytes; the cap on one stored document leaves the
+  document, version, timestamps, deleted mark and icon; each image's note, id, type and bytes; each share
+  link's token, note, moment made and end; each member share's note, member key, permission and moment
+  shared; each note's search text — its title and the plain text derived from its document — and the
+  full-text index over it; each note's links, the notes its document links to; each note's comment
+  threads and the comments in them; each account's pins, the note and the moment pinned; each account's
+  record of the notes it opened, the latest moment each; and each converted note's former document. A note
+  is named by its owner and its id together, since ids are each account's own.
+- **An image is held before its block stands.** The editor uploads a picked or pasted image to its note's
+  blob route, under an id it makes, and stands the image block on that id once the service holds the
+  bytes; the block is drawn from the same route, so no block ever stands on bytes the service does not
+  hold. The document itself never carries image bytes; the cap on one stored document leaves the
   document's own text and structure.
-- A purge takes the note with its blobs, its link, its member shares, its search text, every account's
-  pin of it and every account's record of opening it. A save that drops an image leaves its bytes
-  standing until the note goes: the store collects no garbage of its own.
+- **What the document says is derived on every write of it:** its title, its search text and its links
+  are written in the same transaction as the document, so none of them ever stands for another version.
+  A copy is made from a note the caller reads: its document with the copy's title written into its title
+  node and the comment marks taken off (a copy carries no threads), its images, its icon, its search text
+  and its links.
+- A purge takes the note with its images, its link, its member shares, its search text, its links, its
+  threads and comments, its former document, every account's pin of it and every account's record of
+  opening it. A save that drops an image leaves its bytes standing until the note goes: the store
+  collects no garbage of its own. A link another note holds to a purged note stands in that note's
+  document and opens onto the note's absence.
 - **Pins and what was opened are the reader's, not the note's.** Each is kept by the account that made
   it, so a member pins and opens a note shared with them as the owner does their own, and nobody reads
   another's. They are answered only for what the account reads at the moment of the read — a share
@@ -126,9 +141,15 @@ studied of AFFiNE and under which licence.
   matches, never who may read it (`docs/api.md`, 「Search」).
 - **The store upgrades itself in place as it opens.** There is no migration ladder: every table, index
   and trigger is made where it does not stand, each column a later version added is added where the
-  table lacks it (read from the table's own column list), and every note without a search row is given
-  one holding its title and no text — all in one transaction, so a store from before any of it opens
-  whole and a store already upgraded opens unchanged, however often it is opened.
+  table lacks it (read from the table's own column list), and every note whose derived rows do not
+  stand for its document — a note the migration converted, or one written before the rows were kept —
+  has its title, search text and links derived again, all in one transaction, so a store from before
+  any of it opens whole and a store already upgraded opens unchanged, however often it is opened. A
+  document that is not of this format is left as it stands and holds the health not ready (「What a
+  note is」).
+- **The former documents.** The migration keeps each converted note's BlockSuite bytes in a table of their
+  own, beside the note, with the moment it converted it; nothing reads them, a purge takes them with the
+  note, and they stand until the owner confirms the conversion, when a later release drops the table.
 - A deletion moves the note to a trash list; a restore moves it back; a purge deletes the row and is
   open for a trashed note only. Nothing else deletes a note.
 - A stored document is capped at a setting (`[notes] max_doc_bytes`); a save past the cap is refused
@@ -137,12 +158,14 @@ studied of AFFiNE and under which licence.
 ## Events
 
 - The service publishes `note.saved`, `note.trashed`, `note.restored` and `note.purged`, each naming
-  its note and its owner, and `note.shared` and `note.unshared`, naming the member too, kept in the
-  same in-memory ring every platform service keeps and answered over the common stream route.
+  its note and its owner, `note.shared` and `note.unshared`, naming the member too, and
+  `note.commented`, naming the thread, kept in the same in-memory ring every platform service keeps and
+  answered over the common stream route.
 - An event reaches the note's owner and the members the note is shared with as it is published; a
   share's own two events reach its owner and that member. The console bundle subscribes through the
   console and reads the navigator again, so a note shared with a reader appears in their shared section
-  without a reload. A restart loses the ring, as every unit's does.
+  without a reload, and an open note's comments panel reads its threads again on `note.commented`. A
+  restart loses the ring, as every unit's does.
 
 ## The AI talk panel
 
@@ -154,26 +177,28 @@ studied of AFFiNE and under which licence.
 - The panel is named for the talk alone, with no subtitle under its name. Docked, it stands at a
   width the reader drags at its leading edge or steps with the arrow keys, between its bounds, and the
   width is kept in that browser. The reader writes in the console's chat prompt.
-- The talk is scoped to the open note: the topic names the note by id and title and carries the note's
-  whole current body as a line list. The supervisor answers with that same line list edited — one
-  fenced block holding the whole new text, in the protocol the panel's own heading states. To rename
-  the note, its answer puts the new title on the fenced block's first line under a `[[title]]` mark,
-  above the lines; the title rides the same document and the same versioned save as a body change
-  does, and a rename with no body change is an answer that changes no line. The mark is stripped
-  before the lines reach the patch, and a paragraph whose own words open with it wears the protocol's
-  escape, so no note line ever reads as a rename. The note never stands rewritten by a partial
+- **The talk reads the note as rows,** in the note's line grammar, the screen's own protocol: one line a
+  block — a list item, a to-do item and each paragraph of a quote counting as one — in the order they
+  stand, a deeper block two spaces further in, its kind told by the mark the line opens with (headings of
+  every level, bulleted, numbered and to-do items, quotes, code with its language), and a divider, an
+  image and a table each named by a line of its own that stands for the block whole. The topic names the
+  note by id and title and carries the whole body as that line list. The supervisor answers with that same
+  line list edited — one fenced block holding the whole new text, in the protocol the panel's own heading
+  states. To rename the note, its answer puts the new title on the fenced block's first line under a
+  `[[title]]` mark, above the lines; the title is written into the document's title node, so it rides the
+  same save as a body change does, and a rename with no body change is an answer that changes no line. The
+  mark is stripped before the lines reach the patch, and a paragraph whose own words open with it wears the
+  protocol's escape, so no note line ever reads as a rename. The note never stands rewritten by a partial
   answer: where the fenced text is missing the panel shows the answer as words and changes nothing.
-- The unit's service sees no AI route. The service keeps the document opaque (its standing rule), and
-  the supervisor never touches its bytes: a returned text reaches the note through the open editor's
-  own save, at the same versioned door every edit goes through. This is the chosen shape of "the
-  supervisor edits the note through the unit's API": the supervisor's words enter the note through the
-  unit's save route, and the one party that can write BlockSuite bytes stands on the client.
+- The unit's service sees no AI route. The supervisor's words enter the note through the open editor and
+  its versioned save, the door every edit goes through: this is the chosen shape of "the supervisor edits
+  the note through the unit's API".
 - A change lands as a patch, never a dump: the panel diffs the returned lines against the base lines
   the talk was asked over and applies the changed ranges to the current document, each range anchored
-  by the untouched lines around it. The runs are written into the open editor's document as they come,
-  so the screen shows them without a reload and the editor's own autosave carries them through the
-  versioned save. The path to the screen is the editor's own document, not the event stream, since
-  the client is the one party that writes BlockSuite bytes.
+  by the untouched lines around it. A block whose line the patch leaves untouched stands as it stood, its
+  marks, its note links and its comment marks with it; a block the patch writes is written from its line,
+  as plain words in its kind. The runs are written into the open editor's document as they come, so the
+  screen shows them without a reload and the autosave carries them through the versioned save.
 - An owner's edit elsewhere stands untouched through it; a range the anchoring cannot find, or one
   that would swallow a table or an image, fails the whole patch, and the panel says so in one line.
   The reader may then retry, or apply the text outright from the panel's own replace action, which
@@ -189,17 +214,19 @@ studied of AFFiNE and under which licence.
   bottom edge as a drawer. It never covers the note at either end of its width: its bounds are clamped
   by the row it stands in, so the note keeps a readable column while the row can give one, and below
   that the panel holds the narrowest column a chat line and its input read in. The width the reader
-  drags stands whole while there is room for it and comes back when a wider row returns. Its key stands at the
-  format bar's trailing edge, and the panel closes by its own close key. A turn whose panel is closed still stands, and its change
-  lands in the note. The talk is kept in the screen's memory alone: leaving the note drops it, the
-  record of the talk is the note's own saved states.
+  drags stands whole while there is room for it and comes back when a wider row returns. Its key stands
+  at the format bar's trailing edge, and the panel closes by its own close key. The talk panel and the
+  comments panel share that column: opening one puts the other away. A turn whose panel is closed still
+  stands, and its change lands in the note. The talk is kept in the screen's memory alone: leaving the
+  note drops it, the record of the talk is the note's own saved states.
 
 ## Ask AI
 
 - Ask AI acts on a passage: the blocks the selection covers, the block under the caret where nothing
-  is selected, or the whole note where the editor holds neither. It is reached from the selection toolbar the editor
-  floats over a selection and from the format bar's own AI key, both opening the one menu under the
-  passage.
+  is selected, or the whole note where the editor holds neither. It is reached from the selection
+  toolbar the editor floats over a selection and from the format bar's own AI key, both opening the one
+  menu under the passage — the shape of Nuxt UI's editor AI pattern, a menu of set actions and a line of
+  one's own words over the words chosen.
 - The menu offers set actions in groups — edit (improve the writing, fix spelling, fix grammar, make
   it longer, make it shorter, a plainer or a more formal tone), translate (Korean, English, Japanese),
   and write from it (continue writing, summarize, explain, an outline, brainstorm ideas) — and a line
@@ -210,19 +237,76 @@ studied of AFFiNE and under which licence.
   one fenced block in that grammar; an answer with none is shown as words and offers nothing to place.
 - The result stands under the passage before anything changes. The reader replaces the passage with
   it, inserts it below the passage, asks again, asks a further change in his own words, or discards
-  it. A placed result enters the document through the same run writer the talk's patch uses, so the
-  editor's own autosave carries it. A passage holding an image or a table is never replaced, since no
-  line brings either back; its result can still be inserted below.
+  it. A placed result enters the document as one transaction through the same row writer the talk's
+  patch uses, so the autosave carries it and one undo takes it back. A passage holding an image or a
+  table is never replaced, since no line brings either back; its result can still be inserted below.
 - The ask's turns are held while the result stands and dropped when it is placed or discarded; the
   service sees no AI route, as for the talk panel.
+
+## Note links
+
+- **A note links another with `[[` or `@`.** Typed where words are written, either opens a menu of the
+  reader's notes under the caret: the notes most recently opened while nothing follows the mark, and the
+  notes whose title holds what is typed after it, as the service's search finds them across the reader's
+  own notes and those shared with them, the open note itself left out. Arrow keys walk the menu, Enter or
+  a press puts the chosen note in place of what was typed, and Escape leaves the words as typed.
+- **A link is an inline node of the document** naming the linked note by its id and its owner's key, with
+  the title it bore when it was linked, drawn as that title in the link tone with the note mark before it.
+  Pressing it opens the linked note in the note region, one step of the history as choosing a note in the
+  navigator is; Ctrl- or ⌘-pressing it opens the note in a new tab. A linked note the reader cannot read,
+  or one gone, opens onto the region's missing state. A link shows the title its note bore when it was
+  linked; it is put in again from the menu to show a later one.
+- **Backlinks.** Under the open note's document stands the list of the notes linking to it, each its icon
+  and title, pressed to open it as a navigator row is: only notes the reader reads live are listed, so a
+  backlink never tells of a note the reader cannot open. The service keeps each note's links as it saves
+  the note (「Storage」), so the list is one read. A note nobody links to lists nothing and the list's
+  head does not stand.
+
+## Comments
+
+- **A comment is laid on words.** The reader chooses a run of words and presses the comment key of the
+  selection toolbar; the comments panel opens on a new thread's field, and the thread is made when its
+  first comment is sent. The service makes the thread first, under an id the screen chose, and the
+  screen then lays the comment mark carrying that id over the words, which the autosave stores with the
+  document. The mark is the anchor: it follows the words as the note is edited around them.
+- **A thread** holds the words it was laid on as they read then, its comments oldest first — each its
+  author, its words and its moment — and whether it is resolved, by whom and when. Replies go under the
+  thread's last comment. Resolving puts the thread away and reopening brings it back, its comments
+  untouched.
+- **Who comments.** The owner and members holding `edit` start threads, reply, resolve and reopen; a member
+  holding `read` reads the threads and the marks and writes none of them; a share link opens neither. An
+  author deletes his own comment and the owner deletes any; a thread whose comments are all deleted goes
+  with its last, and the owner or the thread's author deletes a thread whole, which takes its mark out of
+  the document.
+- **The comments panel** stands where the talk panel stands — docked beside the note on a wide screen, a
+  drawer from the bottom edge on a phone, the two sharing the one column — opened from the comment key on
+  the bar's trailing edge, which carries the count of open threads, and from the comment key over a
+  selection. It lists the open threads in the order their words stand in the note, then the threads whose
+  words were deleted from the note, each under a line saying so, and the resolved threads in a section of
+  their own, folded. Each thread is its quoted words, its comments with their authors' names as the
+  people directory answers them, its reply field and its actions: resolve or reopen, and the deletes the
+  reader may make.
+- **The marks and the panel answer each other.** Words under an open thread's mark wear the comment tint;
+  a resolved thread's words wear none. Pressing marked words opens the panel on that thread, and pressing
+  a thread in the panel chooses its words in the note and brings them into the scroll.
+- The panel reads the threads when it opens and again on each `note.commented` event of the note, so a
+  member's reply reaches an open panel without a reload.
 
 ## The console surface
 
 - The bundle keeps bmo-ui's console plugin contract (bmo-ui `docs/console-bundles.md`). Within it the
   note asks for the member role and an owner key on every call the screens make, and names one other
   service under `calls`, the receiver, which the AI talk panel speaks through; the bundle calls nothing
-  else beside its own service, and reads the console's people directory for the share dialog's members.
-  `docs/api.md`, 「Console」, names the rest of what the note chooses.
+  else beside its own service, and reads the console's people directory for the share dialog's members
+  and the comments' authors. `docs/api.md`, 「Console」, names the rest of what the note chooses.
+- **The bundle builds its editor into itself.** The console shares Nuxt UI's components with every bundle,
+  each resolved to the console's own copy, but the editor's components carry the TipTap and ProseMirror
+  modules with them, and the editor's own extensions — the title node, the comment mark, the note link,
+  the table — must stand on the very ProseMirror copy the editor runs: a second copy of its model breaks
+  every node one copy hands the other. So the bundle takes Nuxt UI's editor components, the editor and
+  its suggestion, mention and drag-handle menus, from the copy of the library it installs, builds them
+  with its own TipTap and ProseMirror into its module, and lets every other component they draw — a
+  button, an icon — resolve to the console's shared copy as any bundle's does.
 - Two screens stand under `/note`: the notes screen, and the share page a link opens
   (`/note/share/<token>`).
 - **The notes screen is one screen of two regions:** a navigator of the reader's notes beside the open
@@ -276,16 +360,17 @@ studied of AFFiNE and under which licence.
   of what the note holds — its words and its size. The title is not on the bar: the bar is the status and
   the actions, and the title heads the page under it.
 - **The page head** stands at the top of the document's own scroll, in the editor's column: the note's
-  icon, large, over the title the editor draws large as the document's own. A note with no icon shows
-  a key to add one there while the pointer is over the head or the keyboard's focus is in it; the icon key opens a
-  popover of a small set of emoji and a key that removes the icon. A reader who cannot write the note sees the icon and
-  nothing to press. There is no cover.
+  icon, large, over the title the editor draws large as the document's own title node, its placeholder
+  the pack's word for untitled. Enter in the title moves the caret to the first block. A note with no
+  icon shows a key to add one there while the pointer is over the head or the keyboard's focus is in it;
+  the icon key opens a popover of a small set of emoji and a key that removes the icon. A reader who
+  cannot write the note sees the icon and nothing to press. There is no cover.
 - **Full width** releases the editor's column to the region's width, for that note in that browser.
 - **The note is saved as the editor writes it** (「Editing and saving」): a moment after each edit, and at
-  once on Ctrl+S (⌘S) wherever the focus stands on the screen, in place of the browser's own save, each
-  save carrying the note's plain text. Where a reader must act (a refused save, a conflict) a band above
-  the document says so, with the key that acts on it. Choosing another note or leaving the screen with a
-  change unsent sends it first, and asks before throwing it away where it cannot land.
+  once on Ctrl+S (⌘S) wherever the focus stands on the screen, in place of the browser's own save. Where a
+  reader must act (a refused save, a conflict) a band above the document says so, with the key that acts on
+  it. Choosing another note or leaving the screen with a change unsent sends it first, and asks before
+  throwing it away where it cannot land.
 - **A note in the trash** opens read only under one band that says so, holding restore and delete for good; delete for good
   asks first in the shared question dialog, naming that it cannot be taken back. Moving a note to the trash asks
   nothing, since it is taken back, and the message pill that says it was moved offers restore.
@@ -302,270 +387,73 @@ studied of AFFiNE and under which licence.
   them.
 - The notes screen fills the console's content area, with no cap of its own: the navigator is a list
   reaching its region's edges, and the note region releases its width to the editor, whose column the
-  document itself caps unless the note stands at full width.
-- The editor stands under a format bar of the bundle's own: inline marks, the kind of the block under the caret
-  chosen from bmo-ui's one select among text, three headings, three lists, quote and code, an image upload and a
-  table insert, each driving the vendored editor's own command chain,
-  so the bar, the hotkeys and the slash menu all ride one mechanism. The bar and the editor stand as
-  one column filling the note region; the bar spans that column, but its controls stand in one gathered,
-  centred row of their own width, never spread edge to edge. The talk key stands apart at its trailing
-  edge, since it acts on the whole note rather than the selection. Where the bar is wider than the
-  screen, as on a phone, the talk key holds to the bar's end and the format keys scroll sideways before
-  it, so it stands in sight at every width. Every key in the bar is the library's small button at its own
-  size, an icon-only key its small square, centred in the row with its hover and press filling its own
-  shape, never a cell stretched to the row's height. Slash commands stay a shortcut, never
-  the way in. The image key opens a file input of the bundle's own: it carries the native hidden
-  attribute, and the bundle's stylesheet holds it hidden with an `!important` rule. The selection toolbar,
-  the drag handle and the floating format menu are the fork's own and stand as it drew them, but for four
-  things. On a touch screen the floating format menu stands down: it is wider than a phone, it doubles the
-  bar, and the phone lays its own selection menu over the words; the bar does its work there. The selection
-  toolbar over a block chosen whole stands on a touch screen all the same, since a chosen block is what a
-  phone holds to act on (below). Every block chosen whole, by the handle or by a held finger, raises the
-  selection toolbar (below). And the toolbar never stands wider than the screen it is drawn on (below).
-- **On a phone the format bar is the one bar.** Under a phone's own user agent the fork's page view lays a
-  keyboard bar of its own over the on-screen keyboard, a second row of marks, kinds and inserts; the bundle
-  mounts the fork's page view without it, so no agent, no flag of the fork's and no merge raises it beside
-  the format bar. A phone reaches the marks and the kinds the way every screen does: the bar's marks and its
-  select of kinds, standing above the document where the keyboard never hides them, and the kinds the bar
-  does not carry (the further headings, the divider, the callout, the equation and the rest the fork offers)
-  through the slash menu, typed on the phone's own keyboard. The slash menu stands inside the screen, and a
-  menu of its further items, which stands beside it where the screen holds the room, stands under the item
-  that opened it where the screen does not, clear of the finger that pressed it (`docs/affine.md`, the
-  fork's placement of its slash menu). The floating format menu, which reaches the same further kinds under
-  a pointer, stands down there as on every touch screen.
-- **Every block has its handle and its toolbar.** The drag handle stands beside whichever top-level block
-  the pointer is over, whatever its kind; pressing it selects that block whole, and the selection toolbar
-  rises over it with what the block offers, its copy, duplicate and delete among them. Delete or Backspace
-  removes a block selected whole. The fork raises that toolbar only for a block whose kind declares a
-  toolbar of its own, or for text, lists, code and images; a table, a divider, an equation and a database
-  declare none, so the bundle declares for each of them a toolbar holding copy, duplicate and delete, the
-  three the other blocks carry in their more menu, standing as keys of their own since the block offers
-  nothing else. These keys wear the format bar's icon set, each with a tooltip naming it in the console's
-  language from the bundle's pack, and the copy key says the fork's own line for a copy on the console's
-  message pill, answered from the editor's word table as every copy is. A kind the
-  fork adds later that declares no toolbar is one more entry in that declaration. The fork's own keys,
-  menus and lines answer to the console's language through the seam named below.
-- The press on the handle lands inside the editable page, so the browser lays a caret in the nearest line
-  as well, which the editor would read a moment later as a text selection over the block; the bundle drops
-  that caret as the press is let go, so the block stays selected whole however briefly or long the press
-  was held. A drag from the handle goes down as the browser has it.
-- The editor's column keeps a gutter for the handle, but a heading over a section or a list holding others
-  stands its handle a toggle's width further out; so the editor's viewport, which clips what stands outside
-  it, keeps a leading room of its own, 16 pixels, and the head over the document moves with it, so that
-  handle stands in view where the column meets the editor's edge, on a phone or at full width.
-- **On a phone a held finger in the gutter chooses a block whole.** The handle follows a pointer, which a
-  touch screen has none of, so a phone reaches a block the way its note rows are reached: with a held finger.
-  The room left of the document's column, where a pointer's handle stands, is where the finger holds, and
-  bmo-ui's one hold (bmo-ui's `docs/components.md`, 「A held finger」) reads it: the top-level block standing
-  at that height is chosen whole and its toolbar rises over it, the same choice and the same toolbar a press
-  on the handle makes. A short press in the gutter is left to the fork's own reading of a press on the blank
-  room beside the column, which chooses a block that holds no words and hands a line of words its caret; the
-  hold is what chooses a line of words whole. A finger that slides past the hold's own distance, a scroll
-  that starts under it, a second finger or a press shorter than the hold makes no choice of this
-  interaction's, and the click the lifted finger lands is turned away, since the editor would otherwise stand
-  its own reading of the blank room in place of what the hold chose. The hold never reaches the words: a
-  field's words keep the hold to the phone's own choosing of them, and the block under them is chosen from
-  the gutter beside it.
-- The selection toolbar stands on a touch screen where a block stands chosen whole, though the floating
-  format menu stands down there: the screen carries a mark while its editor holds a block chosen whole,
-  and the bundle's rule hides the fork's toolbar widget only where no mark stands.
-- **The selection toolbar never stands wider than the screen.** Over a text block the fork's bar is 663
-  pixels wide, wider than a phone, and its more menu and the delete in it stand past the edge. Where the
-  editor's own room has no place for it — under a finger as with a pointer in a narrow window — the bundle
-  folds the fork's keys of a text block away and stands the block's three of the bundle's own, the same
-  copy, duplicate and delete the other kinds carry, since the marks and the kinds those folded keys reach
-  for are the format bar's work at every width. A bar that stays wide is kept to the screen as well: it
-  lives in the shadow room of the fork's own widget, which no rule of the bundle reaches, so the bundle lays
-  a sheet of its own in that room, and past the width a screen leaves it a bar wraps its keys into further
-  centred rows rather than stand past the edge. Either way the bar keeps its place over the block it acts
-  on, but under a phone's own user agent, where the fork lays it at the screen's foot, centred and kept
-  above the on-screen keyboard, with the keys the fold leaves it.
+  screen caps at a reading width unless the note stands at full width.
+- **The format bar.** The editor stands under a format bar of the bundle's own: Ask AI leading it; the kind
+  of the block under the caret chosen from bmo-ui's one select among text, three headings, three lists,
+  quote and code; the inline marks bold, italic, underline, strike and code; an image upload and a table
+  insert. Each drives the editor's own commands, so the bar, the keys and the slash menu all ride one
+  mechanism, and each mark and kind stands pressed while the caret's words wear it. The bar and the editor
+  stand as one column filling the note region; the bar spans that column, but its controls stand in one
+  gathered, centred row of their own width, never spread edge to edge. The keys that act on the whole note
+  stand apart at its trailing edge — the comments key with its count and the talk key. Where the bar is
+  wider than the screen, as on a phone, those keys hold to the bar's end and the format keys scroll
+  sideways before them, so they stand in sight at every width. Every key in the bar is the library's small
+  button at its own size, an icon-only key its small square, centred in the row with its hover and press
+  filling its own shape, never a cell stretched to the row's height. The image key opens a file input of
+  the bundle's own, held hidden.
+- **The selection toolbar** floats over words chosen: Ask AI, the comment key, the link key, and the marks
+  bold, italic, underline, strike and code, each a small key named in its tooltip. The link key opens a
+  field for the address under the bar, which Enter lays on the words and an empty field takes off. The
+  toolbar stands whole inside the screen at every width, wrapping its keys into a second row where the
+  screen is narrower than one, and it stands on a phone as under a pointer, above the words chosen. It
+  stands only over words a reader may write; over a note held to read only no toolbar rises.
+- **The slash menu** is Nuxt UI's suggestion menu: `/` typed at a line's start or after a space opens
+  the kinds a line can take — text, the six headings, the three lists, quote, code, divider, table and
+  image — filtered by the words typed after it, each named in the console's language. It stands inside
+  the screen at every width.
+- **Every block has its handle** under a pointer: Nuxt UI's drag handle stands beside whichever block the
+  pointer is over. Dragging it moves the block; pressing it opens the block's menu — turn into, duplicate,
+  copy and delete — each named in the console's language. A touch screen has no pointer to raise the
+  handle, so a phone reaches the same through the format bar, the slash menu and the phone's own choosing
+  of words.
+- **An image** is put in from the bar's image key, the slash menu, or by pasting or dropping a picture on
+  the document: the bytes go to the note's blob route first and the block stands once they are held, a
+  picture past the store's cap refused on the pill before any upload. An image reads its bytes through
+  the route of the screen it stands on, the note's own or the share link's.
+- **The editor's words are the bundle's own.** Every word the editor's chrome shows — the toolbar keys and
+  their tooltips, the slash menu's items, the drag handle's menu, the placeholders, the link field, the
+  notes menu — is a key of the bundle's pack, answered in the console's language like every other word of
+  the bundle; the editor carries no words of its own.
+- **The screen speaks on the console's message pill** (bmo-ui's island, `docs/components.md`, 「Messages」):
+  a copy of a block, a link copied, an image that could not be added or was refused over the cap, an Ask
+  AI result that could not be placed. A copy wears the success tone and a refusal or failure the error
+  tone.
+- The screen is read in the console's screen mode and keeps none of its own: the editor and every part of
+  the bundle are drawn from the console's tokens, so they stand in the mode the console stands in.
 - **The screens' browser test holds them to these rows.** It builds the note service from the checkout,
   starts it on a settings folder and a store of its own, starts the bundle's dev host relaying to it as
-  the console would, writes a few notes of realistic Korean titles and text through the relay, and drives
-  the screen in a real browser at 1,280 and 360 pixels wide, in the light and the dark scheme: the
-  navigator with every section and the trash at its foot; a note open, its bar holding the state at its
-  leading end and the star, the share key and the more key at its trailing end; the empty note region;
-  the search dialog before typing, with results whose matches are marked and with none; the more menu;
-  a note in the trash under its band; and, on a phone, the navigator risen in its drawer. On a wide screen
-  the create button closes the navigator's head, a grey icon whose tooltip names a new note and its key,
-  and the key makes a note; every key of the format bar is the library's small button, an icon-only one
-  its small square, centred with room above and below it and its hover on its own shape; the talk key
-  stays in sight while the keys scroll on a phone; a missing note keeps the bar with the navigator's key;
-  and no screen scrolls sideways on a phone. It keeps a picture of each state, and runs in the suite's
-  browser lane, apart from the client's own check, skipped where the browser build is not on the machine.
-  The handle's browser test stands on the same stack and holds 「Every block has its handle and its
-  toolbar」 at both widths with a pointer: a note holding a block of every kind the editor's menus make,
-  each block's handle in view beside it and its press selecting it whole under a toolbar that stands whole
-  inside the screen at either width, its way to delete among its keys there — the fork's own more menu at a
-  desktop's width, the bundle's three keys once the room folds them; a table's handle pressed while the
-  caret stands in one of its cells, the
-  table's copy, duplicate and delete keys, named in Korean, on top of what they stand over; the toolbar's duplicate and
-  delete, and Delete and Backspace, each acting on a table selected whole; and a picture of the table's
-  handle and its toolbar. The same width read by a finger holds 「On a phone a held finger in the gutter
-  chooses a block whole」: a finger held in the gutter beside a line of words chooses it whole under a
-  toolbar that stands inside the screen and reaches delete, a table so chosen is duplicated and deleted by
-  its own three keys, the fold that leaves a line of words with those same three keys at a phone's width
-  and the delete among them taking the line away, and a finger that slides, a press shorter than the hold
-  and a hold on the words choosing nothing; the touch sequence is laid down as a real finger lays it. A
-  picture of the phone's choice is kept with the rest.
-- **A browser file of its own holds 「The editor's own words follow the console's language」 on the real
-  screen.** The console reads Korean: it selects a run of words and reads the keys of the toolbar that rises
-  over them, their tooltips and the entries of the menu gathered under the last one; it calls the slash menu
-  and reads its group titles and item names; it reads the hint an empty line holds, a caption's hint and the
-  line a copy of a block says. It holds a pointer over a toolbar key and over the items of the slash menu and
-  reads the rooms that rise for them, so a word held only in a hover room is read where a reader sees it.
-  Every line left standing in those rooms in the fork's English is a line the editor's word table answers
-  with nothing: a file's name or a person's, a formula, a piece of code, a date, or a product's own name,
-  each one named in the file.
-  Every other word it reads is the table's word for that thing, read out of the table by the file itself,
-  never written as letters in the file, and no word of that chrome is left standing in the fork's English.
-  At 1,280 and 360 pixels wide it inserts a table view and a kanban view from the slash menu and opens what
-  a reader opens there: the view's menu, the search with its clear key's room, a filter and its condition, a
-  sort and its rule, the view's settings and each of their pages, a new column with its menu, its types and
-  its type key, a select's tags, a date's picker, a row's menu, the figures under a column and each group of
-  them, the table grouped by that date by month, a kanban group's menu, and a card's menu with where it
-  moves to. Nothing the block or those menus and rooms show is left in English beside the product names the
-  wording guide keeps and the names on a keyboard's keys.
-- **The same file holds 「The editor speaks on the console's message pill」,** in Korean at 1,280 and 360
-  pixels wide, on a dev host that stands the console's pill up and its library's toaster down as the console
-  does. It copies a line with the slash menu's copy, which the fork says through its toast helper, and reads
-  the table's word for the copy on the pill, standing at the top of the screen, centred, inside the content's
-  gutter; presses the pill away; opens the link card's form from the slash menu, refuses a link that is none
-  with Enter and reads the table's word for the refusal under the field with no pill standing, and reads the
-  line go once the field is changed; copies a code block with the key the block's bar raises, which the fork
-  says through the notification service, and reads the same word on the pill again; copies it once more
-  while that line stands and reads the pill still saying the one line with nothing waiting behind it; and
-  reads that the helper's own box never stands in the page. A picture of the pill over the note and of the
-  refused form is kept at each width. At 1,280 pixels it also reads the lines the fork fills with a figure:
-  it offers the slash menu's image a picture one byte over the screen's cap and reads the table's refusal
-  with the cap said in its mark's place, then copies a table view's cell, and that cell's row chosen whole,
-  and reads the table's line for each with the count of one in its place. At 360 pixels, under a phone's own
-  agent and by a finger, it inserts a table view from the slash menu, taps the database and reads the
-  table's word for the fork's refusal to edit a database on a phone. The lines no screen of the fixture
-  can raise — a failed attachment download, an import and its failure, a calendar's entries that fail to
-  load, an embed that fails — are fed to the bundle's notification service by the client's own tests,
-  each as the fork builds it with a sample figure, and read as the table's Korean with the figure in its
-  place and the line's own tone, beside a download under way said by nothing.
-- **A browser file of its own holds 「On a phone the format bar is the one bar」** on the same stack, with the
-  browser naming itself a phone, at 360 pixels wide, by a finger, in Korean. While a line is written the
-  format bar stands with every key, the fork reads the agent as a phone's, and neither the fork's keyboard
-  bar nor its floating format menu stands; each mark the bar carries lands on the words chosen, each kind its
-  select offers turns the line, and the slash menu typed at a line's end stands inside the screen, offers the
-  divider, the callout and the equation, lays its further headings inside the screen too and clear of the
-  finger that opened them, and turns the line into a fourth heading from them; a line held in the gutter raises Ask AI and the block's three keys at the
-  screen's foot, inside it. A picture of the phone writing and of a block chosen is kept.
-- **The editor's styles stay in the editor.** The vendored editor lays its stylesheets on the page as plain
-  style elements, unlayered, which beat every layered rule of the console; and a few of its rules name nothing
-  of the editor's own — a bare `input`, a `.truncate` — so once a note is opened they would reach every screen
-  of the console for the life of the tab: inputs losing their room so an icon stands over the words, a cut line
-  lifted off its row. So from the moment the editor is first set up, the bundle reads each stylesheet the
-  editor lays and holds every rule whose selector names no element, class or attribute of the editor's own to
-  the editor's host. Rules that name the editor's own, and the page-wide ones (`:root`, `html`, `body`), which
-  carry the editor's variables, stand as laid.
-- An image an editor inserts is held on the service before its block stands: the editor's blob store
-  is the note's own blob routes, so uploads and read-backs cross the console's relay like every other
-  call, and a note reads back its images wherever it is opened.
-- **The editor's own words follow the console's language.** The fork names the words of its own chrome —
-  the keys of the selection toolbar and their tooltips, the menus under them, the slash menu, the caption
-  hint, the hint an empty line holds, its lines of notice, and the chrome of a database block's table and
-  kanban views: their bar of views, their search, filter, sort and view settings, a column's and a row's
-  menus, the titles of their groups, the figures under a column, a select's tags and a date cell's picker
-  — as English inside its own sources, and
-  ships neither a translation nor a hook to supply one. The fork therefore carries a seam of its own: one
-  translator, installed by whoever mounts the editor and read at the points where a word of that chrome is
-  drawn — the renderers of toolbar actions and of menu items, the buttons a menu row draws its words in,
-  the slash menu's view, the panels the phone's keyboard bar opens, the line of notice, the caption editor,
-  the hint an empty line holds, the menu that names a block's row or column, a menu's title, search field,
-  typed field, sub-menu rows and switches, and each word the database views draw outside a menu. A word is
-  answered by
-  whatever the mounter says; a word nothing answers for stands exactly as the fork wrote it, so the seam
-  cannot lose a word the fork adds later, and an answer never rewrites itself. Only what a person reads
-  changes: the fork's own handles for lookups, its `data-testid` values and the `text` attribute its menu
-  scrollers read, keep the words the fork wrote. What a reader types into the slash menu, or into the search
-  of any menu the fork draws, is matched against the words as shown as well as the words the fork wrote, so
-  a reader who knows only a Korean name still finds the item. The bundle installs the
-  translator as it mounts an editor and answers each word the fork says with the console's word for it,
-  from the editor's word table, keyed by the English words themselves, following the console's wording
-  guide as every other word the bundle writes does.
-  - **The editor's word table is the editor's own locale,** as the component library carries its own: one
-    table for each language the bundle answers the fork in, in a folder of its own inside the bundle's words
-    folder, chosen by the console's language as an editor is mounted. A language with no table answers
-    nothing, so English, the fork's own language, stands as the fork wrote it and needs no table.
-  - **The table stands outside the pack.** The pack holds only keys a screen asks for written whole, each
-    answered by one word (bmo-ui's `docs/wording.md`, 「The key」), and the bundle build refuses a screen
-    that asks it for a tree; the table is read whole and keyed by the fork's own sentences and the pieces
-    of sentences it assembles. What the bundle names for itself — the three keys over a block chosen
-    whole, its format bar, its screens — is the pack's.
-  - **A line that carries a value is asked whole.** Where the fork builds a line around a value — a count,
-    a property's name, the value a filter compares with — the line is asked as one line with the value
-    standing as a named mark where it falls, so the answer places the value where Korean puts it: the
-    fork's `No {property}` is answered with the property's name first and the word for none after it. A
-    line nothing answers for is filled into the fork's own English.
-  - **A name the fork writes for the reader is written in the reader's language.** A new view takes its
-    kind's name, a new property its type's name or the word for a column, and a new kanban view, finding no
-    property to group by, adds a status property with three options; each is written answered, so the
-    reader meets the word table's Korean names rather than the fork's English. Once written, a name is the
-    reader's own and is drawn as it stands.
-  - **A date a group is named by takes the reader's form.** The fork names a group of dates by a date-fns
-    form of its own, a month's short English name before the year; the form itself is asked of the seam, so
-    the table answers it with the year before the month in Korean and the group reads as the reader writes
-    a date. A date a cell shows keeps the numeric form the fork gives it.
-  - **A hover room answers its words once it stands drawn.** The words of a room a pointer's hover brings
-    up live inside a template, where markup and words stand together, so no word of one can be asked
-    before the room is drawn. The room asks them, line by line, of the same seam at the moment its content
-    is laid out for the reader, and a renderer asks only for a room that holds the editor's own chrome — a
-    key's hint, the slash menu's card — so a room holding a reader's own words, a document's title among
-    them, is never rewritten. A line is asked as it reads with its outer spacing cut away and is put back
-    with that spacing kept, and a line nothing answers for stands exactly as the fork drew it. Which lines
-    the table answers is the bundle's to say: it answers what a card says to the reader — its lines of
-    guidance, the names it carries, and the sample lines of the document a card pictures — and leaves what
-    a card only shows as contents: a file's name or a person's, a value filling a cell of a sample table,
-    the letters and numbers of a formula or of code, and a date.
-- **The editor speaks on the console's message pill.** The console says everything on one pill at the top of
-  the screen (bmo-ui's island, `docs/components.md`, 「Messages」 there), and the component library's toaster
-  is not stood up, so a line told any other way is lost. The fork says a line of notice by two roads: the
-  notification service its host provides, and a toast helper of its own, which hands its line to that service
-  wherever the host provides one and draws its own box over the editor's viewport only where none is provided
-  (`docs/affine.md`, the fork's second seam). The bundle provides the service, so every line the editor says
-  reaches it and no box is drawn in the editor; the service says each line on the pill, in the console's
-  language from the editor's word table, as the seam answers the rest of the editor's words. The screen's own lines about
-  the editor — an Ask AI result that could not be placed, an image that could not be added, a block copied
-  from the keys the bundle declares — take the same pill, the bundle's block copy saying the same line the
-  fork's copies say.
-  - The pill tells the word that an action went through or did not, and a notice of something that arrived,
-    so that is what the screen says of the editor: a copy, an import, a refused size, a failed download,
-    read or import, a notice the fork raises on its own. A line that narrates a step still under way — an
-    image's or an attachment's download starting, or a second press while one runs, whose progress the
-    browser shows itself — is not said. A copy or an import that went through wears the success tone and a
-    refusal or failure the error tone; a notice
-    the fork raises with a tone of its own keeps it, and any other line wears the info tone. Which lines are
-    held back and which wear success or error is the bundle's to say, keyed by the fork's words as the
-    table is, so a line the fork adds later is said in the info tone rather than lost.
-  - Each line is named by the fork's words, so the same line said again before the first has gone — a
-    second copy — replaces it where it stands. A press the fork offers with a notice, its undo among them,
-    stands on the pill under the table's word for it; when the fork takes a notice back, its undo already
-    taken another way, the pill lets it go, and the fork learns when the pill is done with one it asked to
-    hear of. A notice the fork draws out of a template is said as the words it draws.
-  - A line whose words carry a figure of the moment — the size cap a file is refused over, a count of rows
-    or cells copied from a table, a count of notes imported, the name of an attachment that failed to
-    download — is known by the fork's words with each figure standing as a named mark where it falls, as the
-    table keys a line that carries a value. The service finds which such line was said, answers it from the
-    table and fills each figure in where the answer places it, and hears it as the line it is. Which lines
-    carry a figure is the bundle's to say beside how each is heard; a line with a figure it does not know is
-    said as the fork filled it.
-  - A form's own refusal stays in the form, beside the field it refuses, never on the pill: the link card's
-    create form refusing a link that is none, the card's edit form refusing an empty title and an
-    attachment's rename form refusing an empty name each draw the line under that field in the error
-    colour, in the table's words, until the field is changed (`docs/affine.md`, the fork's third seam).
-  - A question the fork asks before an action is the console's question dialog, never the pill, and a
-    question that asks for a typed answer is answered with none.
-- The screen is read in the console's screen mode and keeps none of its own. The bundle's chrome is
-  drawn from the console's tokens, so it stands in the mode the console stands in as it is written;
-  the vendored editor colours itself by a `data-theme` attribute of the document element instead —
-  its theme service watches that attribute and its stylesheet states both modes under it — so the
-  bundle mirrors the console's mode onto it and the document switches as the console's own screens
-  do. Light is as the fork drew it.
+  the console would, with a stand-in receiver of its own that answers a talk with a fenced block, writes a
+  few notes of realistic Korean titles and text through the relay, and drives the screen in a real browser
+  at 1,280 and 360 pixels wide, in the light and the dark scheme: the navigator with every section and the
+  trash at its foot; a note open, its bar holding the state at its leading end and the star, the share key
+  and the more key at its trailing end; the empty note region; the search dialog before typing, with results
+  whose matches are marked and with none; the more menu; a note in the trash under its band; and, on a
+  phone, the navigator risen in its drawer. On a wide screen the create button closes the navigator's head,
+  a grey icon whose tooltip names a new note and its key, and the key makes a note; every key of the format
+  bar is the library's small button, an icon-only one its small square, centred with room above and below
+  it and its hover on its own shape; the note's keys at the bar's end stay in sight while the keys scroll on
+  a phone; a missing note keeps the bar with the navigator's key; and no screen scrolls sideways on a phone.
+  It keeps a picture of each state, and runs in the suite's browser lane, apart from the client's own check,
+  skipped where the browser build is not on the machine.
+- **The editor's browser test** stands on the same stack and holds, at 1,280 and 360 pixels wide, by a
+  pointer and by a finger, in Korean, what a person does with the editor, reading what the browser draws:
+  writing a title and lines past the scroll's foot, the caret kept in sight and the note saved and read back;
+  a line turned into a heading and a list from the bar and a word made bold, each key standing pressed; the
+  selection toolbar standing whole inside the screen over chosen words; a note link put in with `[[`, the
+  menu inside the screen, the link pressed opening the linked note and the backlink listed under it; a
+  comment laid on words, the panel's thread with a reply, resolved and reopened, its words' tint following;
+  and Ask AI over a chosen line against the stand-in receiver, its result shown under the passage and
+  inserted below it. It keeps a picture of each.
 
 ## Sharing on the screens
 
@@ -580,13 +468,15 @@ studied of AFFiNE and under which licence.
     service, each member drawn by the name the directory answers for the key, or the key itself where
     it answers none. Found without the directory, the dialog shares by link alone.
 - **A shared note opens as its permission allows.** Opened by a `read` member, the document stands
-  read only: the format bar keeps its keys disabled, the talk key, Ask AI, the share key and the icon key
-  do not stand, nothing is saved, and the bar's state says the note is read only where it would tell the
-  save state. Opened by an `edit` member, the screen is the owner's but for the share key and moving the
-  note to the trash. Either member pins, copies the link of and duplicates the note as their own.
+  read only: the format bar keeps its keys disabled, the talk key, Ask AI, the selection toolbar, the
+  share key and the icon key do not stand, nothing is saved, and the bar's state says the note is read
+  only where it would tell the save state; the comments panel opens to read. Opened by an `edit` member,
+  the screen is the owner's but for the share key and moving the note to the trash. Either member pins,
+  copies the link of and duplicates the note as their own.
 - **The share page stands with no frame of the console's,** its own bar holding the note's title, and
-  under it the document read only, its images read through the link. A link that opens nothing stands
-  as its own state, one line saying the note is not shared.
+  under it the document read only, its images read through the link, its comment marks taken off and its
+  note links drawn as their titles alone, since the page opens no other note. A link that opens nothing
+  stands as its own state, one line saying the note is not shared.
 - **The sharing browser test holds the screens to this.** On the same throwaway service and dev host as
   the screens' test, it drives the share dialog in a real browser: the owner makes a link and the share
   page opens the note read only with no format bar; the owner finds a member in the people directory and
@@ -623,13 +513,13 @@ studied of AFFiNE and under which licence.
 ## Present limits
 
 - Notes do not nest, and there are no folders: every note stands in one list per view.
-- A note has no cover picture, no version history and no comments.
+- A note has no cover picture and no version history.
 - Rows are not dragged to reorder: the own and the shared sections sort by last edited, title or created, and
   the pins keep the order they were pinned in.
-- Search reads titles and the text of text blocks; the words inside an image are not searched, and a
-  table's cells stand outside the text the client supplies.
-- A member's own client supplies no text for a note it holds to read only, so a shared note saved before
-  the text was asked for is found by its title until its owner or an editor opens it.
+- Search reads titles and the words of the document; the words inside an image are not searched.
+- A note link shows the title its note bore when it was linked.
+- The talk and Ask AI read and write a block's words, not its inline marks: a block they rewrite stands as
+  plain words of its kind.
 
 ## Deployment shape
 

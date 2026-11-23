@@ -3,9 +3,9 @@
 Every route bmo-note answers, the events it publishes, and the calls it makes. The wire format is the
 platform's (bmo-chat `docs/conventions.md`): camelCase keys, times in epoch milliseconds, ids as
 strings, a failure a non-2xx status with `code` (kebab-case) and `error` (an English sentence), a list
-`{items, more}` read with `after` and `limit`. A note document travels as a base64 string in the
-`doc` field: the whole Yjs state of one BlockSuite document, opaque to this service
-(`docs/design.md`, 「What a note is」).
+`{items, more}` read with `after` and `limit`. A note document travels as a JSON object in the `doc`
+field: the ProseMirror JSON of one TipTap document, a `doc` node holding a `title` node and the note's
+blocks (`docs/design.md`, 「What a note is」).
 
 ## The control port
 
@@ -31,7 +31,9 @@ key refuses is 403 `forbidden`.
 |---|---|---|
 | GET | `/health` | `ready`, `reason` (null when ready), `version` |
 
-The service is ready once its store is open. It calls no other unit; its screens speak to the receiver
+The service is ready once its store is open and every stored document is of the editor's format; while
+any note still holds a document the earlier editor wrote, it answers `ready` false with a `reason`
+naming how many, until the migration has converted them (`docs/design.md`, 「What a note is」). It calls no other unit; its screens speak to the receiver
 directly through the console's relay, on the manifest's `calls` (below).
 
 ## Notes
@@ -39,27 +41,31 @@ directly through the console's relay, on the manifest's `calls` (below).
 | Method | Path | Does |
 |---|---|---|
 | GET | `/notes?deleted=&shared=&sort=&after=&limit=` | The caller's notes in the order `sort` names, newest changed first where it names none — `{items, more}`; `deleted=true` answers the trash, `shared=true` the live notes other accounts share with the caller |
-| POST | `/notes` | Makes a note: `id?`, `title`, `doc` (base64) — 201, or 200 with the note as it stands where the id is already held (idempotent by id; stored bytes unchanged) |
+| POST | `/notes` | Makes a note: `id?`, `doc` — 201, or 200 with the note as it stands where the id is already held (idempotent by id; the stored document unchanged) |
 | GET | `/notes/{noteId}?owner=&opened=&deleted=` | One note with its document; `opened=true` records that the caller opened it (「What was opened」); `deleted=true` answers the caller's own note where it rests in the trash |
-| PATCH | `/notes/{noteId}?owner=` | Saves: `version` (required), `title?`, `doc?`, `text?`, `restore?` — 200, or 409 `version-conflict` answering the current metadata |
-| DELETE | `/notes/{noteId}?purge=` | Moves the note to the trash, or, with `purge=true`, deletes it for good where it stands trashed, its stored images, its text, its pins and the record of who opened it with it — 204 |
-| PUT | `/notes/{noteId}/text?owner=` | Supplies the note's plain text for its stored document: `version` (required), `text` — 200 the metadata; 409 `version-conflict` where `version` is not the stored one. The document, the version and `changedAt` stay as they stand |
+| PATCH | `/notes/{noteId}?owner=` | Saves: `version` (required), `doc?`, `restore?` — 200, or 409 `version-conflict` answering the current metadata |
+| DELETE | `/notes/{noteId}?purge=` | Moves the note to the trash, or, with `purge=true`, deletes it for good where it stands trashed, with everything kept beside it (`docs/design.md`, 「Storage」) — 204 |
 | PUT | `/notes/{noteId}/icon?owner=` | Sets the note's icon: `icon` (empty clears it) — 200 the metadata. The version and `changedAt` stay as they stand |
 | POST | `/notes/{noteId}/duplicate?owner=` | Makes a note of the caller's own from one the caller reads: `id?`, `title` — 201 the copy's metadata |
 | PUT | `/notes/{noteId}/blobs/{blobId}?owner=` | Stores one image with the live note: the body is its bytes, `content-type` its image type — 204; an id already held keeps the bytes it was first given (a re-upload answers the same 204 whatever it carries) |
 | GET | `/notes/{noteId}/blobs/{blobId}?owner=` | One stored image: its bytes with the type it was stored under, `cache-control: private, max-age=31536000, immutable`; 404 where none stands |
+| GET | `/notes/{noteId}/backlinks?owner=` | The live notes the caller reads whose documents link to this note, newest changed first — `{items, more}`, `more` always false |
 
 A note metadata is `id`, `owner` (the account key the note belongs to), `title` (may be empty; the
 screen names an empty one by its own word), `version` (a whole number from 1, held up on each save),
 `createdAt`, `changedAt`, `size` (stored doc bytes), `deletedAt` (null while the note lives),
 `access`, what the caller holds of it: `owner`, or the member's `edit` or `read`, `icon`, the note's
-icon (a short string, empty where it has none), and `indexed`, whether the service holds the note's
-plain text for its stored document (「Search」). A note read adds `doc`. A write's `id` is 1 to 64
+icon (a short string, empty where it has none). A note read adds `doc`. A write's `id` is 1 to 64
 letters, digits, `-` and `_`, never one of the words `search`, `pinned` and `recent`, which name routes
-under `/notes`; one is made where none is given (lowercase hexadecimal). A `doc` that is
-not base64 for at least one byte is 422 `bad-doc`; a `title` over 300 characters, a `version` below 1
-or a body that is not one object is 400 `bad-request`; a decoded `doc` over `[notes] max_doc_bytes` is
-413 `too-large`; a note the account does not hold live is 404 `not-found`; a `restore` or `doc` write
+under `/notes`; one is made where none is given (lowercase hexadecimal).
+
+A `doc` is one JSON object whose `type` is `doc` and whose `content` is an array of nodes, each an object
+with a string `type`; anything else is 422 `bad-doc`. The service stores it as it came and reads from it,
+never from the caller, the note's title (the `title` node's words, else the first line of words the
+blocks hold, at most 300 characters), its plain text for search (every block's words, one line a block,
+a table's cells and a note link's title among them) and its links (each `mention` node's `id` and
+`owner`, the note it links). A `doc` past `[notes] max_doc_bytes` as stored is 413 `too-large`; a
+`version` below 1 or a body that is not one object is 400 `bad-request`; a note the account does not hold live is 404 `not-found`; a `restore` or `doc` write
 on a trashed note is 422 `trashed`; a `purge` of a live note is 422 `not-trashed`. A `PATCH` whose
 `version` is below the stored one answers 409 `version-conflict`; one at or above it saves (a writer
 who read ahead of the service loses nothing it did not already hold). `restore=true` with no `doc`
@@ -78,30 +84,55 @@ live note, another account's note and one naming a member's `owner` are 404 `not
 `opened=true` answers as a read does and records the moment (「What was opened」); a trashed note's read
 records nothing.
 
-A save's `text` is the note's plain text as the client reads it out of the `doc` it rides with, at most
-`[notes] max_doc_bytes` bytes of UTF-8 (413 `too-large` past it), and stands only with a `doc` (400
-`bad-request` without one). A `doc` saved without a `text` leaves the note unindexed (`indexed` false)
-until a text is supplied for it. The text route writes a text for the document as it stands: it needs
-the note live and the caller's writes (the owner, or a member holding `edit`), and its `version` must be
-the stored one, so a text read from an older document never lands over a newer one.
-
 An `icon` is at most 16 characters with no control character, its ends trimmed; it needs the note live
 and the caller's writes, and publishes `note.saved`. A duplicate is a new note of the caller's own: the
-source's document, images, icon and text copied, its `title` the one the call gives (the screen marks it
-as a copy in the reader's language); the source is any note the caller reads live, their own or one
+source's document copied with the call's `title` written into its title node and its comment marks
+taken off, its images, icon, text and links copied (the screen marks the title as a copy in the reader's
+language), and no threads; the source is any note the caller reads live, their own or one
 shared with them at either permission, and anything else is 404 `not-found` as a read is. Its `id` is
 chosen as a creation's is, and one the caller already holds is 400 `bad-request`; it publishes
 `note.saved` to the caller, as a creation does.
 
 The blob routes stand under the note: a `PUT` needs the note live (a trashed note is 422 `trashed`, no
-note 404), its `content-type` must name an image, its `blobId` must be a BlockSuite blob key (1 to
-128 letters, digits, `-`, `_` and `=`), and its bytes must not pass `[notes] max_blob_bytes` (413
+note 404), its `content-type` must name an image, its `blobId` must be 1 to 128 letters, digits, `-`,
+`_` and `=` (the editor's ids, and the digests the earlier editor named its images by), and its bytes must not pass `[notes] max_blob_bytes` (413
 `too-large`). A
 `GET` answers wherever the note stands, live or trashed, to its owner, and to a member while the note
 lives (「Sharing」); a purge has taken the blobs.
 
+A backlink row is the linking note's metadata, as the caller holds it; a note linking from the trash, one
+the caller does not read, and the note itself are never answered. The route needs the note live and read
+by the caller.
+
 A service-token call on these routes answers for the `owner` it names; one naming none is 422
 `no-owner`.
+
+### Comments
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/notes/{noteId}/threads?owner=` | The note's threads, oldest first, each with its comments — `{items, more}`, `more` always false |
+| POST | `/notes/{noteId}/threads?owner=` | Starts a thread: `id`, `quote`, `body` — 201 the thread; 200 the thread as it stands where the id is already held |
+| PATCH | `/notes/{noteId}/threads/{threadId}?owner=` | Resolves or reopens: `resolved` — 200 the thread |
+| DELETE | `/notes/{noteId}/threads/{threadId}?owner=` | Deletes the thread whole — 204, whether it stood or not |
+| POST | `/notes/{noteId}/threads/{threadId}/comments?owner=` | Replies: `body` — 201 the comment |
+| DELETE | `/notes/{noteId}/threads/{threadId}/comments/{commentId}?owner=` | Deletes one comment, and the thread with its last — 204, whether it stood or not |
+
+- **A thread** is `id`, `quote` (the words it was laid on, as they read then), `author` (the account key
+  that started it), `createdAt`, `resolvedAt` and `resolvedBy` (null while it is open), `anchored`
+  (whether the note's stored document holds a comment mark of the thread's id) and `comments`, oldest
+  first. **A comment** is `id`, `author`, `body` and `createdAt`. A thread id is chosen by the caller, 1
+  to 64 letters, digits, `-` and `_`, and is the `thread` attribute of the `comment` marks laid for it;
+  a comment id is made by the service. A `quote` is at most 1,000 characters and a `body` 1 to 10,000,
+  its ends trimmed; outside those, 400 `bad-request`.
+- **Who reaches them.** The reads answer the owner and every member while the note lives, and the
+  owner's own trashed note. Starting, replying, resolving and reopening need the note live and the
+  caller's writes — the owner, or a member holding `edit` (403 `forbidden` for `read`; 422 `trashed` for
+  a note in the trash). A comment is deleted by its author or the owner, and a thread whole by its
+  author or the owner; anyone else is 403 `forbidden`. A thread or comment that does not stand is 404
+  `not-found` where a write names it, and a delete of one answers 204 as the deletes of a link and a
+  member do.
+- Each write publishes `note.commented`.
 
 ### Pins
 
@@ -197,11 +228,11 @@ the note stands.
 A console call naming the owner with `owner` on the routes of one note reaches a live note shared with
 the reader:
 
-- with `read`: `GET /notes/{noteId}` (without `deleted`), `GET /notes/{noteId}/blobs/{blobId}`, the
-  reader's own pin of it and a duplicate of it;
+- with `read`: `GET /notes/{noteId}` (without `deleted`), `GET /notes/{noteId}/blobs/{blobId}`, its
+  backlinks, its threads, the reader's own pin of it and a duplicate of it;
 - with `edit`: those, and `PATCH /notes/{noteId}` without `restore`,
-  `PUT /notes/{noteId}/blobs/{blobId}`, `PUT /notes/{noteId}/text` and `PUT /notes/{noteId}/icon`, as the
-  owner's own;
+  `PUT /notes/{noteId}/blobs/{blobId}` and `PUT /notes/{noteId}/icon`, as the owner's own, and the
+  comment writes as 「Comments」 opens them;
 - with either, nothing else: a write a `read` share does not open, a trash, a purge, a restore and the
   sharing routes are 403 `forbidden`.
 
@@ -215,7 +246,7 @@ service token or the console credential (「Console」):
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/shares/{token}` | The note the link opens: `id`, `title`, `changedAt`, `size`, `expiresAt` and `doc` |
+| GET | `/shares/{token}` | The note the link opens: `id`, `title`, `changedAt`, `size`, `expiresAt` and `doc`, the document with its comment marks taken off |
 | GET | `/shares/{token}/blobs/{blobId}` | One of that note's images, as the note's own image route answers it |
 
 A token that opens nothing, an ended link's, an unknown one's, or one whose note stands in the trash, is
@@ -245,8 +276,8 @@ The note uses the contract's share page and its sharing with members; the people
 are the console's people directory, which the bundle reads in the browser, so the service calls no
 unit for them.
 
-The screens' routes are the notes, their blobs, their text and icon, their pins, what was opened, the
-search, their sharing, the share reads and the event stream. Where the credential is empty, or
+The screens' routes are the notes, their blobs, their icon, their backlinks, their threads, their pins,
+what was opened, the search, their sharing, the share reads and the event stream. Where the credential is empty, or
 the folder cannot be served, no face stands, the reason is written to the service's log, and the
 console's routes answer 404 `no-route`; the service's own routes are answered as ever.
 
@@ -259,9 +290,9 @@ which the console's routes refuse. A deployment's console probe runs it (bmo-tes
 
 `GET /events` is a server-sent stream in the platform's shape (`after` or `Last-Event-ID`, `kinds`;
 the same events as a page to `Accept: application/json`, with `after` and `limit`): `note.saved`,
-`note.trashed`, `note.restored` and `note.purged`, each carrying `noteId` and `owner`; and
-`note.shared` and `note.unshared`, carrying `noteId`, `owner` and `member`, the shared one
-`permission` too. A console reader is given the events of its own notes and of the notes shared with
+`note.trashed`, `note.restored` and `note.purged`, each carrying `noteId` and `owner`; `note.shared` and
+`note.unshared`, carrying `noteId`, `owner` and `member`, the shared one `permission` too; and
+`note.commented`, carrying `noteId`, `owner` and `thread`. A console reader is given the events of its own notes and of the notes shared with
 it when they were published, and a share's own two events where it is that share's owner or member;
 the service token reads every one. The service keeps
 the events since it started, at most the last 1000, numbered upward from its start's moment in
@@ -282,7 +313,7 @@ Beside the common codes of bmo-chat's `docs/conventions.md` (`bad-request`, `una
 | `too-large` | a document or an image past the stored byte cap (413) |
 | `version-conflict` | a save made from behind the stored version (409, answering the current metadata) |
 | `no-owner` | a service-token call naming no account (422) |
-| `bad-doc` | a `doc` that is not base64 bytes (422) |
+| `bad-doc` | a `doc` that is not a TipTap document (422) |
 | `trashed` | a write on a note standing in the trash (422) |
 | `not-trashed` | a purge of a note that does not stand in the trash (422) |
 
@@ -302,4 +333,5 @@ deployment's root, where `settings.local.toml` links to the data root's `env/not
 | `console` | `token` | the console credential; empty, the console reaches nothing |
 | `console` | `folder` | the console bundle's built folder (`client/dist` where none is set; a relative one read from where the process starts) |
 | `store` | `path` | the SQLite file; a relative one is read under the data root's `note/` folder |
-| `notes` | `max_doc_bytes` | the cap on one stored document, in bytes, and on one note's plain text |
+| `notes` | `max_doc_bytes` | the cap on one stored document, in bytes, as its JSON is stored |
+| `notes` | `max_blob_bytes` | the cap on one stored image, in bytes |

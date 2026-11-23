@@ -12,7 +12,8 @@ Community Edition, kept so the unit can follow upstream. `docs/design.md` states
   Edition) is built, read for reuse, copied or derived into the unit's code. The unit's Rust crate and
   its console bundle touch `blocksuite/` (MIT) only.
 - **The service is the guard and the truth.** Every note belongs to the account of the `Owner-Key` the
-  console relays; a note document is opaque bytes to the service.
+  console relays; the service reads a note's TipTap JSON for its title, text and links, and the client
+  alone writes it.
 - **The fork's tree stands for upstream merges.** The unit's own folders are `src/`, `tests/` (its
   harness files), `client/`, `deploy/`, `docs/` (its own documents), and the root Rust manifests and
   declaration files; the rest of the root keeps its upstream shape, unbuilt.
