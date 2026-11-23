@@ -448,7 +448,7 @@ search, links and comments, and shows the notes through a console bundle under i
 - **The editor's browser test** stands on the same stack and holds, at 1,280 and 360 pixels wide, by a
   pointer and by a finger, in Korean, what a person does with the editor, reading what the browser draws:
   writing a title and lines past the scroll's foot, the caret kept in sight and the note saved and read back;
-  a line turned into a heading and a list from the bar and a word made bold, each key standing pressed; the
+  a line turned into a heading from the bar and a word made bold, the bold key standing pressed; the
   selection toolbar standing whole inside the screen over chosen words; a note link put in with `[[`, the
   menu inside the screen, the link pressed opening the linked note and the backlink listed under it; a
   comment laid on words, the panel's thread with a reply, resolved and reopened, its words' tint following;
