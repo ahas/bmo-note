@@ -27,7 +27,8 @@ import type { Stack } from "./stack";
 // that the editor speaks on the console's message pill (docs/design.md, 「The editor speaks on the console's message
 // pill」) at a desktop's width and a phone's: a copy said through the editor's notification service and one said
 // through the fork's toast helper both stand on the pill in the table's words, the same line said again replaces
-// itself, and the helper's own box never stands. Skipped where the browser build is not on the machine.
+// itself, a line the fork fills with a figure of the moment stands in the table's words with the figure in its
+// place, and the helper's own box never stands. Skipped where the browser build is not on the machine.
 
 const ready = existsSync(chromium.executablePath());
 
@@ -63,6 +64,10 @@ const LINK_FORM = "embed-card-create-modal";
 const REFUSAL = ".form-refusal";
 // The gutter the content keeps from the screen's edges on a phone, which the pill keeps as well.
 const GUTTER_PX = 16;
+// A picture one byte over the largest file the screen lets the editor take, and the window's name for the image
+// picker a host may give the fork in place of the browser's own.
+const OVER_CAP_BYTES = 8 * 1024 * 1024 + 1;
+const IMAGE_PICKER = "__AFFINE_NATIVE_IMAGE_FILES_PICKER__";
 
 // The database block, the parts of it a reader presses, and the menu its controls open, wherever it is drawn.
 const DATABASE = "affine-database";
@@ -79,6 +84,7 @@ const SELECT_CELL = "affine-database-select-cell";
 const DATE_CELL = "affine-database-date-cell";
 const DATE_PICKER = "date-picker";
 const ROW = "data-view-table-row";
+const TABLE_CELL = "dv-table-view-cell-container";
 const STATS_CELL = "affine-database-column-stats-cell";
 const KANBAN_GROUP = "affine-data-view-kanban-group";
 const KANBAN_CARD = "affine-data-view-kanban-card";
@@ -505,6 +511,57 @@ describe.skipIf(!ready)("the editor's own words", () => {
       TEST_MS
     );
   }
+
+  test(
+    "the editor's lines that carry a figure stand on the pill in the table's words with the figure in its place",
+    async () => {
+      const page = await note(FIXTURE.notes[0]!.id);
+      const away = async () => {
+        await page.locator(`${PILL} button`).first().click();
+        await page.locator(PILL).waitFor({ state: "detached", timeout: SETTLING_MS });
+      };
+
+      // A picture over the cap, refused with the cap said where the table's line places it. The browser's own
+      // file picker stands outside the page, so the picture is handed through the picker a host may give the
+      // fork in its place, as a reader's choice would hand it.
+      await page.evaluate(
+        ({ key, bytes }) => {
+          (window as unknown as Record<string, () => Promise<File[]>>)[key] = async () => [new File([new Uint8Array(bytes)], "large.png", { type: "image/png" })];
+        },
+        { key: IMAGE_PICKER, bytes: OVER_CAP_BYTES }
+      );
+      await intoEmptyLine(page);
+      await page.keyboard.type("/");
+      await page.locator(`${SLASH}[data-testid="Image"]`).click();
+
+      const refused = withFigures(SAID["You can only upload files less than {size}"]!);
+
+      expect(await pillSays(page, refused)).toMatch(refused);
+      await away();
+
+      // A table view's cell copied, then its row chosen whole and copied, each counted where the line places it.
+      const block = await insertView(page, "Table View");
+      const cell = block.locator(`${ROW} ${TABLE_CELL}`).first();
+
+      await centred(cell);
+      await cell.click();
+      await page.keyboard.press("Control+c");
+
+      const cells = filled(SAID["{n} cell copied to clipboard"]!, { n: 1 });
+
+      expect(await pillSays(page, cells)).toBe(cells);
+
+      // The row is chosen while the table still holds the keyboard; a press on the pill would take it away.
+      await page.keyboard.press("Escape");
+      await page.keyboard.press("Control+c");
+
+      const rows = filled(SAID["{n} row copied to clipboard"]!, { n: 1 });
+
+      expect(await pillSays(page, rows)).toBe(rows);
+      await page.context().close();
+    },
+    TEST_MS
+  );
 });
 
 // The database block's own chrome, in both of the views a reader inserts: every word the block draws and every
@@ -921,12 +978,25 @@ function nothingEnglish(words: Drawn): string[] {
 
 // What the pill says once it stands saying `wanted`: its whole text, so a count of lines waiting behind it, or
 // a second line beside it, is read with it.
-async function pillSays(page: Page, wanted: string): Promise<string> {
+async function pillSays(page: Page, wanted: string | RegExp): Promise<string> {
   const pill = page.locator(PILL);
 
   await pill.filter({ hasText: wanted }).waitFor({ timeout: SETTLING_MS });
 
   return ((await pill.textContent()) ?? "").replace(/\s+/g, " ").trim();
+}
+
+// A line of the table's that carries figures, filled as the bundle fills it.
+function filled(line: string, figures: Record<string, string | number>): string {
+  return line.replace(/\{(\w+)\}/g, (whole, name: string) => (Object.hasOwn(figures, name) ? String(figures[name]) : whole));
+}
+
+// A line of the table's that carries figures, as a pattern: its words as they stand and a figure holding a digit
+// in each mark's place, for a figure the test cannot know before the fork says it.
+function withFigures(line: string): RegExp {
+  const words = line.split(/\{\w+\}/).map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+
+  return new RegExp(`^${words.join("(.*\\d.*)")}$`);
 }
 
 async function picture(page: Page, name: string): Promise<void> {

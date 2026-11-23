@@ -432,7 +432,10 @@ studied of AFFiNE and under which licence.
   says through the notification service, and reads the same word on the pill again; copies it once more
   while that line stands and reads the pill still saying the one line with nothing waiting behind it; and
   reads that the helper's own box never stands in the page. A picture of the pill over the note and of the
-  refused form is kept at each width.
+  refused form is kept at each width. At 1,280 pixels it also reads the lines the fork fills with a figure:
+  it offers the slash menu's image a picture one byte over the screen's cap and reads the table's refusal
+  with the cap said in its mark's place, then copies a table view's cell, and that cell's row chosen whole,
+  and reads the table's line for each with the count of one in its place.
 - **A browser file of its own holds 「On a phone the format bar is the one bar」** on the same stack, with the
   browser naming itself a phone, at 360 pixels wide, by a finger, in Korean. While a line is written the
   format bar stands with every key, the fork reads the agent as a phone's, and neither the fork's keyboard
@@ -520,10 +523,11 @@ studied of AFFiNE and under which licence.
   from the keys the bundle declares — take the same pill, the bundle's block copy saying the same line the
   fork's copies say.
   - The pill tells the word that an action went through or did not, and a notice of something that arrived,
-    so that is what the screen says of the editor: a copy, a refused size, a failed download or read, a
-    notice the fork raises on its own. A line that narrates a step still under way — an image's
-    download starting, or a second press while one runs, whose progress the browser shows itself — is not
-    said. A copy that went through wears the success tone and a refusal or failure the error tone; a notice
+    so that is what the screen says of the editor: a copy, an import, a refused size, a failed download,
+    read or import, a notice the fork raises on its own. A line that narrates a step still under way — an
+    image's or an attachment's download starting, or a second press while one runs, whose progress the
+    browser shows itself — is not said. A copy or an import that went through wears the success tone and a
+    refusal or failure the error tone; a notice
     the fork raises with a tone of its own keeps it, and any other line wears the info tone. Which lines are
     held back and which wear success or error is the bundle's to say, keyed by the fork's words as the
     table is, so a line the fork adds later is said in the info tone rather than lost.
@@ -532,9 +536,13 @@ studied of AFFiNE and under which licence.
     stands on the pill under the table's word for it; when the fork takes a notice back, its undo already
     taken another way, the pill lets it go, and the fork learns when the pill is done with one it asked to
     hear of. A notice the fork draws out of a template is said as the words it draws.
-  - A line whose words carry a figure of the moment — the size cap an image is refused over, a count of
-    rows copied from a table — is answered by nothing in the editor's word table and is said as the fork
-    wrote it.
+  - A line whose words carry a figure of the moment — the size cap a file is refused over, a count of rows
+    or cells copied from a table, a count of notes imported, the name of an attachment that failed to
+    download — is known by the fork's words with each figure standing as a named mark where it falls, as the
+    table keys a line that carries a value. The service finds which such line was said, answers it from the
+    table and fills each figure in where the answer places it, and hears it as the line it is. Which lines
+    carry a figure is the bundle's to say beside how each is heard; a line with a figure it does not know is
+    said as the fork filled it.
   - A form's own refusal stays in the form, beside the field it refuses, never on the pill: the link card's
     create form refusing a link that is none, the card's edit form refusing an empty title and an
     attachment's rename form refusing an empty name each draw the line under that field in the error
