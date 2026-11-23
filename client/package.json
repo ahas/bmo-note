@@ -12,7 +12,7 @@
   "scripts": {
     "bundle": "vite build --config console/vite.config.ts",
     "typecheck": "bun scripts/typecheck.ts",
-    "check": "bun install --frozen-lockfile && bun run typecheck && bun run bundle && bun test --path-ignore-patterns='tests/browser/**'",
+    "check": "bun scripts/install.ts && bun run typecheck && bun run bundle && bun test --path-ignore-patterns='tests/browser/**'",
     "prepare": "bun x nuxi prepare"
   },
   "dependencies": {

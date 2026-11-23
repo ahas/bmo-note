@@ -307,6 +307,12 @@ search, links and comments, and shows the notes through a console bundle under i
   its suggestion, mention and drag-handle menus, from the copy of the library it installs, builds them
   with its own TipTap and ProseMirror into its module, and lets every other component they draw — a
   button, an icon — resolve to the console's shared copy as any bundle's does.
+- **The bundle's packages stand hoisted, one copy of each,** as its lockfile resolves them, the layout its Bun
+  configuration names. A tree installed earlier in Bun's isolated layout keeps a store of its own beside the
+  packages, and an install over it would leave its links standing beside the hoisted copies, so the editor
+  would load ProseMirror twice; the bundle's install takes such a tree away whole, with the dev host's
+  dependency cache built over it, before installing from the lockfile, and the check, the build and the
+  testbed's setup all install through it.
 - Two screens stand under `/note`: the notes screen, and the share page a link opens
   (`/note/share/<token>`).
 - **The notes screen is one screen of two regions:** a navigator of the reader's notes beside the open

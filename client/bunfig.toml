@@ -1,3 +1,8 @@
 # The console bundle's own bun configuration. Its presence makes `client/` the folder the testbed runs the
 # bundle's test files from, the browser test among them, so they resolve the bundle's own packages.
 # The project's check leaves `tests/browser/` to the suite's browser lane (docs/design.md, 「The console surface」).
+
+# The packages stand hoisted under node_modules, one copy of each, as the lockfile resolves them, whatever layout
+# the installing Bun would choose by itself: the editor's own extensions stand on the one ProseMirror copy only so.
+[install]
+linker = "hoisted"

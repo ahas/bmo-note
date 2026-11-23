@@ -10,8 +10,9 @@ name = "bmo-note"
 languages = ["cargo", "bun"]
 # A fresh tree (a bench copy, a gate's checkout, the daily run's tree) holds none of the bundle's ignored
 # folders, and the browser files under client/ drive the dev host, which imports the bundle's packages: the
-# locked packages are installed before any unit runs.
-setup = ["cd client && bun install --frozen-lockfile"]
+# locked packages are installed before any unit runs, a tree left in another layout taken away first
+# (client/scripts/install.ts).
+setup = ["cd client && bun scripts/install.ts"]
 
 # The console bundle under client/ is a project of its own: its manifest and lockfile stand in its own folder,
 # outside any package workspace.
@@ -64,7 +65,7 @@ phase = "before-flip"
 command = '''
 set -eu
 cd client
-bun install --frozen-lockfile
+bun scripts/install.ts
 bun run bundle
 '''
 
