@@ -366,7 +366,7 @@ describe.skipIf(!ready).each(WIDTHS.flatMap((width) => SCHEMES.map((scheme) => (
       centred(measured);
 
       if (!width.narrow) {
-        for (const name of [WORDS.ask.key, WORDS.action.talk]) await hoverStaysOnKey(page, bar, bar.getByRole("button", { name, exact: true }), name);
+        for (const name of [WORDS.agent.key, WORDS.action.talk]) await hoverStaysOnKey(page, bar, bar.getByRole("button", { name, exact: true }), name);
       }
 
       const room = await bar.evaluate((element) => ({ scroll: element.scrollWidth, client: element.clientWidth }));

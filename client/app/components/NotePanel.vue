@@ -1,8 +1,7 @@
 <script setup lang="ts">
-// The column beside the open note (`docs/design.md`, 「The AI talk panel」, 「Comments」): docked beside the
-// document on a wide viewport — a column of its own, parted from the document by one line, standing in the
-// row the note fills — and rising from the bottom edge as a drawer below that width. The talk and the
-// comments each stand in it, one at a time.
+// The column beside the open note (`docs/design.md`, 「The talk panel」): docked beside the document on
+// a wide viewport — a column of its own, parted from the document by one line, standing in the row the note
+// fills — and rising from the bottom edge as a drawer below that width. The talk stands in it.
 
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import UDrawer from "@nuxt/ui/components/Drawer.vue";

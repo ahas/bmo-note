@@ -5,8 +5,7 @@ import { linesOf } from "../app/domain/text";
 
 import type { DocNode } from "../shared/types";
 
-// The note read as the talk's rows and written back from them (`docs/design.md`, 「The AI talk panel」, 「Ask
-// AI」): one row a block, an untouched row written back as the node it was, every row knowing its place.
+// The note read as the talk's rows and written back from them (`docs/design.md`, 「The talk panel」, 「Agent」): one row a block, an untouched row written back as the node it was, every row knowing its place.
 
 const text = (words: string, marks?: DocNode["marks"]): DocNode => (marks === undefined ? { type: "text", text: words } : { type: "text", text: words, marks });
 const paragraph = (...content: DocNode[]): DocNode => (content.length === 0 ? { type: "paragraph" } : { type: "paragraph", content });

@@ -1,4 +1,4 @@
-// The line protocol of the AI talk (`docs/design.md`, 「The AI talk panel」): the note as the
+// The line protocol of the talk (`docs/design.md`, 「The talk panel」): the note as the
 // supervisor sees it and answers it — one line per block, in the order they stand. This is the
 // unit's own answer grammar, not markdown at large: what a line may start with is exactly the set
 // below, and one line always stands for one block, so the patch can map every line back to its

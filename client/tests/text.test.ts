@@ -4,7 +4,7 @@ import { lineOf, opaqueLine, opaqueRow, rowOf, rowsOf, linesOf } from "../app/do
 
 import type { Row } from "../app/domain/text";
 
-// The line protocol of the AI talk (`docs/design.md`, 「The AI talk panel」): one line per block,
+// The line protocol of the talk (`docs/design.md`, 「The talk panel」): one line per block,
 // every row read back whole.
 
 describe("lineOf / rowOf", () => {

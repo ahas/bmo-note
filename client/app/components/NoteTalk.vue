@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// The talk about one note (`docs/design.md`, 「The AI talk panel」): the owner asks for a change, the
-// supervisor of his account answers with the whole note as lines, and the changed runs land in the
-// open editor at once. The talk is kept here alone — the receiver keeps no turn of it — and every
-// turn is handed with the turns before it. Where the anchored patch cannot land, the note stands as
+// The talk about one note (`docs/design.md`, 「The talk panel」): the reader asks for a change, the note
+// assistant of his account answers with the whole note as lines, and the changed runs land in the open editor at
+// once. The talk is kept here alone — nothing keeps a turn of it — and every turn is handed with the turns before
+// it. Where the anchored patch cannot land, the note stands as
 // it was and the panel says why, and the whole answer waits for the reader's word to be applied outright —
 // an image or a table in the note is kept and moved into the new body, and a refusal names what cannot be.
 //
@@ -18,15 +18,15 @@ import NotePanel from "./NotePanel.vue";
 import NoteTalkBody from "./NoteTalkBody.vue";
 import { planPatch } from "../domain/patch";
 import { rowOf } from "../domain/text";
-import { askNote, noteAnswer } from "../domain/talk";
+import { askNote, noteAnswer, unansweredKey } from "../domain/talk";
 
 import type { OpaqueKind, Rewrite } from "../domain/rows";
 import type { Op, Why } from "../domain/patch";
-import type { TalkTurn } from "../domain/talk";
+import type { AgentCall, TalkTurn } from "../domain/talk";
 
 interface Props {
-  noteId: string;
-  title: string;
+  /** The Agent the talk asks, over the open note. */
+  agent: AgentCall;
   /** The note's body now, one line per block. */
   lines: () => string[];
   /** Writes the patch's runs into the open editor. */
@@ -76,21 +76,6 @@ function namesOf(kinds: readonly OpaqueKind[], base: string[], next: string[]): 
   return parts.join(", ");
 }
 
-function reasonOf(error: unknown): string {
-  const code = (error as { data?: { code?: unknown } } | null)?.data?.code;
-
-  switch (code) {
-    case "limit":
-      return i18n.t("note.talk.unanswered_limit");
-    case "outage":
-      return i18n.t("note.talk.unanswered_outage");
-    case "not-ready":
-      return i18n.t("note.talk.unanswered_ready");
-    default:
-      return i18n.t("note.talk.unanswered");
-  }
-}
-
 async function send(): Promise<void> {
   const words = said.value.trim();
 
@@ -106,7 +91,7 @@ async function send(): Promise<void> {
   fallback.value = null;
 
   try {
-    const answer = await askNote({ noteId: props.noteId, title: props.title, lines: base, turns: earlier, said: words });
+    const answer = await askNote(props.agent, { lines: base, turns: earlier, said: words });
 
     if (answer === null) {
       failure.value = i18n.t("note.talk.no_answer");
@@ -137,7 +122,7 @@ async function send(): Promise<void> {
       failure.value = i18n.t(WHY[plan.why]);
     }
   } catch (error) {
-    failure.value = reasonOf(error);
+    failure.value = i18n.t(unansweredKey(error));
   } finally {
     busy.value = false;
   }

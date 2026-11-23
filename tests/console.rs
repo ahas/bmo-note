@@ -29,7 +29,7 @@ async fn the_served_manifest_is_read_by_the_contract_on_the_vendored_release() {
   assert_eq!(read["role"], "member");
   assert_eq!(read["ownerKey"], true);
   assert_eq!(read["events"], true);
-  assert_eq!(read["calls"], json!(["receiver"]));
+  assert_eq!(read["calls"], json!([]));
   assert_eq!(read["shareReads"], json!(["/shares/{token}", "/shares/{token}/blobs/{blobId}"]));
 
   // The face takes the console's credential, never the service's own token.

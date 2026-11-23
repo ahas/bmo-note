@@ -26,4 +26,5 @@ its JSON in the unit's own store, with its links and comment threads, and edited
   document's *content* is user data that stands in the store at runtime, never in the repository.
 - **Versions:** `0.1.0-rev.N` until a release the owner declares; no sibling version pins.
 - Depend only on the shared crates this repository's manifests name and base libraries it is
-  declared to take; other units through their documented APIs. The note service calls no unit.
+  declared to take; other units through their documented APIs. The note service calls agency alone, for the
+  Agent's asks (`docs/api.md`, 「Calls the note service makes」).

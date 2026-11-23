@@ -2,6 +2,7 @@
 //! and comment threads, answered on its own port, with the console face that shows them
 //! (`docs/design.md`, `docs/api.md`).
 
+pub mod agent;
 pub mod api;
 pub mod app;
 pub mod comments;

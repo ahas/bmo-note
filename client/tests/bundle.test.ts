@@ -56,7 +56,7 @@ describe("the words", () => {
 
   test("every key the screens ask for is held", () => {
     // The bar's own names: the marks and kinds reach the packs through template heads, written whole here.
-    const asked = new Set(sources.flatMap((path) => [...readFileSync(path, "utf8").matchAll(/["'`](note\.(?:section|sort|search|action|label|mark|kind|talk|empty|status|question|error|comment|link|editor|slash|insert|block|ask|share)\.[a-z_0-9]+)["'`]/g)].map((match) => match[1]!)));
+    const asked = new Set(sources.flatMap((path) => [...readFileSync(path, "utf8").matchAll(/["'`](note\.(?:section|sort|search|action|label|mark|kind|talk|empty|status|question|error|comment|link|editor|slash|insert|block|agent|share)\.[a-z_0-9]+)["'`]/g)].map((match) => match[1]!)));
 
     for (const mark of MARKS) asked.add(`note.mark.${mark.id}`);
     for (const kind of KINDS) asked.add(`note.kind.${kind.id}`);
@@ -163,15 +163,22 @@ describe("the screens' rows", () => {
   test("the comments key and the talk key close the format bar, and no way back stands in it", () => {
     const bar = within(templateOf("app/components/NoteToolbar.vue"), "ToolBar")[0]!;
     const editor = within(region, "NoteEditor")[0]!;
-    const keys = within(slotOf(editor, "barEnd")!, "UButton");
+    const end = slotOf(editor, "barEnd")!;
+    const list = within(templateOf("app/components/NoteCommentList.vue"), "UButton");
 
     expect(within(bar.children[0]!, "slot").map((slot) => slot.attributes.get("name"))).toEqual(["start"]);
     expect(slotOf(editor, "barStart")).toBeUndefined();
-    expect(keys.map((key) => [...key.attributes.keys()].find((name) => name.endsWith("-key")))).toEqual(["data-comments-key", "data-talk-key"]);
+    expect(within(end, "NoteCommentList")).toHaveLength(1);
+    expect(list.map((key) => [...key.attributes.keys()].find((name) => name.endsWith("-key")))).toEqual(["data-comments-key"]);
+    expect(within(end, "UButton").map((key) => [...key.attributes.keys()].find((name) => name.endsWith("-key")))).toEqual(["data-talk-key"]);
   });
 
   test("every key in the format bar is the library's small button at its own size", () => {
-    const groups = [within(within(templateOf("app/components/NoteToolbar.vue"), "ToolBar")[0]!, "UButton"), within(slotOf(within(region, "NoteEditor")[0]!, "barEnd")!, "UButton")];
+    const groups = [
+      within(within(templateOf("app/components/NoteToolbar.vue"), "ToolBar")[0]!, "UButton"),
+      within(slotOf(within(region, "NoteEditor")[0]!, "barEnd")!, "UButton"),
+      within(templateOf("app/components/NoteCommentList.vue"), "UButton").filter((key) => key.attributes.has("data-comments-key"))
+    ];
 
     for (const group of groups) expect(group.length).toBeGreaterThan(0);
 

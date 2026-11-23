@@ -10,7 +10,7 @@
   "events": true,
   "websocket": false,
   "pushKinds": [],
-  "calls": ["receiver"],
+  "calls": [],
   "relays": [],
   "shareReads": ["/shares/{token}", "/shares/{token}/blobs/{blobId}"]
 }

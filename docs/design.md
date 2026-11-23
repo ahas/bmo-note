@@ -73,9 +73,9 @@ search, links and comments, and shows the notes through a console bundle under i
 - **Everyone else is refused as a stranger:** a signed-in reader the note is not shared with, a member
   whose share was taken back, and a link that ended or never stood each find no note there, the same
   answer as for a note that does not stand, so a refusal tells nothing of what another account holds.
-- **The service does not ask who a member is.** It calls no unit, so it keeps whatever account key the
-  owner shares with; the console's people directory is what offers only the company's people, and a
-  key nobody signs in with opens the note to nobody.
+- **The service does not ask who a member is.** It calls no unit about its members, so it keeps whatever
+  account key the owner shares with; the console's people directory is what offers only the company's people,
+  and a key nobody signs in with opens the note to nobody.
 
 ## Editing and saving
 
@@ -164,35 +164,34 @@ search, links and comments, and shows the notes through a console bundle under i
 - An event reaches the note's owner and the members the note is shared with as it is published; a
   share's own two events reach its owner and that member. The console bundle subscribes through the
   console and reads the navigator again, so a note shared with a reader appears in their shared section
-  without a reload, and an open note's comments panel reads its threads again on `note.commented`. A
+  without a reload, and an open note reads its threads again on `note.commented`. A
   restart loses the ring, as every unit's does.
 
-## The AI talk panel
+## The talk panel
 
-- An open note offers a panel in which the reader talks with the supervisor of his account about that
-  one note. The panel is the note screen's own; the talk rides the receiver's one-turn road
-  (`POST /talks`), which the console relays because the bundle's manifest names the receiver under
-  `calls`. The receiver keeps no turns of such a talk, so the panel holds the conversation and hands
-  each turn with the turns before it, as the console's own talk panels do.
+- An open note offers a panel in which the reader talks about that one note with the note assistant of his own
+  account, the same agent the Agent asks (「Agent」). The panel is the note screen's own; each turn is one ask of
+  the note service's Agent route over the whole note (`docs/api.md`, 「Agent」). Nothing keeps the turns of such a
+  talk, so the panel holds the conversation and hands each turn with the turns before it.
 - The panel is named for the talk alone, with no subtitle under its name. Docked, it stands at a
   width the reader drags at its leading edge or steps with the arrow keys, between its bounds, and the
   width is kept in that browser. The reader writes in the console's chat prompt.
-- **The talk reads the note as rows,** in the note's line grammar, the screen's own protocol: one line a
-  block — a list item, a to-do item and each paragraph of a quote counting as one — in the order they
-  stand, a deeper block two spaces further in, its kind told by the mark the line opens with (headings of
-  every level, bulleted, numbered and to-do items, quotes, code with its language), and a divider, an
-  image and a table each named by a line of its own that stands for the block whole. The topic names the
-  note by id and title and carries the whole body as that line list. The supervisor answers with that same
-  line list edited — one fenced block holding the whole new text, in the protocol the panel's own heading
-  states. To rename the note, its answer puts the new title on the fenced block's first line under a
-  `[[title]]` mark, above the lines; the title is written into the document's title node, so it rides the
-  same save as a body change does, and a rename with no body change is an answer that changes no line. The
-  mark is stripped before the lines reach the patch, and a paragraph whose own words open with it wears the
-  protocol's escape, so no note line ever reads as a rename. The note never stands rewritten by a partial
-  answer: where the fenced text is missing the panel shows the answer as words and changes nothing.
-- The unit's service sees no AI route. The supervisor's words enter the note through the open editor and
-  its versioned save, the door every edit goes through: this is the chosen shape of "the supervisor edits
-  the note through the unit's API".
+- **The talk reads the note as rows,** in the note's line grammar, the screen's own protocol: one line a block
+  — a list item, a to-do item and each paragraph of a quote counting as one — in the order they stand, a
+  deeper block two spaces further in, its kind told by the mark the line opens with (headings of every level,
+  bulleted, numbered and to-do items, quotes, code with its language), and a divider, an image and a table
+  each named by a line of its own that stands for the block whole. The topic names the note by id and title
+  and carries the whole body as that line list. The supervisor answers with that same line list edited — one
+  fenced block holding the whole new text, in the protocol the panel's own heading states, which the note
+  service hands the agent as its instructions. To rename the note, its answer puts the new title on the fenced
+  block's first line under a `[[title]]` mark, above the lines; the title is written into the document's title
+  node, so it rides the same save as a body change does, and a rename with no body change is an answer that
+  changes no line. The mark is stripped before the lines reach the patch, and a paragraph whose own words open
+  with it wears the protocol's escape, so no note line ever reads as a rename. The note never stands rewritten
+  by a partial answer: where the fenced text is missing the panel shows the answer as words and changes
+  nothing.
+- The agent's words enter the note through the open editor and its versioned save, the door every edit goes
+  through: the service hands the agent the lines and hands its answer back, and never writes a note from it.
 - A change lands as a patch, never a dump: the panel diffs the returned lines against the base lines
   the talk was asked over and applies the changed ranges to the current document, each range anchored
   by the untouched lines around it. A block whose line the patch leaves untouched stands as it stood, its
@@ -215,33 +214,38 @@ search, links and comments, and shows the notes through a console bundle under i
   by the row it stands in, so the note keeps a readable column while the row can give one, and below
   that the panel holds the narrowest column a chat line and its input read in. The width the reader
   drags stands whole while there is room for it and comes back when a wider row returns. Its key stands
-  at the format bar's trailing edge, and the panel closes by its own close key. The talk panel and the
-  comments panel share that column: opening one puts the other away. A turn whose panel is closed still
-  stands, and its change lands in the note. The talk is kept in the screen's memory alone: leaving the
+  at the format bar's trailing edge, and the panel closes by its own close key. A turn whose panel is closed
+  still stands, and its change lands in the note. The talk is kept in the screen's memory alone: leaving the
   note drops it, the record of the talk is the note's own saved states.
 
-## Ask AI
+## Agent
 
-- Ask AI acts on a passage: the blocks the selection covers, the block under the caret where nothing
-  is selected, or the whole note where the editor holds neither. It is reached from the selection
-  toolbar the editor floats over a selection and from the format bar's own AI key, both opening the one
-  menu under the passage — the shape of Nuxt UI's editor AI pattern, a menu of set actions and a line of
-  one's own words over the words chosen.
-- The menu offers set actions in groups — edit (improve the writing, fix spelling, fix grammar, make
-  it longer, make it shorter, a plainer or a more formal tone), translate (Korean, English, Japanese),
-  and write from it (continue writing, summarize, explain, an outline, brainstorm ideas) — and a line
-  in which the reader asks in his own words. Each set action is a rule the bundle states in English;
-  the menu shows it in the reader's language.
-- The ask rides the same receiver road as the talk panel, as a one-turn talk whose topic carries the
-  note's id and title, the action's rule and the passage in the note's line grammar. The answer is
-  one fenced block in that grammar; an answer with none is shown as words and offers nothing to place.
-- The result stands under the passage before anything changes. The reader replaces the passage with
-  it, inserts it below the passage, asks again, asks a further change in his own words, or discards
-  it. A placed result enters the document as one transaction through the same row writer the talk's
-  patch uses, so the autosave carries it and one undo takes it back. A passage holding an image or a
-  table is never replaced, since no line brings either back; its result can still be inserted below.
-- The ask's turns are held while the result stands and dropped when it is placed or discarded; the
-  service sees no AI route, as for the talk panel.
+- **The Agent acts on a passage:** the blocks the selection covers, the block under the caret where nothing is
+  selected, or the whole note where the editor holds neither. It is reached from the selection toolbar the
+  editor floats over a selection and from the format bar's own Agent key, both opening the one menu under the
+  passage — the shape of Nuxt UI's editor AI pattern, a menu of set actions and a line of one's own words over
+  the words chosen. Its keys and its menu are named Agent in every language.
+- The menu offers set actions in groups — edit (improve the writing, fix spelling, fix grammar, make it longer,
+  make it shorter, a plainer or a more formal tone), translate (Korean, English, Japanese), and write from it
+  (continue writing, summarize, explain, an outline, brainstorm ideas) — and a line in which the reader asks in
+  his own words. Each set action is a rule the bundle states in English; the menu shows it in the reader's
+  language.
+- **The note assistant answers.** An ask goes to the note service's Agent route (`docs/api.md`, 「Agent」) with
+  the passage in the note's line grammar, the rule or the reader's words and the rounds before it; the service
+  asks an agent of agency's `note-assistant` role under the reader's own account — his own BMO's account for a
+  member, the deployment's for the platform administrator — on a session that opens on the service's own
+  instructions and holds no tool, so the agent reads the passage it is handed and no other note. The role's
+  road is the deployment's default answerer's (agency's `docs/agent-roles.md`, 「The note-assistant role」).
+  The answer is one fenced block in the line grammar; an answer with none is shown as words and offers nothing
+  to place.
+- The result stands under the passage before anything changes. The reader replaces the passage with it,
+  inserts it below the passage, asks again, asks a further change in his own words, or discards it. A placed
+  result enters the document as one transaction through the same row writer the talk's patch uses, so the
+  autosave carries it and one undo takes it back. A passage holding an image or a table is never replaced,
+  since no line brings either back; its result can still be inserted below.
+- The ask's rounds are held while the result stands and dropped when it is placed or discarded. An ask that
+  finds no agency named, or whose agent came back with nothing, says so in one line under the passage with the
+  key that asks again.
 
 ## Note links
 
@@ -265,10 +269,12 @@ search, links and comments, and shows the notes through a console bundle under i
 ## Comments
 
 - **A comment is laid on words.** The reader chooses a run of words and presses the comment key of the
-  selection toolbar; the comments panel opens on a new thread's field, and the thread is made when its
-  first comment is sent. The service makes the thread first, under an id the screen chose, and the
-  screen then lays the comment mark carrying that id over the words, which the autosave stores with the
-  document. The mark is the anchor: it follows the words as the note is edited around them.
+  selection toolbar; the lines of the note part under the line holding the words — under a table where the
+  words stand in its cell — and a new thread's field stands in the space between them, in the flow of the
+  document, the words chosen wearing the chosen tint. The thread is made when its first comment is sent: the
+  service makes the thread first, under an id the screen chose, and the screen then lays the comment mark
+  carrying that id over the words, which the autosave stores with the document. The mark is the anchor: it
+  follows the words as the note is edited around them.
 - **A thread** holds the words it was laid on as they read then, its comments oldest first — each its
   author, its words and its moment — and whether it is resolved, by whom and when. Replies go under the
   thread's last comment. Resolving puts the thread away and reopening brings it back, its comments
@@ -278,27 +284,32 @@ search, links and comments, and shows the notes through a console bundle under i
   author deletes his own comment and the owner deletes any; a thread whose comments are all deleted goes
   with its last, and the owner or the thread's author deletes a thread whole, which takes its mark out of
   the document.
-- **The comments panel** stands where the talk panel stands — docked beside the note on a wide screen, a
-  drawer from the bottom edge on a phone, the two sharing the one column — opened from the comment key on
-  the bar's trailing edge, which carries the count of open threads, and from the comment key over a
-  selection. It lists the open threads in the order their words stand in the note, then the threads whose
-  words were deleted from the note, each under a line saying so, and the resolved threads in a section of
-  their own, folded. Each thread is its quoted words, its comments with their authors' names as the
-  people directory answers them, its reply field and its actions: resolve or reopen, and the deletes the
-  reader may make.
-- **The marks and the panel answer each other.** Words under an open thread's mark wear the comment tint;
-  a resolved thread's words wear none. Pressing marked words opens the panel on that thread, and pressing
-  a thread in the panel chooses its words in the note and brings them into the scroll.
-- The panel reads the threads when it opens and again on each `note.commented` event of the note, so a
-  member's reply reaches an open panel without a reload.
+- **A thread opens in the note, under its words.** Pressing an open thread's marked words parts the lines
+  under them as a new thread's field does, and the thread stands in the gap: one box, its head on one line —
+  the word for comments, resolve or reopen, the delete of the thread where the reader may make it, and the
+  close key — then its comments with their authors' names as the people directory answers them, each with its
+  delete where the reader may make it, then the reply field with its send key. The box keeps the console's
+  tight spacing and no margin beyond the one line of room that parts it from the lines around it. The words of
+  the thread standing open wear the chosen tint, resolved or not. The close key, Escape and the back gesture
+  put the gap away and the lines close back; a field never sent goes with it. One gap stands at a time:
+  opening another thread, or a new field, closes the one standing.
+- **The comments key** stands on the format bar's trailing edge with the count of open threads and opens a
+  short list of the note's threads: the open ones in the order their words stand, then the ones whose words
+  were deleted from the note under a line saying so, then the resolved ones under their own head with their
+  count, each its quoted words on one line and how many comments it holds. Choosing one opens it in the note:
+  under its words, resolved or not, and at the note's end for one whose words were deleted, which shows its
+  quoted words under a line saying so. There is no comments panel.
+- **The marks answer the threads.** Words under an open thread's mark wear the comment tint; a resolved
+  thread's words wear none, and are reached from the comments list.
+- The screen reads the threads when the note opens and again on each `note.commented` event of the note, so a
+  member's reply reaches an open thread without a reload.
 
 ## The console surface
 
 - The bundle keeps bmo-ui's console plugin contract (bmo-ui `docs/console-bundles.md`). Within it the
-  note asks for the member role and an owner key on every call the screens make, and names one other
-  service under `calls`, the receiver, which the AI talk panel speaks through; the bundle calls nothing
-  else beside its own service, and reads the console's people directory for the share dialog's members
-  and the comments' authors. `docs/api.md`, 「Console」, names the rest of what the note chooses.
+  note asks for the member role and an owner key on every call the screens make, and names no other service
+  under `calls`: the bundle calls its own service alone, the talk panel and the Agent among it, and reads the
+  console's people directory for the share dialog's members and the comments' authors. `docs/api.md`, 「Console」, names the rest of what the note chooses.
 - **The bundle builds its editor into itself.** The console shares Nuxt UI's components with every bundle,
   each resolved to the console's own copy, but the editor's components carry the TipTap and ProseMirror
   modules with them, and the editor's own extensions — the title node, the comment mark, the note link,
@@ -394,7 +405,7 @@ search, links and comments, and shows the notes through a console bundle under i
 - The notes screen fills the console's content area, with no cap of its own: the navigator is a list
   reaching its region's edges, and the note region releases its width to the editor, whose column the
   screen caps at a reading width unless the note stands at full width.
-- **The format bar.** The editor stands under a format bar of the bundle's own: Ask AI leading it; the kind
+- **The format bar.** The editor stands under a format bar of the bundle's own: the Agent leading it; the kind
   of the block under the caret chosen from bmo-ui's one select among text, three headings, three lists,
   quote and code; the inline marks bold, italic, underline, strike and code; an image upload and a table
   insert. Each drives the editor's own commands, so the bar, the keys and the slash menu all ride one
@@ -407,7 +418,7 @@ search, links and comments, and shows the notes through a console bundle under i
   button at its own size, an icon-only key its small square, centred in the row with its hover and press
   filling its own shape, never a cell stretched to the row's height. The image key opens a file input of
   the bundle's own, held hidden.
-- **The selection toolbar** floats over words chosen: Ask AI, the comment key, the link key, and the marks
+- **The selection toolbar** floats over words chosen: the Agent, the comment key, the link key, and the marks
   bold, italic, underline, strike and code, each a small key named in its tooltip. The link key opens a
   field for the address under the bar, which Enter lays on the words and an empty field takes off. The
   toolbar stands whole inside the screen at every width, wrapping its keys into a second row where the
@@ -431,14 +442,14 @@ search, links and comments, and shows the notes through a console bundle under i
   notes menu — is a key of the bundle's pack, answered in the console's language like every other word of
   the bundle; the editor carries no words of its own.
 - **The screen speaks on the console's message pill** (bmo-ui's island, `docs/components.md`, 「Messages」):
-  a copy of a block, a link copied, an image that could not be added or was refused over the cap, an Ask
-  AI result that could not be placed. A copy wears the success tone and a refusal or failure the error
+  a copy of a block, a link copied, an image that could not be added or was refused over the cap, an Agent
+  result that could not be placed. A copy wears the success tone and a refusal or failure the error
   tone.
 - The screen is read in the console's screen mode and keeps none of its own: the editor and every part of
   the bundle are drawn from the console's tokens, so they stand in the mode the console stands in.
 - **The screens' browser test holds them to these rows.** It builds the note service from the checkout,
-  starts it on a settings folder and a store of its own, starts the bundle's dev host relaying to it as
-  the console would, with a stand-in receiver of its own that answers a talk with a fenced block, writes a
+  starts it on a settings folder and a store of its own, naming a stand-in agency of its own whose agent answers
+  every ask with a fenced block, starts the bundle's dev host relaying to it as the console would, writes a
   few notes of realistic Korean titles and text through the relay, and drives the screen in a real browser
   at 1,280 and 360 pixels wide, in the light and the dark scheme: the navigator with every section and the
   trash at its foot; a note open, its bar holding the state at its leading end and the star, the share key
@@ -457,9 +468,11 @@ search, links and comments, and shows the notes through a console bundle under i
   a line turned into a heading from the bar and a word made bold, the bold key standing pressed; the
   selection toolbar standing whole inside the screen over chosen words; a note link put in with `[[`, the
   menu inside the screen, the link pressed opening the linked note and the backlink listed under it; a
-  comment laid on words, the panel's thread with a reply, resolved and reopened, its words' tint following;
-  and Ask AI over a chosen line against the stand-in receiver, its result shown under the passage and
-  inserted below it. It keeps a picture of each.
+  comment laid on words, its field and then its thread standing in the document under the commented line and
+  above the next, answered, resolved and reopened in place with its words' tint following, closed with the lines
+  closing back, and opened again from its marked words and from the comments list; and the Agent over a chosen
+  line against the stand-in agency, its result shown under the passage and inserted below it. It keeps a
+  picture of each.
 
 ## Sharing on the screens
 
@@ -474,9 +487,9 @@ search, links and comments, and shows the notes through a console bundle under i
     service, each member drawn by the name the directory answers for the key, or the key itself where
     it answers none. Found without the directory, the dialog shares by link alone.
 - **A shared note opens as its permission allows.** Opened by a `read` member, the document stands
-  read only: the format bar keeps its keys disabled, the talk key, Ask AI, the selection toolbar, the
+  read only: the format bar keeps its keys disabled, the talk key, the Agent, the selection toolbar, the
   share key and the icon key do not stand, nothing is saved, and the bar's state says the note is read
-  only where it would tell the save state; the comments panel opens to read. Opened by an `edit` member,
+  only where it would tell the save state; a thread opens under its words to read. Opened by an `edit` member,
   the screen is the owner's but for the share key and moving the note to the trash. Either member pins,
   copies the link of and duplicates the note as their own.
 - **The share page stands with no frame of the console's,** its own bar holding the note's title, and
@@ -487,7 +500,7 @@ search, links and comments, and shows the notes through a console bundle under i
   the screens' test, it drives the share dialog in a real browser: the owner makes a link and the share
   page opens the note read only with no format bar; the owner finds a member in the people directory and
   shares the note; the member finds it in the navigator's shared section and opens it read only, with no
-  share, talk or AI key; a reader it is not shared with finds no note; and once the owner takes the
+  share, talk or Agent key; a reader it is not shared with finds no note; and once the owner takes the
   member off, the member finds no note either. The dev host stands in for the console's people directory
   with a few made-up people, and a browser names the reader the relay presents by a cookie of the dev
   host's own, so one test acts as each of the three accounts.
@@ -524,7 +537,7 @@ search, links and comments, and shows the notes through a console bundle under i
   the pins keep the order they were pinned in.
 - Search reads titles and the words of the document; the words inside an image are not searched.
 - A note link shows the title its note bore when it was linked.
-- The talk and Ask AI read and write a block's words, not its inline marks: a block they rewrite stands as
+- The talk and the Agent read and write a block's words, not its inline marks: a block they rewrite stands as
   plain words of its kind.
 
 ## Deployment shape
@@ -538,3 +551,6 @@ search, links and comments, and shows the notes through a console bundle under i
   public name under the platform's domain, no DNS record and no proxy host. A note shared by link is
   read on its share page through the console's own name, the way drive, theater and artifact share,
   and the console relays the page's reads to the service with no sign-in.
+- The Agent and the talk reach agency's control port at the address the settings name, with the token the
+  data root's `env/` holds under the name they give (`docs/api.md`, 「Settings」); a deployment naming no
+  agency has the Agent answer that no agent stands.

@@ -5,8 +5,9 @@
 The platform's editable notes as one service: each note a rich-text document of Nuxt UI's editor, kept as its
 TipTap JSON with its own metadata in the unit's SQLite store; created, edited and found again from the web
 console's sidebar, with notes linked to one another by `[[` or `@`, the notes linking to each listed under it,
-comment threads laid on words, and Ask AI and the talk panel over a note; and the console plugin bundle that
-shows them, built from this repository. `docs/design.md` states what it is and `docs/api.md` its boundary.
+comment threads laid on words, and the Agent and the talk panel over a note, both answered by the note
+assistant of the reader's own account; and the console plugin bundle that shows them, built from this
+repository. `docs/design.md` states what it is and `docs/api.md` its boundary.
 
 ## Tests
 

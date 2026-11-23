@@ -1,21 +1,22 @@
 <script setup lang="ts">
-// Ask AI over one passage (`docs/design.md`, 「Ask AI」): the menu of set actions and a line for the
-// reader's own words, then the result under the passage before anything changes. The reader replaces the
+// The Agent over one passage (`docs/design.md`, 「Agent」): the menu of set actions and a line for the reader's
+// own words, then the result under the passage before anything changes. The reader replaces the
 // passage with it, inserts it below, asks again, asks a further change, or discards it. The rounds over
 // one passage are held while its result stands and dropped when it is placed or discarded.
 
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
-import { ASK_ACTIONS, ASK_GROUPS, askPassage } from "../domain/ask";
+import { ASK_ACTIONS, ASK_GROUPS, askPassage } from "../domain/agent";
+import { unansweredKey } from "../domain/talk";
 
 import type { CommandPaletteGroup, CommandPaletteItem } from "@nuxt/ui";
-import type { AskAnswer } from "../domain/ask";
-import type { TalkTurn } from "../domain/talk";
+import type { AskAnswer } from "../domain/agent";
+import type { AgentCall, TalkTurn } from "../domain/talk";
 
 interface Props {
-  noteId: string;
-  title: string;
+  /** The Agent the menu asks, over the open note. */
+  agent: AgentCall;
   /** The passage as lines in the note's grammar; null while none is taken. */
   passage: string[] | null;
   /** Whether the passage holds an image or a table, which no line brings back. */
@@ -56,9 +57,9 @@ const groups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => {
   const own = search.value.trim();
   const sets = ASK_GROUPS.map((group) => ({
     id: group,
-    label: i18n.t(`note.ask.group.${group}`),
+    label: i18n.t(`note.agent.group.${group}`),
     items: ASK_ACTIONS.filter((action) => action.group === group).map((action) => ({
-      label: i18n.t(`note.ask.action.${action.id}`),
+      label: i18n.t(`note.agent.action.${action.id}`),
       icon: action.icon,
       onSelect: () => void run(action.rule)
     }))
@@ -71,26 +72,11 @@ const groups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => {
     {
       id: "own",
       ignoreFilter: true,
-      items: [{ label: i18n.t("note.ask.own", { words: own }), icon: "i-material-symbols-send", onSelect: () => void run(own) }]
+      items: [{ label: i18n.t("note.agent.own", { words: own }), icon: "i-material-symbols-send", onSelect: () => void run(own) }]
     },
     ...sets
   ];
 });
-
-function reasonOf(error: unknown): string {
-  const code = (error as { data?: { code?: unknown } } | null)?.data?.code;
-
-  switch (code) {
-    case "limit":
-      return i18n.t("note.talk.unanswered_limit");
-    case "outage":
-      return i18n.t("note.talk.unanswered_outage");
-    case "not-ready":
-      return i18n.t("note.talk.unanswered_ready");
-    default:
-      return i18n.t("note.talk.unanswered");
-  }
-}
 
 /** One round: the instruction over the passage, with the rounds before it. */
 async function run(words: string): Promise<void> {
@@ -100,7 +86,7 @@ async function run(words: string): Promise<void> {
   stage.value = "asking";
 
   try {
-    const got = await askPassage({ noteId: props.noteId, title: props.title, passage: props.passage, instruction: words, turns: turns.value });
+    const got = await askPassage(props.agent, { passage: props.passage, instruction: words, turns: turns.value });
 
     if (got === null) {
       failure.value = i18n.t("note.talk.no_answer");
@@ -113,7 +99,7 @@ async function run(words: string): Promise<void> {
     answer.value = got;
     stage.value = "result";
   } catch (error) {
-    failure.value = reasonOf(error);
+    failure.value = i18n.t(unansweredKey(error));
     stage.value = "failed";
   }
 }
@@ -162,7 +148,7 @@ const placeable = computed(() => answer.value?.lines !== null && answer.value?.l
         v-model:search-term="search"
         :groups="groups"
         icon="i-material-symbols-auto-awesome-outline"
-        :placeholder="$t('note.ask.placeholder')"
+        :placeholder="$t('note.agent.placeholder')"
         :close="false"
         class="max-h-96"
       />
@@ -170,7 +156,7 @@ const placeable = computed(() => answer.value?.lines !== null && answer.value?.l
       <div v-else-if="stage === 'asking'" role="status" class="flex flex-col gap-3 p-4">
         <p class="flex items-center gap-2 text-sm text-muted">
           <UIcon name="i-material-symbols-auto-awesome-outline" class="size-4 shrink-0 animate-pulse text-primary" />
-          {{ $t("note.ask.writing") }}
+          {{ $t("note.agent.writing") }}
         </p>
         <USkeleton class="h-4 w-full rounded-sm" />
         <USkeleton class="h-4 w-4/5 rounded-sm" />
@@ -180,8 +166,8 @@ const placeable = computed(() => answer.value?.lines !== null && answer.value?.l
       <div v-else-if="stage === 'failed'" role="alert" class="flex flex-col gap-3 p-4">
         <p class="text-sm text-error">{{ failure }}</p>
         <div class="flex justify-end gap-2">
-          <UButton size="sm" color="neutral" variant="ghost" :label="$t('note.ask.discard')" @click="open = false" />
-          <UButton size="sm" color="neutral" variant="subtle" icon="i-material-symbols-refresh" :label="$t('note.ask.again')" @click="again" />
+          <UButton size="sm" color="neutral" variant="ghost" :label="$t('note.agent.discard')" @click="open = false" />
+          <UButton size="sm" color="neutral" variant="subtle" icon="i-material-symbols-refresh" :label="$t('note.agent.again')" @click="again" />
         </div>
       </div>
 
@@ -195,13 +181,13 @@ const placeable = computed(() => answer.value?.lines !== null && answer.value?.l
           <p class="text-sm break-words whitespace-pre-wrap text-highlighted">{{ shown }}</p>
         </div>
 
-        <p v-if="placeable && props.opaque" class="px-4 pb-2 text-sm text-muted">{{ $t("note.ask.opaque") }}</p>
+        <p v-if="placeable && props.opaque" class="px-4 pb-2 text-sm text-muted">{{ $t("note.agent.opaque") }}</p>
 
         <div class="flex flex-wrap items-center justify-end gap-2 border-t border-default px-3 py-2">
-          <UButton size="sm" color="neutral" variant="ghost" :label="$t('note.ask.discard')" @click="open = false" />
-          <UButton size="sm" color="neutral" variant="ghost" icon="i-material-symbols-refresh" :label="$t('note.ask.again')" @click="again" />
-          <UButton size="sm" color="neutral" variant="subtle" icon="i-material-symbols-vertical-align-bottom" :disabled="!placeable" :label="$t('note.ask.below')" @click="place('below')" />
-          <UButton size="sm" icon="i-material-symbols-swap-horiz" :disabled="!placeable || props.opaque" :label="$t('note.ask.replace')" @click="place('replace')" />
+          <UButton size="sm" color="neutral" variant="ghost" :label="$t('note.agent.discard')" @click="open = false" />
+          <UButton size="sm" color="neutral" variant="ghost" icon="i-material-symbols-refresh" :label="$t('note.agent.again')" @click="again" />
+          <UButton size="sm" color="neutral" variant="subtle" icon="i-material-symbols-vertical-align-bottom" :disabled="!placeable" :label="$t('note.agent.below')" @click="place('below')" />
+          <UButton size="sm" icon="i-material-symbols-swap-horiz" :disabled="!placeable || props.opaque" :label="$t('note.agent.replace')" @click="place('replace')" />
         </div>
 
         <div class="border-t border-default p-2">
@@ -211,8 +197,8 @@ const placeable = computed(() => answer.value?.lines !== null && answer.value?.l
             :rows="1"
             :maxrows="4"
             :autofocus="false"
-            :placeholder="$t('note.ask.further')"
-            :aria-label="$t('note.ask.further')"
+            :placeholder="$t('note.agent.further')"
+            :aria-label="$t('note.agent.further')"
             @submit="askFurther"
           >
             <UChatPromptSubmit size="sm" :disabled="further.trim() === ''" :aria-label="$t('note.action.send')" />

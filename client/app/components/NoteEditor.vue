@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // The note editor (`docs/design.md`, 「The console surface」): Nuxt UI's editor over the note's TipTap document,
 // with the bundle's format bar over it, the selection toolbar over chosen words, the slash menu, the note-link
-// menus `[[` and `@` open, the drag handle beside a block under a pointer, Ask AI over a passage, and the page
-// head and the backlinks standing in the document's own scroll around it. A note opened read only — shared
+// menus `[[` and `@` open, the drag handle beside a block under a pointer, the Agent over a passage, the comment
+// gap that parts the lines under a comment's words for its form or its thread, and the page head and the
+// backlinks standing in the document's own scroll around it. A note opened read only — shared
 // with the reader to read, or on its share page — stands with its edits refused, the bar's keys disabled and
 // none of the writing chrome.
 
@@ -14,13 +15,13 @@ import UEditorMentionMenu from "@nuxt/ui/components/EditorMentionMenu.vue";
 import UEditorSuggestionMenu from "@nuxt/ui/components/EditorSuggestionMenu.vue";
 import { useIsland } from "bmo-ui/app/domain/island";
 
-import NoteAsk from "./NoteAsk.vue";
+import NoteAgent from "./NoteAgent.vue";
 import NoteSelectionBar from "./NoteSelectionBar.vue";
 import NoteToolbar from "./NoteToolbar.vue";
 import { ImageRefused } from "../domain/blobs";
 import { countWords } from "../domain/count";
-import { commentPlaces, commentRange, dropComment, snapshotOf, writeDoc } from "../domain/document";
-import { COMMENT_TINT, noteExtensions } from "../domain/extensions";
+import { commentPlaces, dropComment, snapshotOf, writeDoc } from "../domain/document";
+import { COMMENT_GAP, COMMENT_TINT, noteExtensions } from "../domain/extensions";
 import { INSERTS, insertInto, KINDS, turnInto } from "../domain/format";
 import { historyDirectionOf } from "../domain/history";
 import { linesOfRun, patchedDoc, retitledDoc, rewrittenDoc, rowsOfDoc, runAt } from "../domain/rows";
@@ -31,6 +32,8 @@ import type { StarterKitOptions } from "@tiptap/starter-kit";
 import type { EditorView } from "@tiptap/pm/view";
 import type { DropdownMenuItem } from "@nuxt/ui";
 import type { BlobSource } from "../domain/blobs";
+import type { GapTarget } from "../domain/extensions";
+import type { AgentCall } from "../domain/talk";
 import type { Holding } from "../domain/count";
 import type { InsertId, KindId } from "../domain/format";
 import type { LinkTarget } from "../domain/links";
@@ -62,11 +65,15 @@ const props = withDefaults(
     href: (target: LinkTarget) => string;
     /** The notes the link menus offer for what follows the mark; recent notes for nothing. */
     findNotes?: (term: string) => Promise<LinkCandidate[]>;
-    /** The threads whose words wear the comment tint, and the one standing chosen in the panel. */
+    /** The threads whose words wear the comment tint, and the one standing open under its line. */
     openThreads?: readonly string[];
     chosenThread?: string | null;
+    /** What the comment gap opens under, the screen's `gap` slot standing in it; null while it is closed. */
+    gap?: GapTarget;
+    /** The Agent the menu asks over a passage; none where the reader may not write. */
+    agent?: AgentCall;
   }>(),
-  { readonly: false, toolbar: true, comments: false, findNotes: undefined, openThreads: () => [], chosenThread: null }
+  { readonly: false, toolbar: true, comments: false, findNotes: undefined, openThreads: () => [], chosenThread: null, gap: null, agent: undefined }
 );
 
 const emit = defineEmits<{
@@ -88,10 +95,16 @@ const editor = shallowRef<Editor | null>(null);
 const toolbarRef = shallowRef<InstanceType<typeof NoteToolbar> | null>(null);
 const working = ref(false);
 
+// The one element the comment gap stands in, which the editor places between the lines and the screen draws into.
+const gapPlace = document.createElement("div");
+
+gapPlace.className = "note-comment-gap";
+
 const extensions = noteExtensions({
   href: (target) => props.href(target),
   untitled: i18n.t("note.label.untitled"),
-  image: (blobId) => props.blobs.address(blobId)
+  image: (blobId) => props.blobs.address(blobId),
+  gap: gapPlace
 });
 
 // The starter kit as the note takes it: the document is the note's own (a title node first), every heading
@@ -129,6 +142,7 @@ watch(
 
     editor.value = made;
     tint();
+    placeGap();
     emit("ready");
   }
 );
@@ -322,15 +336,15 @@ function askComment(held: Editor): void {
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// Ask AI (`docs/design.md`, 「Ask AI」): the passage is taken as the key is pressed — the rows the selection
+// The Agent (`docs/design.md`, 「Agent」): the passage is taken as the key is pressed — the rows the selection
 // covers, the one under the caret, or the whole note where the caret stands in the title — and the result is
 // placed over that run or below it.
 
-const asking = ref(false);
+const agentOpen = ref(false);
 const passage = shallowRef<{ at: number; count: number; lines: string[]; opaque: boolean } | null>(null);
 const anchor = shallowRef<{ getBoundingClientRect: () => DOMRect } | undefined>(undefined);
 
-function openAsk(): void {
+function openAgent(): void {
   const held = editor.value;
 
   if (held === null) return;
@@ -352,12 +366,12 @@ function openAsk(): void {
       return new DOMRect(place.left, place.top, 0, place.bottom - place.top);
     }
   };
-  asking.value = true;
+  agentOpen.value = true;
 }
 
 // The selection toolbar stands down while the menu stands under the words, and back once it goes; a
 // transaction that changes nothing asks the toolbar to read where it stands.
-watch(asking, async () => {
+watch(agentOpen, async () => {
   await nextTick();
 
   const held = editor.value;
@@ -365,7 +379,7 @@ watch(asking, async () => {
   if (held !== null && !held.isDestroyed) held.view.dispatch(held.state.tr.setMeta("addToHistory", false));
 });
 
-function placeAsked(how: "replace" | "below", lines: string[]): void {
+function placeAnswer(how: "replace" | "below", lines: string[]): void {
   const taken = passage.value;
 
   if (taken === null) return;
@@ -412,7 +426,7 @@ function rename(title: string): boolean {
 
 // ---------------------------------------------------------------------------------------------------------
 // The history keys, caught on the way down: they answer wherever on the screen the focus stands, and a plain
-// text field — the talk's, the ask's and the comments' own inputs — keeps the key for its own undo.
+// text field — the talk's, the Agent's and the comments' own inputs — keeps the key for its own undo.
 
 function standsInTextField(target: EventTarget | null): boolean {
   const tag = (target as { tagName?: string } | null)?.tagName;
@@ -468,6 +482,33 @@ function tint(): void {
 
 watch(() => [props.openThreads, props.chosenThread], tint, { deep: true });
 
+// The comment gap, opened under the words the screen names and closed, then brought into the scroll.
+function placeGap(): void {
+  const held = editor.value;
+
+  if (held === null || held.isDestroyed) return;
+
+  held.view.dispatch(held.state.tr.setMeta(COMMENT_GAP, { target: props.gap }).setMeta("addToHistory", false));
+}
+
+watch(
+  () => props.gap,
+  async () => {
+    placeGap();
+    await nextTick();
+
+    if (props.gap !== null && gapPlace.isConnected) gapPlace.scrollIntoView({ block: "nearest" });
+  },
+  { deep: true }
+);
+
+/** The range a new thread's words stand in now: the gap's own, which followed the edits made around them. */
+function draftRange(fallback: { from: number; to: number }): { from: number; to: number } {
+  const target = editor.value === null ? null : (COMMENT_GAP.getState(editor.value.state)?.target ?? null);
+
+  return target !== null && "draft" in target ? target.draft : fallback;
+}
+
 defineExpose({
   /** The document as the save writes it, and the title it stands under. */
   snapshot: (): { doc: DocNode; title: string } | null => (editor.value === null ? null : snapshotOf(editor.value)),
@@ -480,26 +521,19 @@ defineExpose({
   rename,
   /** Lays thread `thread`'s comment mark over the range that was chosen. */
   markComment: (thread: string, range: { from: number; to: number }): boolean =>
-    editor.value?.chain().setTextSelection(range).setMark("comment", { thread }).run() ?? false,
+    editor.value?.chain().setTextSelection(draftRange(range)).setMark("comment", { thread }).run() ?? false,
   /** Takes thread `thread`'s comment marks off the document. */
   unmarkComment: (thread: string): void => {
     if (editor.value !== null) dropComment(editor.value, thread);
   },
   /** Where each thread's words first stand. */
-  commentPlaces: (): Map<string, number> => (editor.value === null ? new Map() : commentPlaces(editor.value)),
-  /** Chooses a thread's words in the note and brings them into the scroll. */
-  showThread: (thread: string): void => {
-    const held = editor.value;
-    const range = held === null ? null : commentRange(held, thread);
-
-    if (held !== null && range !== null) held.chain().setTextSelection(range).scrollIntoView().run();
-  }
+  commentPlaces: (): Map<string, number> => (editor.value === null ? new Map() : commentPlaces(editor.value))
 });
 </script>
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col">
-    <NoteToolbar v-if="props.toolbar" ref="toolbarRef" :editor="props.readonly ? null : editor" :ask="!props.readonly" :working="working" @ask="openAsk" @image="insertImages">
+    <NoteToolbar v-if="props.toolbar" ref="toolbarRef" :editor="props.readonly ? null : editor" :agent="!props.readonly && props.agent !== undefined" :working="working" @agent="openAgent" @image="insertImages">
       <template v-if="$slots.barStart" #start>
         <slot name="barStart" />
       </template>
@@ -531,7 +565,15 @@ defineExpose({
         >
           <template #default="{ editor: held }">
             <template v-if="!props.readonly">
-              <NoteSelectionBar ref="selectionBar" :editor="held" :comment="props.comments" :hidden="asking" @ask="openAsk" @comment="askComment(held)" />
+              <NoteSelectionBar
+                ref="selectionBar"
+                :editor="held"
+                :comment="props.comments"
+                :agent="props.agent !== undefined"
+                :hidden="agentOpen || props.gap !== null"
+                @agent="openAgent"
+                @comment="askComment(held)"
+              />
               <UEditorSuggestionMenu :editor="held" :items="slashItems" plugin-key="noteSlash" />
               <UEditorMentionMenu
                 v-model:search-term="linkTerm"
@@ -567,16 +609,19 @@ defineExpose({
       </div>
     </div>
 
-    <NoteAsk
-      v-if="!props.readonly"
-      v-model:open="asking"
-      :note-id="props.noteId"
-      :title="props.title"
+    <NoteAgent
+      v-if="!props.readonly && props.agent !== undefined"
+      v-model:open="agentOpen"
+      :agent="props.agent"
       :passage="passage?.lines ?? null"
       :opaque="passage?.opaque ?? false"
       :anchor="anchor"
-      @place="placeAsked"
+      @place="placeAnswer"
     />
+
+    <Teleport v-if="props.gap !== null" :to="gapPlace">
+      <slot name="gap" />
+    </Teleport>
   </div>
 </template>
 
@@ -595,10 +640,15 @@ defineExpose({
   margin-bottom: 1.5rem;
 }
 
-/* The words of an open thread wear the comment tint, the thread chosen in the panel more strongly. */
+/* The words of an open thread wear the comment tint, the thread standing open under its line more strongly. */
 .note-editor-host :deep(.note-comment-open) {
   background-color: color-mix(in oklab, var(--ui-warning) 22%, transparent);
   cursor: pointer;
+}
+
+/* The gap the comment's form or thread stands in, parted from the lines around it. */
+.note-editor-host :deep(.note-comment-gap) {
+  margin-block: 0.5rem;
 }
 
 .note-editor-host :deep(.note-comment-chosen) {

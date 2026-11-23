@@ -1,4 +1,4 @@
-// The context-anchored patch of the AI talk (`docs/design.md`, 「The AI talk panel」). The base lines
+// The context-anchored patch of the talk (`docs/design.md`, 「The talk panel」). The base lines
 // are what the talk was asked over, the next lines what the supervisor returned, and the current
 // lines what the note holds now — the reader may have gone on typing while the supervisor thought.
 // The agent's edits are taken from the base→next diff and applied to the current lines, each run

@@ -9,8 +9,8 @@ use serde_json::{Value, json};
 
 use crate::settings::Settings;
 
-/// The manifest fields the note decides, as bmo-ui's console plugin contract names them. The AI talk panel
-/// speaks to the supervisor through the receiver (`docs/design.md`, 「The AI talk panel」), so `calls` names it.
+/// The manifest fields the note decides, as bmo-ui's console plugin contract names them. The screens call the
+/// note service alone, the Agent's asks among them (`docs/api.md`, 「Agent」), so `calls` names nothing.
 pub const DECLARATION: &str = include_str!("console.json");
 
 // What the bundle's build writes into its folder.

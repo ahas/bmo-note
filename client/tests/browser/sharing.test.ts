@@ -156,7 +156,7 @@ describe.skipIf(!ready)("a note shared through the share dialog", () => {
       expect(await editable(member)).toBe(0);
       expect(await member.getByRole("button", { name: WORDS.action.share, exact: true }).count()).toBe(0);
       expect(await member.getByRole("button", { name: WORDS.action.talk, exact: true }).count()).toBe(0);
-      expect(await member.locator("[data-bar=ask]").count()).toBe(0);
+      expect(await member.locator("[data-bar=agent]").count()).toBe(0);
       // With no AI key the bar's keys open on a key, not on the line that parted it from them.
       expect(await member.locator("[data-bar-row] > :first-child").getAttribute("aria-hidden")).toBeNull();
 

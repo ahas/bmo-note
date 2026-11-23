@@ -5,18 +5,20 @@ import { chromium } from "playwright-core";
 
 import ko from "../../i18n/ko.json";
 import { docOf, FIXTURE, seeded } from "./fixture";
-import { RECEIVER_LINE, stoodUp } from "./stack";
+import { AGENT_LINE, stoodUp } from "./stack";
 
 import type { Browser, Locator, Page } from "playwright-core";
 import type { Stack } from "./stack";
 
 // What a person does with the note editor (docs/design.md, 「The console surface」, 「Note links」, 「Comments」,
-// 「Ask AI」), in Korean, at a desktop's width by a pointer and at a phone's by a finger, read from what the browser
+// 「Agent」), in Korean, at a desktop's width by a pointer and at a phone's by a finger, read from what the browser
 // draws: a title and lines written past the scroll's foot with the caret kept in sight, saved and read back; a line
 // turned into a heading from the bar and a word made bold, each key standing pressed; the selection toolbar
 // standing whole inside the screen; a note link put in with `[[`, pressed to open the linked note, and the
-// backlink listed there; a comment laid on words, answered, resolved and reopened, its tint following; and Ask AI
-// over a line against the stand-in receiver, its result inserted below the line. A picture of each is kept.
+// backlink listed there; a comment laid on words, its field and its thread standing in the document under its line
+// and the lines closing back as it goes, answered, resolved and reopened in place, its tint following, and reached
+// again from its words and from the comments list; and the Agent over a line against the stand-in agency, its
+// result inserted below the line. A picture of each is kept.
 // Skipped where the browser build is not on the machine.
 
 const ready = existsSync(chromium.executablePath());
@@ -271,41 +273,64 @@ describe.skipIf(!ready).each(WIDTHS)("the note editor at $name", (width) => {
   );
 
   test(
-    "a comment laid on words is answered, resolved and reopened, its words' tint following",
+    "a comment laid on words opens under its line, is answered, resolved and reopened in place, and closes back",
     async () => {
       const page = await noteOpened(width, `comments-${width.width}`, "Comments", ["The words to talk about", "Another line"]);
       const line = document(page).locator("p", { hasText: "The words to talk about" });
+      const next = document(page).locator("p", { hasText: "Another line" });
 
       await chooseLine(width, line);
       await press(width, page.locator("[data-selection=comment]"));
 
-      const draft = page.locator("[data-comment-draft] textarea");
+      // The lines part under the commented line and the form stands between them, inside the document.
+      const gap = document(page).locator("[data-comment-gap]");
+      const thread = gap.locator("[data-comment-thread]");
+      const field = thread.locator("textarea");
 
-      await draft.waitFor({ timeout: STANDING_MS });
-      await draft.fill("Is this the right word?");
+      await field.waitFor({ timeout: STANDING_MS });
+
+      const below = async (): Promise<void> => {
+        const [lineBox, gapBox, nextBox] = await Promise.all([line.boundingBox(), gap.boundingBox(), next.boundingBox()]);
+
+        expect(gapBox!.y).toBeGreaterThanOrEqual(lineBox!.y + lineBox!.height - 0.5);
+        expect(nextBox!.y).toBeGreaterThanOrEqual(gapBox!.y + gapBox!.height - 0.5);
+        expect(gapBox!.x + gapBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width + 0.5);
+      };
+
+      await below();
+      await shot(page, width, "comment-field");
+      await field.fill("Is this the right word?");
       // On a phone Enter breaks the line, so the comment goes by its key at every width.
-      await press(width, page.locator("[data-comment-draft] button[type=submit]"));
-
-      const card = page.locator("[data-thread-card]").first();
-
-      await card.waitFor({ timeout: STANDING_MS });
+      await press(width, thread.locator("[data-comment-send]"));
+      await thread.locator("[data-comment]").first().waitFor({ timeout: STANDING_MS });
       await document(page).locator(".note-comment-open").first().waitFor({ timeout: STANDING_MS });
       expect(await page.locator("[data-comments-key]").textContent()).toContain("1");
 
-      const reply = card.locator("textarea");
-
-      await reply.fill("It is.");
-      await press(width, card.locator("button[type=submit]"));
-      await card.locator("[data-comment]").nth(1).waitFor({ timeout: STANDING_MS });
+      await thread.locator("textarea").fill("It is.");
+      await press(width, thread.locator("[data-comment-send]"));
+      await thread.locator("[data-comment]").nth(1).waitFor({ timeout: STANDING_MS });
+      await below();
       await shot(page, width, "comment-thread");
 
-      await press(width, card.locator("[data-thread-resolve]"));
-      await page.locator("[data-resolved-fold]").waitFor({ timeout: STANDING_MS });
+      await press(width, thread.locator("[data-thread-resolve]"));
+      await thread.locator("[data-thread-reopen]").waitFor({ timeout: STANDING_MS });
       expect(await document(page).locator(".note-comment-open").count()).toBe(0);
-
-      await press(width, page.locator("[data-resolved-fold]"));
-      await press(width, page.locator("[data-thread-reopen]"));
+      await press(width, thread.locator("[data-thread-reopen]"));
       await document(page).locator(".note-comment-open").first().waitFor({ timeout: STANDING_MS });
+
+      // The close key puts the gap away and the lines close back; the marked words pressed open it again.
+      await press(width, thread.locator("[data-comment-close]"));
+      await gap.waitFor({ state: "detached", timeout: STANDING_MS });
+      await press(width, document(page).locator(".note-comment-open").first());
+      await thread.locator("[data-comment]").nth(1).waitFor({ timeout: STANDING_MS });
+      await press(width, thread.locator("[data-comment-close]"));
+      await gap.waitFor({ state: "detached", timeout: STANDING_MS });
+
+      // The comments key lists the thread, and choosing it opens it under its words.
+      await press(width, page.locator("[data-comments-key]"));
+      await press(width, page.locator("[data-comment-row]").first());
+      await thread.waitFor({ timeout: STANDING_MS });
+      await below();
       await saved(page);
 
       // The mark stands in the stored document, so the thread reads as anchored.
@@ -317,31 +342,32 @@ describe.skipIf(!ready).each(WIDTHS)("the note editor at $name", (width) => {
   );
 
   test(
-    "Ask AI over a line shows the stand-in receiver's answer under it and inserts it below",
+    "the Agent over a line shows the stand-in agent's answer under it and inserts it below",
     async () => {
-      const page = await noteOpened(width, `ask-${width.width}`, "Ask", ["A line for the supervisor", "The line after"]);
-      const line = document(page).locator("p", { hasText: "A line for the supervisor" });
+      const page = await noteOpened(width, `agent-${width.width}`, "Agent", ["A line for the agent", "The line after"]);
+      const line = document(page).locator("p", { hasText: "A line for the agent" });
 
       await chooseLine(width, line);
-      await press(width, page.locator("[data-selection=ask]"));
+      await press(width, page.locator("[data-selection=agent]"));
 
-      const field = page.getByPlaceholder(WORDS.ask.placeholder);
+      const field = page.getByPlaceholder(WORDS.agent.placeholder);
 
       await field.waitFor({ timeout: STANDING_MS });
       await field.fill("Say it again");
       await page.keyboard.press("Enter");
-      await page.getByText(RECEIVER_LINE, { exact: true }).first().waitFor({ timeout: STANDING_MS });
-      await shot(page, width, "ask-result");
+      await page.getByText(AGENT_LINE, { exact: true }).first().waitFor({ timeout: STANDING_MS });
+      await shot(page, width, "agent-result");
 
       const asked = stack!.asked.at(-1)!;
 
-      expect([asked.kind, asked.fields.passage, asked.said]).toEqual(["note-passage", "A line for the supervisor", "Say it again"]);
+      expect([asked.lines, asked.instruction]).toEqual(["A line for the agent", "Say it again"]);
+      expect(asked.instructions).toContain("The lines are one passage of the note.");
 
-      await press(width, page.getByRole("button", { name: WORDS.ask.below, exact: true }));
+      await press(width, page.getByRole("button", { name: WORDS.agent.below, exact: true }));
 
       const texts = await document(page).locator("p").allTextContents();
 
-      expect(texts.indexOf(RECEIVER_LINE)).toBe(texts.indexOf("A line for the supervisor") + 1);
+      expect(texts.indexOf(AGENT_LINE)).toBe(texts.indexOf("A line for the agent") + 1);
       await saved(page);
       await page.context().close();
     },

@@ -91,6 +91,18 @@ export interface NoteApi {
   resolveThread: (key: NoteKey, thread: string, resolved: boolean) => Promise<NoteThread>;
   deleteThread: (key: NoteKey, thread: string) => Promise<void>;
   deleteComment: (key: NoteKey, thread: string, comment: string) => Promise<void>;
+  /** One ask of the Agent over a passage or the whole note, answered by the note assistant under the reader's own
+   * account (`docs/api.md`, 「Agent」): its words, or null where it said nothing. */
+  agent: (key: NoteKey, ask: AgentAsk) => Promise<string | null>;
+}
+
+/** One ask of the Agent: what it works over, in the note's line grammar, the reader's instruction and the rounds
+ * said before it over the same text. */
+export interface AgentAsk {
+  mode: "passage" | "note";
+  lines: string[];
+  instruction: string;
+  turns: { owner: boolean; text: string }[];
 }
 
 /** The query naming the note's owner, where the note is another account's. */
@@ -169,6 +181,12 @@ export function createNoteApi(call: Call): NoteApi {
       sent<NoteThread>(`/notes/${segment(key.id)}/threads/${segment(thread)}`, { method: "PATCH", body: { resolved }, query: ownerQuery(key) }),
     deleteThread: (key, thread) => sent<void>(`/notes/${segment(key.id)}/threads/${segment(thread)}`, { method: "DELETE", query: ownerQuery(key) }),
     deleteComment: (key, thread, comment) =>
-      sent<void>(`/notes/${segment(key.id)}/threads/${segment(thread)}/comments/${segment(comment)}`, { method: "DELETE", query: ownerQuery(key) })
+      sent<void>(`/notes/${segment(key.id)}/threads/${segment(thread)}/comments/${segment(comment)}`, { method: "DELETE", query: ownerQuery(key) }),
+    agent: async (key, ask) => {
+      const answered = await sent<{ answer?: string | null }>(`/notes/${segment(key.id)}/agent`, { method: "POST", body: ask, query: ownerQuery(key) });
+      const words = answered.answer?.trim() ?? "";
+
+      return words === "" ? null : words;
+    }
   };
 }

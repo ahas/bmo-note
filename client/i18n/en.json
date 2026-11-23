@@ -42,7 +42,6 @@
       "save_failed": "Not saved",
       "saved": "Saved",
       "saving": "Saving…",
-      "supervisor": "Supervisor",
       "toolbar": "Format",
       "trashed": "Deleted",
       "untitled": "Untitled",
@@ -61,7 +60,8 @@
       "picked_icon": "Icon",
       "list": "Notes",
       "width": "List width",
-      "selection_bar": "Selection"
+      "selection_bar": "Selection",
+      "agent": "Agent"
     },
     "mark": {
       "bold": "Bold",
@@ -85,10 +85,10 @@
       "h6": "Heading 6"
     },
     "talk": {
-      "answering": "The supervisor is answering",
+      "answering": "Answering",
       "apply_failed": "The note could not be changed.",
       "empty": "Write what to change.",
-      "no_answer": "The supervisor said nothing.",
+      "no_answer": "No answer came back.",
       "patch_anchor": "The part to change was not found in the note.",
       "patch_big": "There is too much to change.",
       "patch_opaque": "A change would move an image or a table, so the note was not patched. Apply all writes the answer and moves them back to their places.",
@@ -98,13 +98,11 @@
       "patch_owner": "That part changed meanwhile, so nothing was applied.",
       "placeholder": "Say what to change",
       "replace_effect": "It overwrites all the text now in the note. It cannot be brought back.",
-      "replace_question": "Replace the whole note with what the supervisor sent?",
+      "replace_question": "Replace the whole note with the answer?",
       "title": "Talk",
       "width": "Talk panel width",
       "unanswered": "No answer came. Try again in a moment.",
-      "unanswered_limit": "The answer limit was reached. Try again in a moment.",
-      "unanswered_outage": "The supervisor's model could not be reached.",
-      "unanswered_ready": "The supervisor is not ready yet."
+      "unanswered_agent": "No agent could be reached."
     },
     "empty": {
       "live": "No notes yet.",
@@ -144,9 +142,9 @@
       "section_failed": "These notes could not be read.",
       "image_too_large": "This image is past the size the store keeps."
     },
-    "ask": {
-      "key": "Ask AI",
-      "placeholder": "Ask AI anything, or pick an action",
+    "agent": {
+      "key": "Agent",
+      "placeholder": "Ask for anything, or pick an action",
       "own": "Ask “{words}”",
       "writing": "Writing…",
       "again": "Again",
@@ -254,7 +252,7 @@
       "empty": "No comments yet.",
       "failed": "The comment did not go.",
       "read_failed": "The comments could not be read.",
-      "width": "Comments panel width"
+      "list": "Comments list"
     }
   }
 }

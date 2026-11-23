@@ -22,7 +22,7 @@ export interface Draft {
   range: { from: number; to: number };
 }
 
-/** The threads in the order the panel lists them: the open ones whose words stand in the note, by where they
+/** The threads in the order the comments list holds them: the open ones whose words stand in the note, by where they
  * stand; the open ones whose words were deleted; and the resolved ones. */
 export function orderedThreads(threads: readonly NoteThread[], places: Map<string, number>): { open: NoteThread[]; detached: NoteThread[]; resolved: NoteThread[] } {
   const open = threads.filter((thread) => thread.resolvedAt === null && places.has(thread.id));
@@ -119,7 +119,7 @@ export function useComments(api: NoteApi, key: () => NoteKey, editor: () => Comm
     threads.value = left.filter((one) => one.comments.length > 0);
   }
 
-  return { threads, stand, draft, ordered, openIds, openCount, load, placesChanged, start, reply, resolve, removeThread, removeComment };
+  return { threads, stand, draft, places, ordered, openIds, openCount, load, placesChanged, start, reply, resolve, removeThread, removeComment };
 }
 
 export type Comments = ReturnType<typeof useComments>;

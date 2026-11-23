@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The format bar over the editor (`docs/design.md`, 「The console surface」): Ask AI leading it, the kind the
+// The format bar over the editor (`docs/design.md`, 「The console surface」): the Agent leading it, the kind the
 // block under the caret takes, the inline marks, the image upload and the table insert, in one gathered row,
 // and what acts on the whole note at its trailing edge. Every key is the library's small button, an icon-only
 // one its small square. It holds no formatting of its own: each press rides the editor's own commands through
@@ -20,15 +20,15 @@ import type { KindId, MarkId } from "../domain/format";
 const props = withDefaults(
   defineProps<{
     editor: Editor | null;
-    /** Whether the AI key stands: not over a note the reader holds to read only. */
-    ask?: boolean;
+    /** Whether the Agent key stands: not over a note the reader holds to read only. */
+    agent?: boolean;
     /** Whether an image is being stored. */
     working?: boolean;
   }>(),
-  { ask: true, working: false }
+  { agent: true, working: false }
 );
 
-const emit = defineEmits<{ ask: []; image: [files: File[]] }>();
+const emit = defineEmits<{ agent: []; image: [files: File[]] }>();
 
 const i18n = useI18n();
 
@@ -104,20 +104,20 @@ defineExpose({ pickImage });
     </div>
 
     <div class="mx-auto flex h-full w-max shrink-0 items-center gap-1" data-bar-row>
-      <HintTip v-if="props.ask" :text="$t('note.ask.key')" press>
+      <HintTip v-if="props.agent" :text="$t('note.agent.key')" press>
         <UButton
           size="sm"
           color="primary"
           variant="ghost"
           icon="i-material-symbols-auto-awesome-outline"
-          :label="$t('note.ask.key')"
+          :label="$t('note.agent.key')"
           :disabled="!writable"
-          data-bar="ask"
-          @click="emit('ask')"
+          data-bar="agent"
+          @click="emit('agent')"
         />
       </HintTip>
 
-      <div v-if="props.ask" class="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden="true" />
+      <div v-if="props.agent" class="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden="true" />
 
       <HintTip :text="$t('note.action.turn_into')" press>
         <!-- The kind the block under the caret takes is a value chosen from a list, so it is the layer's one

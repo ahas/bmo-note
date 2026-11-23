@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { planPatch, planWhole } from "../app/domain/patch";
 
-// The context-anchored patch (`docs/design.md`, 「The AI talk panel」): the talk's changed runs land
+// The context-anchored patch (`docs/design.md`, 「The talk panel」): the talk's changed runs land
 // where the note moved them, and a run the reader changed meanwhile stops the whole plan.
 
 describe("planPatch", () => {

@@ -1,6 +1,6 @@
-//! The service as it runs: its settings, its note store and the events it publishes. It reaches no
-//! other unit (`docs/api.md`, 「Calls the note service makes」), so it has nothing to be unready for
-//! beyond the store standing open.
+//! The service as it runs: its settings, its note store and the events it publishes. It reaches agency alone,
+//! for the Agent's asks (`docs/api.md`, 「Calls the note service makes」), and nothing it is unready for beyond
+//! the store standing open.
 
 use std::sync::Arc;
 

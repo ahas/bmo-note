@@ -86,7 +86,7 @@ export const CommentMark = Mark.create({
   }
 });
 
-/** Which threads' words wear the comment tint, and the one standing chosen in the panel. */
+/** Which threads' words wear the comment tint, and the one standing open under its line. */
 export interface Tinted {
   open: readonly string[];
   chosen: string | null;
@@ -102,8 +102,10 @@ function tintOf(doc: ProseNode, tinted: Tinted): DecorationSet {
     for (const mark of node.marks) {
       const thread = mark.type.name === "comment" ? String(mark.attrs.thread ?? "") : "";
 
-      if (thread !== "" && open.has(thread)) {
-        decorations.push(Decoration.inline(pos, pos + node.nodeSize, { class: thread === tinted.chosen ? "note-comment-open note-comment-chosen" : "note-comment-open" }));
+      if (thread !== "" && thread === tinted.chosen) {
+        decorations.push(Decoration.inline(pos, pos + node.nodeSize, { class: open.has(thread) ? "note-comment-open note-comment-chosen" : "note-comment-chosen" }));
+      } else if (thread !== "" && open.has(thread)) {
+        decorations.push(Decoration.inline(pos, pos + node.nodeSize, { class: "note-comment-open" }));
       }
     }
   });
@@ -111,9 +113,9 @@ function tintOf(doc: ProseNode, tinted: Tinted): DecorationSet {
   return DecorationSet.create(doc, decorations);
 }
 
-/** The comment tint: the words of an open thread wear it, those of the thread chosen in the panel more
- * strongly, and a resolved thread's words none. The screen hands the open threads in with a transaction's
- * `COMMENT_TINT` meta. */
+/** The comment tint: the words of an open thread wear it, those of the thread standing open under its line more
+ * strongly, resolved or not, and a resolved thread's words none otherwise. The screen hands the open threads in
+ * with a transaction's `COMMENT_TINT` meta. */
 export const CommentTint = Extension.create({
   name: "commentTint",
 
@@ -143,6 +145,108 @@ export const CommentTint = Extension.create({
     ];
   }
 });
+
+/** What the comment gap opens under: a new thread's words, by the range they stand in, or a thread's words. */
+export type GapTarget = { draft: { from: number; to: number } } | { thread: string } | null;
+
+export const COMMENT_GAP = new PluginKey<{ target: GapTarget; decorations: DecorationSet }>("noteCommentGap");
+
+/** The place under the words ending at `end`: after the line holding them, or after the table they stand in, so a
+ * gap never opens inside a cell. A place between blocks stands as it is. */
+export function gapAfter(doc: ProseNode, end: number): number {
+  const at = doc.resolve(Math.min(Math.max(end, 0), doc.content.size));
+
+  for (let depth = 1; depth <= at.depth; depth += 1) {
+    if (at.node(depth).type.name === "table") return at.after(depth);
+  }
+
+  let depth = at.depth;
+
+  while (depth > 0 && !at.node(depth).isTextblock) depth -= 1;
+
+  return depth === 0 ? at.pos : at.after(depth);
+}
+
+/** Where a thread's words end in the document; null where none of them stands. */
+export function threadEnd(doc: ProseNode, thread: string): number | null {
+  let end: number | null = null;
+
+  doc.descendants((node, pos) => {
+    if (node.marks.some((mark) => mark.type.name === "comment" && mark.attrs.thread === thread)) end = pos + node.nodeSize;
+  });
+
+  return end;
+}
+
+/** The place the gap opens at for `target`: under a draft's words, the last of them taken where the range ends at
+ * the start of the next line; under a thread's words; at the document's end for a thread whose words were
+ * deleted. */
+export function gapPlace(doc: ProseNode, target: Exclude<GapTarget, null>): number {
+  if ("draft" in target) {
+    const { from, to } = target.draft;
+
+    return gapAfter(doc, to > from ? to - 1 : to);
+  }
+
+  const end = threadEnd(doc, target.thread);
+
+  return end === null ? doc.content.size : gapAfter(doc, Math.max(0, end - 1));
+}
+
+function gapOf(doc: ProseNode, target: GapTarget, place: HTMLElement): DecorationSet {
+  if (target === null) return DecorationSet.empty;
+
+  const decorations = [
+    Decoration.widget(gapPlace(doc, target), place, { side: 1, key: "note-comment-gap", stopEvent: () => true, ignoreSelection: true })
+  ];
+
+  if ("draft" in target && target.draft.to > target.draft.from) {
+    decorations.push(Decoration.inline(target.draft.from, target.draft.to, { class: "note-comment-chosen" }));
+  }
+
+  return DecorationSet.create(doc, decorations);
+}
+
+/** The comment gap (`docs/design.md`, 「Comments」): the lines part under the words a comment is laid on and the
+ * screen's form or thread stands in the space between them, in the flow of the document. The place is one element
+ * the screen draws into; a new thread's words wear the chosen tint while its form stands, and its range follows
+ * the edits made around it. The screen opens and closes the gap with a transaction's `COMMENT_GAP` meta. */
+export function commentGap(place: HTMLElement) {
+  place.contentEditable = "false";
+  place.dataset.commentGap = "";
+
+  return Extension.create({
+    name: "commentGap",
+
+    addProseMirrorPlugins() {
+      return [
+        new Plugin({
+          key: COMMENT_GAP,
+          state: {
+            init: () => ({ target: null as GapTarget, decorations: DecorationSet.empty }),
+            apply: (transaction, held) => {
+              const given = transaction.getMeta(COMMENT_GAP) as { target: GapTarget } | undefined;
+              let target = given === undefined ? held.target : given.target;
+
+              if (given === undefined && !transaction.docChanged) return held;
+
+              if (given === undefined && target !== null && "draft" in target) {
+                const from = transaction.mapping.map(target.draft.from, 1);
+
+                target = { draft: { from, to: Math.max(from, transaction.mapping.map(target.draft.to, -1)) } };
+              }
+
+              return { target, decorations: gapOf(transaction.doc, target, place) };
+            }
+          },
+          props: {
+            decorations: (state) => COMMENT_GAP.getState(state)?.decorations ?? DecorationSet.empty
+          }
+        })
+      ];
+    }
+  });
+}
 
 /** Where a note link leads, as the screen answers it: the address the link's anchor carries. */
 export type NoteLinkHref = (target: { id: string; owner: string }) => string;
@@ -208,12 +312,13 @@ export function noteImage(address: ImageAddress) {
 }
 
 /** Everything the note editor lays beside Nuxt UI's editor. */
-export function noteExtensions(options: { href: NoteLinkHref; untitled: string; image: ImageAddress }): AnyExtension[] {
+export function noteExtensions(options: { href: NoteLinkHref; untitled: string; image: ImageAddress; gap?: HTMLElement }): AnyExtension[] {
   return [
     NoteDocument,
     NoteTitle,
     CommentMark,
     CommentTint,
+    ...(options.gap === undefined ? [] : [commentGap(options.gap)]),
     noteLink(options.href, options.untitled),
     noteImage(options.image),
     TaskList,

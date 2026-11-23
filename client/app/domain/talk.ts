@@ -1,10 +1,12 @@
-// The talk about one note (`docs/design.md`, 「The AI talk panel」): the receiver's one-turn road, taken
-// through the console's relay because the bundle's manifest names the receiver under `calls`. The
-// receiver keeps no turn of such a talk, so the screen holds the conversation and hands every turn with
-// the turns before it. What comes back is either words alone, which change nothing, or one fenced block
-// holding the whole edited note, which the patch applies a changed run at a time.
+// The talk about one note (`docs/design.md`, 「The talk panel」): each turn one ask of the note service's Agent
+// over the whole note, answered by the note assistant under the reader's own account. Nothing keeps the turns of
+// such a talk but the screen, which hands every turn with the turns before it. What comes back is either words
+// alone, which change nothing, or one fenced block holding the whole edited note, which the patch applies a
+// changed run at a time.
 
-import { relayCall } from "bmo-ui/app/domain/relay";
+import { Refusal } from "./api";
+
+import type { AgentAsk } from "./api";
 
 /** One turn as the receiver reads it: whose it is and what it said. */
 export interface TalkTurn {
@@ -14,28 +16,12 @@ export interface TalkTurn {
 
 /** What one turn of a note's talk asks. */
 export interface NoteTalk {
-  noteId: string;
-  title: string;
   /** The note as the talk asks over it: one line per block (`domain/text`). */
   lines: string[];
   /** The turns said before this one. */
   turns: TalkTurn[];
   said: string;
 }
-
-/** The paragraph the turn opens on: the note's line grammar is this screen's own protocol. */
-export const TALK_HEADING = [
-  "You edit one note for its owner. The note stands in the fields below: noteId, title and lines.",
-  "Each line is one block. A plain paragraph is bare text. # to ###### head a section. - is a",
-  "bulleted item, 1. a numbered one, - [ ] and - [x] to-do items, > a quote, and ```<tab>text a code",
-  "block. [[divider]], [[image]] and [[table]] name blocks that stand as they are. A deeper block",
-  "carries two spaces per level.",
-  "Answer with the whole edited note in one fenced code block and nothing outside it. Change only what",
-  "the owner asks for, and keep every line the request does not change.",
-  "To rename the note, put [[title]] and the new title on the first line of your block, above the",
-  "lines; it carries no indent and is the title alone, not a line of the note. Where the title stands,",
-  "write no such line."
-].join("\n");
 
 /** The answer's fenced block as lines, or null where the answer carries none — then nothing changes. */
 export function fencedAnswer(answer: string): string[] | null {
@@ -89,28 +75,15 @@ export function noteAnswer(answer: string): NoteAnswer | null {
   return { lines: lines.slice(1), title: titled === "" ? null : titled };
 }
 
-/**
- * One turn of the note's talk, answered by the supervisor of the owner's account. What came back as
- * words answers; a turn that came back with nothing reads as null, so the screen says so and keeps the
- * note as it stands.
- */
-export async function askNote(talk: NoteTalk): Promise<string | null> {
-  const topic = {
-    kind: "note",
-    key: talk.noteId,
-    heading: TALK_HEADING,
-    fields: {
-      noteId: talk.noteId,
-      title: talk.title,
-      lines: talk.lines.join("\n")
-    }
-  };
+/** The Agent as the screen asks it: one ask, answered by its words or null where it said nothing. */
+export type AgentCall = (ask: AgentAsk) => Promise<string | null>;
 
-  const answered = await relayCall<{ answer?: string | null }>("receiver", "/talks", {
-    method: "POST",
-    body: { topic, turns: talk.turns, said: talk.said }
-  });
-  const words = answered.answer?.trim() ?? "";
+/** One turn of the note's talk: the whole note, what the reader says now and the turns before it. */
+export function askNote(agent: AgentCall, talk: NoteTalk): Promise<string | null> {
+  return agent({ mode: "note", lines: talk.lines, instruction: talk.said, turns: talk.turns });
+}
 
-  return words === "" ? null : words;
+/** The pack's key for why an ask came back with no answer: no agent to ask, or none that answered. */
+export function unansweredKey(error: unknown): string {
+  return error instanceof Refusal && error.code === "no-agent" ? "note.talk.unanswered_agent" : "note.talk.unanswered";
 }

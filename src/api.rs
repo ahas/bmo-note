@@ -80,6 +80,7 @@ fn screens() -> Router<Arc<App>> {
     .route("/notes/{noteId}/duplicate", post(duplicate_note))
     .route("/notes/{noteId}/backlinks", get(backlinks))
     .merge(comments::routes())
+    .merge(crate::agent::routes())
     .merge(own::routes())
     .merge(share::routes())
 }

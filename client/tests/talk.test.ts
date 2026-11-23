@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
-import { fencedAnswer, noteAnswer, TALK_HEADING } from "../app/domain/talk";
+import { fencedAnswer, noteAnswer } from "../app/domain/talk";
 
-// The talk's answer (`docs/design.md`, 「The AI talk panel」): one fenced block holds the whole edited
+// The talk's answer (`docs/design.md`, 「The talk panel」): one fenced block holds the whole edited
 // note; an answer without a closed one changes nothing.
 
 describe("fencedAnswer", () => {
@@ -36,15 +36,6 @@ describe("fencedAnswer", () => {
 
   test("Windows line endings read the same", () => {
     expect(fencedAnswer("```\r\na\r\nb\r\n```")).toEqual(["a", "b"]);
-  });
-});
-
-describe("the heading", () => {
-  test("states the line grammar, the rename and the one fenced answer", () => {
-    expect(TALK_HEADING).toContain("one fenced code block");
-    expect(TALK_HEADING).toContain("[[image]]");
-    expect(TALK_HEADING).toContain("two spaces per level");
-    expect(TALK_HEADING).toContain("[[title]]");
   });
 });
 

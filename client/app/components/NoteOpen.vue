@@ -5,7 +5,8 @@
 // the format bar and the editor in one column, the page head standing at the top of the document's own
 // scroll and the backlinks under it. The note saves itself a short moment after each edit, and at once on
 // Ctrl+S. A note in the trash opens read only under its band; a note shared with the reader opens as the
-// share allows. The talk and the comments stand one at a time in the column beside the document.
+// share allows. The talk stands in the column beside the document; a comment opens in the flow of the note, under
+// its words.
 
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from "vue-router";
@@ -13,13 +14,14 @@ import { useI18n } from "vue-i18n";
 import HintTip from "bmo-ui/app/components/HintTip.vue";
 import IconButton from "bmo-ui/app/components/IconButton.vue";
 import PropertyList from "bmo-ui/app/components/PropertyList.vue";
+import { useBackClose } from "bmo-ui/app/domain/layers";
 import { askQuestion } from "bmo-ui/app/domain/question";
 
 import NoteBacklinks from "./NoteBacklinks.vue";
-import NoteComments from "./NoteComments.vue";
+import NoteCommentGap from "./NoteCommentGap.vue";
+import NoteCommentList from "./NoteCommentList.vue";
 import NoteEditor from "./NoteEditor.vue";
 import NoteHead from "./NoteHead.vue";
-import NotePanel from "./NotePanel.vue";
 import NoteTalk from "./NoteTalk.vue";
 import NoteToolbar from "./NoteToolbar.vue";
 import { useComments } from "../composables/useComments";
@@ -35,6 +37,8 @@ import type { DropdownMenuItem } from "@nuxt/ui";
 import type { RouteLocationNormalized } from "vue-router";
 import type { LinkCandidate } from "./NoteEditor.vue";
 import type { Draft } from "../composables/useComments";
+import type { AgentAsk } from "../domain/api";
+import type { GapTarget } from "../domain/extensions";
 import type { NoteApi, NoteKey } from "../domain/api";
 import type { Holding } from "../domain/count";
 import type { LinkTarget } from "../domain/links";
@@ -86,8 +90,10 @@ const saveState = ref<SaveState>(
 );
 const editor = shallowRef<InstanceType<typeof NoteEditor> | null>(null);
 const holding = ref<Holding>({ words: 0 });
-const panel = ref<"talk" | "comments" | null>(null);
-const chosenThread = ref<string | null>(null);
+const talkOpen = ref(false);
+// What the comment gap stands open under: a new thread's words, or a thread's.
+const gap = ref<GapTarget>(null);
+const chosenThread = computed(() => (gap.value !== null && "thread" in gap.value ? gap.value.thread : null));
 const backlinks = shallowRef<NoteMeta[]>([]);
 const detailsOpen = ref(false);
 const liveTitle = ref("");
@@ -108,20 +114,6 @@ const shared = computed(() => note.value !== null && note.value.access !== "owne
 
 const blobs = computed(() => noteBlobSource(props.noteKey.id, props.noteKey.owner, readonly.value));
 
-// The talk and the comments stand one at a time in the column beside the note.
-const talkOpen = computed({
-  get: () => panel.value === "talk",
-  set: (open: boolean) => {
-    panel.value = open ? "talk" : panel.value === "talk" ? null : panel.value;
-  }
-});
-const commentsOpen = computed({
-  get: () => panel.value === "comments",
-  set: (open: boolean) => {
-    panel.value = open ? "comments" : panel.value === "comments" ? null : panel.value;
-  }
-});
-
 // The comments: started, answered and resolved by whoever writes the note, read by every member.
 const comments = useComments(
   props.api,
@@ -137,14 +129,32 @@ watch(
   }
 );
 
+// A new thread's field opens under the words chosen; marked words pressed, or a thread chosen from the list, open
+// that thread under its words; a closed gap drops a field never sent.
 function draftComment(draft: Draft): void {
   comments.draft.value = draft;
-  panel.value = "comments";
+  gap.value = { draft: draft.range };
 }
 
 function openThread(thread: string): void {
-  chosenThread.value = thread;
-  panel.value = "comments";
+  comments.draft.value = null;
+  gap.value = { thread };
+}
+
+function closeGap(): void {
+  comments.draft.value = null;
+  gap.value = null;
+}
+
+// The gap is a state the note went into: the back gesture closes it, as it does what stands over the screen.
+useBackClose(
+  computed(() => gap.value !== null),
+  closeGap
+);
+
+// The Agent, asked over the open note under the reader's own account (`docs/api.md`, 「Agent」).
+function askAgent(ask: AgentAsk): Promise<string | null> {
+  return props.api.agent(props.noteKey, ask);
 }
 
 // The note links: where one leads, the notes the menus offer, and the press that opens one.
@@ -620,6 +630,8 @@ const iconShown = computed(() => note.value?.icon ?? "");
           :find-notes="findNotes"
           :open-threads="comments.openIds.value"
           :chosen-thread="chosenThread"
+          :gap="gap"
+          :agent="readonly ? undefined : askAgent"
           @change="onEdit"
           @title="liveTitle = $event"
           @ready="ready"
@@ -628,20 +640,7 @@ const iconShown = computed(() => note.value?.icon ?? "");
           @comment="draftComment"
         >
           <template #barEnd>
-            <HintTip :text="$t('note.comment.title')" press>
-              <UButton
-                size="sm"
-                color="neutral"
-                :variant="commentsOpen ? 'subtle' : 'ghost'"
-                icon="i-material-symbols-comment-outline"
-                :label="comments.openCount.value > 0 ? new Intl.NumberFormat($i18n.locale).format(comments.openCount.value) : undefined"
-                :aria-label="$t('note.comment.title')"
-                :aria-pressed="commentsOpen"
-                class="tabular-nums"
-                data-comments-key
-                @click="commentsOpen = !commentsOpen"
-              />
-            </HintTip>
+            <NoteCommentList :comments="comments" @open="openThread" />
             <HintTip v-if="!readonly" :text="$t('note.action.talk')" press>
               <UButton size="sm" color="neutral" :variant="talkOpen ? 'subtle' : 'ghost'" icon="i-material-symbols-forum-outline" :label="$t('note.action.talk')" data-talk-key @click="talkOpen = !talkOpen" />
             </HintTip>
@@ -649,23 +648,25 @@ const iconShown = computed(() => note.value?.icon ?? "");
           <template #head>
             <NoteHead :icon="iconShown" :writable="!readonly" :busy="iconBusy" @pick="pickIcon" />
           </template>
+          <template #gap>
+            <NoteCommentGap
+              :key="chosenThread ?? 'draft'"
+              :comments="comments"
+              :thread="chosenThread"
+              :writable="!readonly"
+              :owns="owns"
+              :name-of="props.nameOf"
+              @started="openThread"
+              @close="closeGap"
+            />
+          </template>
           <template #foot>
             <NoteBacklinks :notes="backlinks" :href-of="props.hrefOf" @open="openBacklink" />
           </template>
         </NoteEditor>
       </div>
 
-      <NoteTalk v-if="!readonly" v-model:open="talkOpen" :note-id="note.id" :title="titleLine" :lines="talkLines" :apply="talkApply" :replace="talkReplace" :rename="talkRename" />
-      <NotePanel v-model:open="commentsOpen" :title="$t('note.comment.title')" :width-label="$t('note.comment.width')">
-        <NoteComments
-          v-model:chosen="chosenThread"
-          :comments="comments"
-          :writable="!readonly"
-          :owns="owns"
-          :name-of="props.nameOf"
-          @show="(thread) => editor?.showThread(thread)"
-        />
-      </NotePanel>
+      <NoteTalk v-if="!readonly" v-model:open="talkOpen" :agent="askAgent" :lines="talkLines" :apply="talkApply" :replace="talkReplace" :rename="talkRename" />
     </div>
   </div>
 </template>

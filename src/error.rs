@@ -6,7 +6,7 @@ use axum::response::{IntoResponse, Response};
 use crate::wire::WireError;
 
 /// Every code the service answers, each with its status and what it means.
-pub const CODES: [(&str, u16, &str); 13] = [
+pub const CODES: [(&str, u16, &str); 15] = [
   ("bad-request", 400, "the body or the query is not the shape the route takes"),
   ("unauthorized", 401, "the token is missing or wrong"),
   ("forbidden", 403, "the token is right but the caller may not do this"),
@@ -19,6 +19,8 @@ pub const CODES: [(&str, u16, &str); 13] = [
   ("bad-doc", 422, "a doc that is not a TipTap document"),
   ("trashed", 422, "a write on a note standing in the trash"),
   ("not-trashed", 422, "a purge of a note that does not stand in the trash"),
+  ("unanswered", 502, "the note assistant's ask came back with no answer"),
+  ("no-agent", 503, "no agency is named for the note assistant"),
   ("failed", 500, "the service failed"),
 ];
 
@@ -91,6 +93,14 @@ impl ApiError {
 
   pub fn not_trashed(id: &str) -> Self {
     Self::of("not-trashed", format!("The note {id} does not stand in the trash."))
+  }
+
+  pub fn unanswered(error: impl Into<String>) -> Self {
+    Self::of("unanswered", error)
+  }
+
+  pub fn no_agent(error: impl Into<String>) -> Self {
+    Self::of("no-agent", error)
   }
 
   pub fn failed(error: impl Into<String>) -> Self {

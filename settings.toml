@@ -27,3 +27,16 @@ path = "note.db"
 max_doc_bytes = 8388608
 # The cap on one stored image, in bytes.
 max_blob_bytes = 8388608
+
+# The note assistant the Agent asks (docs/api.md, 「Agent」): a session of the role's agent under the reader's
+# account, on agency's control port.
+[agent]
+# Agency's control address; empty, the Agent answers nothing.
+address = ""
+# The file holding agency's token; a relative one is read under the data root's env/ folder.
+token_file = "agency.token"
+# The role whose agents answer an ask.
+role = "note-assistant"
+# The supervisor the platform administrator's asks are asked under; empty, they are asked under none and stand
+# under the deployment's own account. A member's are asked under their own BMO, u<key>.
+supervisor = ""

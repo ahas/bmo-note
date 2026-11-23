@@ -26,6 +26,7 @@ pub struct Settings {
   pub console: Console,
   pub store: Store,
   pub notes: Notes,
+  pub agent: Agent,
 }
 
 /// The HTTP server.
@@ -62,6 +63,20 @@ pub struct Notes {
   pub max_doc_bytes: usize,
   /// The cap on one stored image, in bytes.
   pub max_blob_bytes: usize,
+}
+
+/// The note assistant the Agent asks (`docs/api.md`, 「Agent」): agency's control port, the file holding its
+/// token, the role whose agents answer, and the supervisor an administrator's asks are asked under.
+#[derive(Clone, Debug, Deserialize)]
+pub struct Agent {
+  /// Agency's control address; empty, the Agent answers nothing.
+  pub address: String,
+  /// The file holding agency's token; a relative one is read under the data root's `env/` folder.
+  pub token_file: PathBuf,
+  /// The role whose agents answer an ask.
+  pub role: String,
+  /// The supervisor the platform administrator's asks are asked under; empty, none.
+  pub supervisor: String,
 }
 
 impl Settings {
@@ -105,6 +120,14 @@ impl Settings {
       return self.store.path.clone();
     }
     self.data_root().join("note").join(&self.store.path)
+  }
+
+  /// Where agency's token stands: the settings' file, a relative one under the data root's `env/` folder.
+  pub fn agent_token_path(&self) -> PathBuf {
+    if self.agent.token_file.is_absolute() {
+      return self.agent.token_file.clone();
+    }
+    self.data_root().join("env").join(&self.agent.token_file)
   }
 
   /// The service's own base address, as a caller on this machine reaches it.

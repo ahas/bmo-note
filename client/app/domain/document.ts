@@ -1,5 +1,5 @@
 // The open editor's document as the screen reads and writes it whole (`docs/design.md`, 「Editing and
-// saving」, 「The AI talk panel」): a new note's document, a document written back as one transaction that
+// saving」, 「The talk panel」): a new note's document, a document written back as one transaction that
 // replaces only the top-level blocks that changed — so the caret and the reader's own edits elsewhere stand,
 // and one undo takes the change back — and the places the comment marks stand.
 
@@ -69,21 +69,6 @@ export function commentPlaces(editor: Editor): Map<string, number> {
   });
 
   return places;
-}
-
-/** The range a thread's comment marks cover, from its first to its last; null where none stands. */
-export function commentRange(editor: Editor, thread: string): { from: number; to: number } | null {
-  let from = -1;
-  let to = -1;
-
-  editor.state.doc.descendants((node, pos) => {
-    if (node.marks.some((mark) => mark.type.name === "comment" && mark.attrs.thread === thread)) {
-      if (from < 0) from = pos;
-      to = pos + node.nodeSize;
-    }
-  });
-
-  return from < 0 ? null : { from, to };
 }
 
 /** Takes every comment mark of `thread` off the document, as one transaction. */

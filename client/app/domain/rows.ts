@@ -1,5 +1,5 @@
-// The note read as the talk's rows and written back from them (`docs/design.md`, 「The AI talk panel」,
-// 「Ask AI」): the TipTap document's blocks in the order they stand, one row a block — a list item, a to-do
+// The note read as the talk's rows and written back from them (`docs/design.md`, 「The talk panel」,
+// 「Agent」): the TipTap document's blocks in the order they stand, one row a block — a list item, a to-do
 // item and each paragraph of a quote counting as one, a deeper block two spaces further in — each row
 // keeping the node it was read from, and the document built again from rows. A row the patch leaves
 // untouched is written back as the node it was read from, its marks, note links and comment marks with it;

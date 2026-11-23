@@ -33,8 +33,8 @@ key refuses is 403 `forbidden`.
 
 The service is ready once its store is open and every stored document is of the editor's format; while
 any note still holds a document the earlier editor wrote, it answers `ready` false with a `reason`
-naming how many, until the migration has converted them (`docs/design.md`, 「What a note is」). It calls no other unit; its screens speak to the receiver
-directly through the console's relay, on the manifest's `calls` (below).
+naming how many, until the migration has converted them (`docs/design.md`, 「What a note is」). Agency, which the
+Agent asks (「Agent」), is no part of its readiness: an ask answers for itself.
 
 ## Notes
 
@@ -134,6 +134,34 @@ A service-token call on these routes answers for the `owner` it names; one namin
   `not-found` where a write names it, and a delete of one answers 204 as the deletes of a link and a
   member do.
 - Each write publishes `note.commented`.
+
+### Agent
+
+| Method | Path | Does |
+|---|---|---|
+| POST | `/notes/{noteId}/agent?owner=` | One ask of the note assistant: `mode`, `lines`, `instruction`, `turns` — 200 `{answer}`, the agent's words, or null where it said nothing |
+
+- **The ask.** `mode` is `passage`, one passage of the note, or `note`, the whole note (`docs/design.md`,
+  「Agent」, 「The talk panel」); `lines` is that text in the note's line grammar, one string a line;
+  `instruction` is what the reader asks now, 1 to 10,000 characters with its ends trimmed; `turns` is the
+  rounds said before it over the same text, oldest first, each `owner` (true for the reader's) and `text`.
+  Anything else is 400 `bad-request`.
+- **Who asks.** It needs the note live and the caller's writes, as a save does: a member holding `read` is 403
+  `forbidden`, and a note the caller does not reach live is 404 `not-found`. Agency is asked nothing then.
+- **What it asks.** One slot of the role `[agent] role` names, `note-assistant`, under an owner of its own,
+  asked under the reader's own BMO, `u<key>`, so it is let in on an agent of the reader's account alone; the
+  platform administrator's — a console call whose `Owner-Role` is `administrator` — under the supervisor
+  `[agent] supervisor` names, or under none where it names none, so it stands under the deployment's own
+  account. A slot agency answers under another account than the one asked for is given back unused and the ask
+  is 502 `unanswered`. A member's account that holds no agent of the role is first given one, named
+  `<role>-u<key>`, on the road and the settings of the role's agent of no account. On the slot, once it is let
+  in, one session on the `search` line with the service's own instructions for the mode as its `systemPrompt`
+  and no tool allowed, and one turn starting afresh whose prompt is one JSON object: `noteId`, `title` (the
+  stored note's), `lines`, `instruction` and `rounds`, each `by` (`person` or `assistant`) and `text`. Whatever
+  the ask ends in, everything it held is given back by its owner. The service waits for the slot and the turn
+  however long they take; a caller that lets go ends the ask, and what it held is given back all the same.
+- **Refusals.** 503 `no-agent` where no agency is named or its token cannot be read; 502 `unanswered` where
+  agency refused a step, could not be reached, or the turn ended with no answer, the `error` naming why.
 
 ### Pins
 
@@ -264,8 +292,8 @@ it:
 
 - its declaration of the manifest fields it decides: name `note`, title `note.title`, icon
   `i-material-symbols-edit-note-outline`, screen path `/note`, service name `note`, API prefix `/`,
-  role `member` and the owner key, the event stream (below), no WebSocket, and under `calls` the
-  receiver alone (the AI talk panel's `POST /talks`, on the receiver's own terms); under `shareReads`
+  role `member` and the owner key, the event stream (below), no WebSocket, and nothing under `calls`, the
+  screens calling the note service alone, the Agent among it (「Agent」); under `shareReads`
   the two share reads (「Sharing」), which make the bundle's share page; no push kinds, relays or share
   head;
 - the bundle build's folder (`[console] folder`), as bmo-ui's bundle build writes it: the module
@@ -282,7 +310,7 @@ The note uses the contract's share page and its sharing with members; the people
 are the console's people directory, which the bundle reads in the browser, so the service calls no
 unit for them.
 
-The screens' routes are the notes, their blobs, their icon, their backlinks, their threads, their pins,
+The screens' routes are the notes, their blobs, their icon, their backlinks, their threads, the Agent, their pins,
 what was opened, the search, their sharing, the share reads and the event stream. Where the credential is empty, or
 the folder cannot be served, no face stands, the reason is written to the service's log, and the
 console's routes answer 404 `no-route`; the service's own routes are answered as ever.
@@ -306,8 +334,15 @@ milliseconds times 1000; a resume from before them is 410 `gone`.
 
 ## Calls the note service makes
 
-None. The unit holds its own truth in its own store and reaches no peer; the console reaches it, not
-the other way round.
+The unit holds its own truth in its own store; the console reaches it, and it reaches one peer, agency, for the
+Agent's asks alone (「Agent」), on its control port at `[agent] address` with the token the file `[agent]
+token_file` holds:
+
+| Unit | Route | Why |
+|---|---|---|
+| agency | `GET /role-agents?role=`, `POST /role-agents` | the reader's account's agent of the role, given one where it holds none |
+| agency | `POST /slot-requests`, `PATCH /slot-requests/{token}`, `DELETE /slot-requests?owner=` | the ask's slot, waited for and given back |
+| agency | `POST /sessions`, `POST /sessions/{sessionId}/turns` | the ask's session on the slot and its one turn |
 
 ## Codes
 
@@ -322,6 +357,8 @@ Beside the common codes of bmo-chat's `docs/conventions.md` (`bad-request`, `una
 | `bad-doc` | a `doc` that is not a TipTap document (422) |
 | `trashed` | a write on a note standing in the trash (422) |
 | `not-trashed` | a purge of a note that does not stand in the trash (422) |
+| `unanswered` | an Agent ask agency refused, could not answer, or whose agent said nothing it could read (502) |
+| `no-agent` | an Agent ask where no agency is named or its token cannot be read (503) |
 
 ## Settings
 
@@ -341,3 +378,7 @@ deployment's root, where `settings.local.toml` links to the data root's `env/not
 | `store` | `path` | the SQLite file; a relative one is read under the data root's `note/` folder |
 | `notes` | `max_doc_bytes` | the cap on one stored document, in bytes, as its JSON is stored |
 | `notes` | `max_blob_bytes` | the cap on one stored image, in bytes |
+| `agent` | `address` | agency's control address; empty, the Agent answers `no-agent` |
+| `agent` | `token_file` | the file holding agency's token (`agency.token` where none is set); a relative one is read under the data root's `env/` folder |
+| `agent` | `role` | the role whose agents answer, `note-assistant` where none is set |
+| `agent` | `supervisor` | the supervisor the platform administrator's asks are asked under; empty where none is set, so they stand under the deployment's own account |

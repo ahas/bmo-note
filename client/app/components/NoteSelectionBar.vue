@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The selection toolbar (`docs/design.md`, 「The console surface」): it floats over words chosen, holding Ask AI,
+// The selection toolbar (`docs/design.md`, 「The console surface」): it floats over words chosen, holding the Agent,
 // the comment key, the link key and the inline marks, each a small key named in its tooltip. The link key
 // opens a field for the address under the bar; Enter lays the link on the words and an empty field takes it
 // off. The bar stands whole inside the screen, wrapping its keys into a second row where the screen is
@@ -18,11 +18,13 @@ const props = defineProps<{
   editor: Editor;
   /** Whether a comment may be laid: the reader writes the note. */
   comment: boolean;
-  /** Whether the bar stands down: while Ask AI's menu stands under the words. */
+  /** Whether the Agent's key stands: the reader writes the note and an Agent is there to ask. */
+  agent?: boolean;
+  /** Whether the bar stands down: while the Agent's menu or a comment stands under the words. */
   hidden?: boolean;
 }>();
 
-const emit = defineEmits<{ ask: []; comment: [] }>();
+const emit = defineEmits<{ agent: []; comment: [] }>();
 
 const marks = ref<boolean[]>(MARKS.map(() => false));
 const linking = ref(false);
@@ -89,8 +91,8 @@ defineExpose({ openLink });
       data-selection-bar
       @mousedown.prevent
     >
-      <HintTip :text="$t('note.ask.key')" press>
-        <UButton size="sm" color="primary" variant="ghost" icon="i-material-symbols-auto-awesome-outline" :label="$t('note.ask.key')" data-selection="ask" @click="emit('ask')" />
+      <HintTip v-if="props.agent !== false" :text="$t('note.agent.key')" press>
+        <UButton size="sm" color="primary" variant="ghost" icon="i-material-symbols-auto-awesome-outline" :label="$t('note.agent.key')" data-selection="agent" @click="emit('agent')" />
       </HintTip>
       <HintTip v-if="props.comment" :text="$t('note.comment.add')" press>
         <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-add-comment-outline" :aria-label="$t('note.comment.add')" data-selection="comment" @click="emit('comment')" />

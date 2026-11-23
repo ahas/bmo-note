@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,8 +8,9 @@ import type { ChildProcess } from "node:child_process";
 import type { AddressInfo } from "node:net";
 
 // The screens as a person checks them by hand, stood up for a browser test: a throwaway note service built
-// from this checkout, on a settings folder and a store of its own under a scratch folder, a stand-in receiver
-// answering the talk and Ask AI, and the bundle's dev host relaying to both as the console would. The service
+// from this checkout, on a settings folder and a store of its own under a scratch folder, naming a stand-in agency
+// whose agent answers the talk and the Agent, and the bundle's dev host relaying to the service as the console
+// would. The service
 // and the host each run as the head of a process group of its own, so taking the stack down ends everything
 // either started; the scratch folder goes with it.
 
@@ -30,43 +31,76 @@ const ASK_EVERY_MS = 250;
 // The most of a process's own output a failure quotes.
 const QUOTED_CHARS = 4_000;
 
-/** The stack standing: the dev host's address, what the stand-in receiver was asked, and the way to take
+/** The stack standing: the dev host's address, what the stand-in agency's agent was asked, and the way to take
  * everything down. */
 export interface Stack {
   host: string;
-  asked: ReceiverAsk[];
+  asked: AgentAsked[];
   down(): Promise<void>;
 }
 
-/** One talk the stand-in receiver was asked: its topic's kind and fields, and what the reader said. */
-export interface ReceiverAsk {
-  kind: string;
-  fields: Record<string, string>;
-  said: string;
+/** One turn the stand-in agency's agent was asked: the instructions its session opened on, and the text, the
+ * instruction and the earlier rounds its prompt handed. */
+export interface AgentAsked {
+  instructions: string;
+  lines: string;
+  instruction: string;
+  rounds: { by: string; text: string }[];
 }
 
-/** The words the stand-in receiver answers an ask over a passage with: one line, in a fenced block. */
-export const RECEIVER_LINE = "Answered by the stand-in receiver";
+/** The words the stand-in agent answers an ask over a passage with: one line, in a fenced block. */
+export const AGENT_LINE = "Answered by the stand-in agent";
 
-/** The stand-in receiver (`docs/design.md`, 「The AI talk panel」, 「Ask AI」): every talk is answered at once
- * with one fenced block — an ask over a passage with the one line above, a talk about the note with the note's
- * own lines and that line after them. */
-function standInReceiver(asked: ReceiverAsk[]): ReturnType<typeof Bun.serve> {
+/** The stand-in agency (`docs/api.md`, 「Agent」): the note-assistant role's one agent, a slot let in at once, a
+ * session per slot, and every turn answered at once with one fenced block — an ask over a passage with the one line
+ * above, an ask over the whole note with the note's own lines and that line after them. */
+function standInAgency(asked: AgentAsked[]): ReturnType<typeof Bun.serve> {
+  const sessions = new Map<string, string>();
+  let made = 0;
+
   return Bun.serve({
     port: 0,
     hostname: "127.0.0.1",
     async fetch(request) {
-      if (request.method !== "POST" || !new URL(request.url).pathname.endsWith("/talks")) return Response.json({ code: "no-route", error: "none" }, { status: 404 });
+      const path = new URL(request.url).pathname;
+      const body = request.method === "GET" || request.method === "DELETE" ? {} : ((await request.json()) as Record<string, unknown>);
 
-      const body = (await request.json()) as { topic?: { kind?: string; fields?: Record<string, string> }; said?: string };
-      const kind = body.topic?.kind ?? "";
-      const fields = body.topic?.fields ?? {};
+      if (request.method === "GET" && path === "/role-agents") {
+        return Response.json({ items: [{ name: "note-assistant-01", role: "note-assistant", ownerAccount: null, enabled: true, provider: "claude-code", model: "stand-in" }] });
+      }
+      if (request.method === "POST" && path === "/role-agents") return Response.json(body, { status: 201 });
+      if (request.method === "POST" && path === "/slot-requests") {
+        const asker = typeof body.askedBy === "string" ? body.askedBy : "";
 
-      asked.push({ kind, fields, said: body.said ?? "" });
+        made += 1;
 
-      const lines = kind === "note-passage" ? [RECEIVER_LINE] : [...(fields.lines ?? "").split("\n"), RECEIVER_LINE];
+        return Response.json({ token: `slot-${made}`, state: "active", account: asker.startsWith("u") ? asker.slice(1) : null }, { status: 201 });
+      }
+      if (request.method === "PATCH" && path.startsWith("/slot-requests/")) return Response.json({ state: "active" });
+      if (request.method === "DELETE" && path === "/slot-requests") return Response.json({ cancelled: 0, released: 1, reservations: 0, sessionsEnded: [] });
+      if (request.method === "POST" && path === "/sessions") {
+        const id = `note-assistant@run:${made}`;
 
-      return Response.json({ answer: ["```", ...lines, "```"].join("\n") });
+        sessions.set(id, String(body.systemPrompt ?? ""));
+
+        return Response.json({ id }, { status: 201 });
+      }
+
+      const turn = /^\/sessions\/([^/]+)\/turns$/.exec(path);
+
+      if (request.method === "POST" && turn !== null) {
+        const instructions = sessions.get(decodeURIComponent(turn[1]!)) ?? "";
+        const prompt = JSON.parse(String(body.prompt ?? "{}")) as { lines?: string; instruction?: string; rounds?: { by: string; text: string }[] };
+
+        asked.push({ instructions, lines: prompt.lines ?? "", instruction: prompt.instruction ?? "", rounds: prompt.rounds ?? [] });
+
+        const whole = instructions.includes("The lines are the whole note");
+        const lines = whole ? [...(prompt.lines ?? "").split("\n"), AGENT_LINE] : [AGENT_LINE];
+
+        return Response.json({ outcome: "answered", answer: ["```", ...lines, "```"].join("\n") });
+      }
+
+      return Response.json({ code: "no-route", error: "none" }, { status: 404 });
     }
   });
 }
@@ -180,25 +214,26 @@ export async function stoodUp(): Promise<Stack> {
   const settings = join(scratch, "settings");
   const data = join(scratch, "data");
   const running: Running[] = [];
-  const asked: ReceiverAsk[] = [];
-  let stopReceiver = (): void => {};
+  const asked: AgentAsked[] = [];
+  let stopAgency = (): void => {};
 
   mkdirSync(settings, { recursive: true });
   mkdirSync(join(data, "note"), { recursive: true });
 
   const down = async (): Promise<void> => {
     for (const one of [...running].reverse()) await ended(one);
-    stopReceiver();
+    stopAgency();
     rmSync(scratch, { recursive: true, force: true });
   };
 
   try {
     const servicePort = await freePort();
-    // The talk panel's receiver is relayed too, to a stand-in in this process, so no call reaches a receiver
-    // that is running.
-    const receiver = standInReceiver(asked);
+    // The service asks a stand-in agency in this process, so no ask reaches an agency that is running.
+    const agency = standInAgency(asked);
+    const agencyToken = join(scratch, "agency.token");
 
-    stopReceiver = () => void receiver.stop(true);
+    stopAgency = () => void agency.stop(true);
+    writeFileSync(agencyToken, "browser-test-agency\n");
 
     const hostPort = await freePort();
     const service = `http://127.0.0.1:${servicePort}`;
@@ -211,7 +246,9 @@ export async function stoodUp(): Promise<Stack> {
       BMO_NOTE_SERVER__DATA_ROOT: data,
       BMO_NOTE_STORE__PATH: join(data, "note", "note.db"),
       BMO_NOTE_CONSOLE__TOKEN: CONSOLE_TOKEN,
-      BMO_NOTE_CONSOLE__FOLDER: join(scratch, "no-bundle")
+      BMO_NOTE_CONSOLE__FOLDER: join(scratch, "no-bundle"),
+      BMO_NOTE_AGENT__ADDRESS: `http://127.0.0.1:${agency.port}`,
+      BMO_NOTE_AGENT__TOKEN_FILE: agencyToken
     });
 
     running.push(note);
@@ -220,8 +257,6 @@ export async function stoodUp(): Promise<Stack> {
     const devHost = started(["bun", "x", "nuxt", "dev", "--host", "127.0.0.1", "--port", String(hostPort)], join(CLIENT, "dev-app"), {
       BMO_DEV_NOTE_ADDRESS: service,
       BMO_DEV_NOTE_TOKEN: CONSOLE_TOKEN,
-      BMO_DEV_RECEIVER_ADDRESS: `http://127.0.0.1:${receiver.port}`,
-      BMO_DEV_RECEIVER_TOKEN: "",
       BMO_DEV_OWNER_KEY: "1",
       BMO_DEV_OWNER_ROLE: "member"
     });

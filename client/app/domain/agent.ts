@@ -1,18 +1,16 @@
-// Ask AI (`docs/design.md`, 「Ask AI」): a passage of the note — the blocks a selection covers, or the
-// block under the caret — handed to the supervisor with one rule, over the receiver's one-turn talk road
-// the talk panel rides. The answer is the result in the note's line grammar, which the screen shows
-// under the passage before the reader places it.
-
-import { relayCall } from "bmo-ui/app/domain/relay";
+// The Agent (`docs/design.md`, 「Agent」): a passage of the note — the blocks a selection covers, or the block
+// under the caret — handed to the note assistant with one rule, through the note service's Agent route the talk
+// panel rides too. The answer is the result in the note's line grammar, which the screen shows under the passage
+// before the reader places it.
 
 import { fencedAnswer } from "./talk";
 
-import type { TalkTurn } from "./talk";
+import type { AgentCall, TalkTurn } from "./talk";
 
 /** The groups the menu lays the set actions in, in its order. */
 export type AskGroup = "edit" | "translate" | "write";
 
-/** One set action: its id (the menu's word is `note.ask.action.<id>`), its icon and the rule it states. */
+/** One set action: its id (the menu's word is `note.agent.action.<id>`), its icon and the rule it states. */
 export interface AskAction {
   id: string;
   group: AskGroup;
@@ -40,23 +38,8 @@ export const ASK_ACTIONS: AskAction[] = [
   { id: "brainstorm", group: "write", icon: "i-material-symbols-lightbulb-outline", rule: "Brainstorm ideas that grow from the passage, in its language, as bulleted items." }
 ];
 
-/** The paragraph the ask opens on: the rule and the passage are the fields below it. */
-export const ASK_HEADING = [
-  "You work on one passage of a note for its owner. The note is named by noteId and title. The passage",
-  "stands in the field passage and the instruction in the field instruction; the turns before this one",
-  "are the instruction's earlier rounds over the same passage, the last result included.",
-  "The passage is written in the note's line grammar. Each line is one block. A plain paragraph is bare",
-  "text. # to ###### head a section. - is a bulleted item, 1. a numbered one, - [ ] and - [x] to-do",
-  "items, > a quote, and ```<tab>text a code block. [[divider]], [[image]] and [[table]] name blocks",
-  "that stand as they are. A deeper block carries two spaces per level.",
-  "Follow the instruction and answer with the result alone, in the same line grammar, in one fenced",
-  "code block and nothing outside it."
-].join("\n");
-
 /** One ask: the passage and what is done to it. */
 export interface PassageAsk {
-  noteId: string;
-  title: string;
   /** The passage as lines in the note's grammar (`domain/text`). */
   passage: string[];
   instruction: string;
@@ -70,27 +53,9 @@ export interface AskAnswer {
   words: string;
 }
 
-/** One round of Ask AI, answered by the supervisor of the owner's account; null where it said nothing. */
-export async function askPassage(ask: PassageAsk): Promise<AskAnswer | null> {
-  const topic = {
-    kind: "note-passage",
-    key: ask.noteId,
-    heading: ASK_HEADING,
-    fields: {
-      noteId: ask.noteId,
-      title: ask.title,
-      instruction: ask.instruction,
-      passage: ask.passage.join("\n")
-    }
-  };
+/** One round of the Agent over a passage; null where it said nothing. */
+export async function askPassage(agent: AgentCall, ask: PassageAsk): Promise<AskAnswer | null> {
+  const words = await agent({ mode: "passage", lines: ask.passage, instruction: ask.instruction, turns: ask.turns });
 
-  const answered = await relayCall<{ answer?: string | null }>("receiver", "/talks", {
-    method: "POST",
-    body: { topic, turns: ask.turns, said: ask.instruction }
-  });
-  const words = answered.answer?.trim() ?? "";
-
-  if (words === "") return null;
-
-  return { lines: fencedAnswer(words), words };
+  return words === null ? null : { lines: fencedAnswer(words), words };
 }

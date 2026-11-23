@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The words and the input of the talk about one note (`docs/design.md`, 「The AI talk panel」), drawn the
+// The words and the input of the talk about one note (`docs/design.md`, 「The talk panel」), drawn the
 // same in the docked panel and in the bottom drawer. The panel around it owns where it stands; this owns
 // only the turns, what the last turn left to act on, and the box the owner writes in.
 
@@ -53,7 +53,7 @@ function onSend(): void {
     <ol ref="list" class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain" :aria-label="i18n.t('note.talk.title')">
       <li v-for="(turn, at) in turns" :key="at" class="flex flex-col gap-1">
         <p class="text-sm font-medium" :class="turn.owner ? 'text-primary' : 'text-muted'">
-          {{ turn.owner ? i18n.t("note.label.you") : i18n.t("note.label.supervisor") }}
+          {{ turn.owner ? i18n.t("note.label.you") : i18n.t("note.label.agent") }}
         </p>
         <p class="whitespace-pre-wrap break-words text-sm text-highlighted" :class="turn.owner ? '' : 'rounded-lg bg-elevated p-3'">{{ turn.text }}</p>
       </li>
