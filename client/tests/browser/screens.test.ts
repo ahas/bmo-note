@@ -310,7 +310,7 @@ describe.skipIf(!ready).each(WIDTHS.flatMap((width) => SCHEMES.map((scheme) => (
 
       // The own section's folder stands before its notes, and unfolds onto the note standing in it.
       const mine = navigator.locator("[data-mine]");
-      const folder = mine.locator("[data-folder=screens-folder] button[aria-expanded]");
+      const folder = mine.locator("[data-folder=screens-folder] > button[aria-expanded]");
 
       expect(await mine.locator("[data-section-room] > *").first().getAttribute("data-folders")).not.toBeNull();
       await folder.click();

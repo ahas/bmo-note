@@ -372,17 +372,14 @@ describe.skipIf(!ready).each(WIDTHS)("folders and bookmarks at $name", (width) =
       await press(width, target);
       await page.keyboard.press("End");
       await page.keyboard.press("Shift+Home");
+      // The editor reads the browser's selection a moment after the keys make it; a key sent before then is lost.
+      // The selection toolbar standing is the editor's own sign that it holds the words chosen.
+      await page.getByRole("toolbar", { name: WORDS.label.selection_bar }).waitFor({ timeout: STANDING_MS });
       await page.keyboard.press("Backspace");
+      await page.locator("[data-note-editor] .ProseMirror p", { hasText: "Bookmark this line" }).waitFor({ state: "detached", timeout: STANDING_MS });
       await page.keyboard.press("Backspace");
+      await page.waitForFunction(() => document.querySelectorAll("[data-note-editor] .ProseMirror p").length === 2);
 
-      try {
-        await page.locator("[data-note-editor] .ProseMirror p", { hasText: "Bookmark this line" }).waitFor({ state: "detached", timeout: 30_000 });
-      } catch (why) {
-        const where = await page.evaluate(() => ({ active: document.activeElement?.outerHTML.slice(0, 200), editable: document.querySelector("[data-note-editor] .ProseMirror")?.getAttribute("contenteditable") }));
-
-        await page.screenshot({ path: `${SHOTS}/folders-${width.width}-line-kept.png` });
-        throw new Error(`${String(why)} ${JSON.stringify(where)}`);
-      }
 
       // Once the note is saved, the service no longer finds the line's block in it.
       let stored = { anchored: [true], doc: "" };

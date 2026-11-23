@@ -402,11 +402,13 @@ search, links and comments, and shows the notes through a console bundle under i
     key at their head's trailing end, bmo-ui's one select (bmo-ui's `docs/components.md`, 「Choosing a
     value」) of last edited (the default), title and created, each kept in that browser with whether each
     section is folded; the own section's head carries the new folder key before it.
-  - **The own section is a tree.** Its folders stand first, by name, each a row of its own — the fold mark,
-    the folder mark and its name — and then the notes that stand in no folder. Pressing a folder's row
-    folds or unfolds it; an unfolded folder shows, one step further in, its own folders and then its notes
-    in the section's order, read thirty at a time as the section's are, and an empty folder one dimmed line
-    saying so. Which folders stand unfolded is kept in that browser.
+  - **The own section is a tree, not a list walked one level at a time.** The navigator stands beside the open
+    note to choose from, so every level a reader unfolded stays in sight at once and there is no `..` row to
+    climb back by; this is the owner's own choice for the notes screen. Its folders stand first, by name, each
+    a row of its own — the fold mark, the folder mark and its name — and then the notes that stand in no
+    folder. Pressing a folder's row folds or unfolds it; an unfolded folder shows, one step further in, its
+    own folders and then its notes in the section's order, read thirty at a time as the section's are, and
+    an empty folder one dimmed line saying so. Which folders stand unfolded is kept in that browser.
   - **A folder's actions stand in one menu,** from its `…` key, a right press and a held finger as a note
     row's do: new note in it, new folder in it, rename (F2), move to, bookmark or take the bookmark off,
     and delete (Delete), each key named beside its item and answered while the row holds the focus. A new
