@@ -88,7 +88,8 @@
     "bundle": "bun run decorators && vite build --config console/vite.config.ts",
     "typecheck": "bun scripts/typecheck.ts",
     "check": "bun run vendor && bun install --frozen-lockfile && bun run decorators && bun run typecheck && bun run bundle && bun test --path-ignore-patterns='tests/browser/**'",
-    "prepare": "bun x nuxi prepare"
+    "prepare": "bun x nuxi prepare",
+    "migrate": "bun scripts/migrate/run.ts"
   },
   "dependencies": {
     "@blocksuite/affine": "workspace:*",
