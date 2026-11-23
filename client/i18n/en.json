@@ -228,7 +228,7 @@
       "backlinks": "Linked from"
     },
     "editor": {
-      "placeholder": "Type / for a block, [[ or @ to link a note"
+      "placeholder": "Type / for a block, [[ or {'@'} to link a note"
     },
     "slash": {
       "kinds": "Turn into",

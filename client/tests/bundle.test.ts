@@ -43,6 +43,17 @@ describe("the words", () => {
     for (const key of keysOf(PACKS.en)) if (namesTable.test(word(PACKS.en, key)!)) expect(word(PACKS.ko, key), key).toContain(table);
   });
 
+  test("no word holds a bare @ or |, which the translator reads as a linked message and a plural", () => {
+    for (const pack of [PACKS.en, PACKS.ko]) {
+      for (const key of keysOf(pack)) {
+        const said = word(pack, key)!.replace(/\{'[^']*'\}/gu, "");
+
+        expect(said.includes("@"), key).toBe(false);
+        if (!key.endsWith("_count")) expect(said.includes("|"), key).toBe(false);
+      }
+    }
+  });
+
   test("every key the screens ask for is held", () => {
     // The bar's own names: the marks and kinds reach the packs through template heads, written whole here.
     const asked = new Set(sources.flatMap((path) => [...readFileSync(path, "utf8").matchAll(/["'`](note\.(?:section|sort|search|action|label|mark|kind|talk|empty|status|question|error|comment|link|editor|slash|insert|block|ask|share)\.[a-z_0-9]+)["'`]/g)].map((match) => match[1]!)));

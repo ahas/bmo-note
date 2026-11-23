@@ -167,9 +167,18 @@ describe.skipIf(!ready).each(WIDTHS)("the note editor at $name", (width) => {
 
         // Every tenth line, the caret at the end of the words just written stands inside the note's scroll.
         if (line % 10 === 0) {
+          // The caret's own box, or, where the browser draws a caret at a text's end with an empty one, the
+          // line it stands in.
           const caret = await page.evaluate(() => {
-            const range = globalThis.getSelection()?.getRangeAt(0);
-            const box = range?.getBoundingClientRect();
+            const selection = globalThis.getSelection();
+            const range = selection === null || selection.rangeCount === 0 ? null : selection.getRangeAt(0);
+            const own = range?.getClientRects()[0];
+
+            if (own !== undefined && own.height > 0) return { top: own.top, bottom: own.bottom };
+
+            const node = selection?.anchorNode ?? null;
+            const line = (node instanceof Element ? node : node?.parentElement)?.closest("p, h1, h2, h3, li");
+            const box = line?.getBoundingClientRect();
 
             return box === undefined ? null : { top: box.top, bottom: box.bottom };
           });
