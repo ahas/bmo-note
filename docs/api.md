@@ -273,6 +273,11 @@ it:
   chunks and fonts the editor loads as it works, read once at start;
 - the console credential (`[console] token`).
 
+The service name `note` is the key of the Notes app the screens are, which a person's settings switch on and
+off on the account service's delegation chain. The note ships no tool, so its deployment publishes the app from
+`deploy/app.toml`, the `[app]` table alone, offered and on by default, with `bmo pocket app` once the service
+answers ready (bmo-pocket's `docs/api.md`, 「An app on the delegation chain」).
+
 The note uses the contract's share page and its sharing with members; the people the dialog offers
 are the console's people directory, which the bundle reads in the browser, so the service calls no
 unit for them.

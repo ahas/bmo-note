@@ -67,3 +67,14 @@ cd client
 bun install --frozen-lockfile
 bun run bundle
 '''
+
+# The Notes app the console screen is, published on the delegation chain once the service answers ready, from the
+# declaration the release carries, so a person's settings can switch the screen (deploy/app.toml; bmo-pocket's
+# docs/api.md, 「An app on the delegation chain」).
+[[deploy.step]]
+id = "publish-app"
+phase = "after-health"
+command = '''
+set -eu
+bmo pocket app deploy/app.toml
+'''

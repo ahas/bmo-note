@@ -1,0 +1,12 @@
+# The Notes app this service's console screen is. The service ships no tool, so this declaration holds the
+# `[app]` table alone, and its deployment publishes it on the delegation chain with `bmo pocket app
+# deploy/app.toml` once the service answers ready, so a person's settings can switch the screen (bmo-pocket's
+# docs/api.md, 「An app on the delegation chain」).
+
+[app]
+key = "note"
+name = "Notes"
+description = "Writes notes as rich-text documents, links them to one another and shares them, with comments and AI help on each."
+icon = "i-material-symbols-edit-note-outline"
+offered = true
+on = true

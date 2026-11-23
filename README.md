@@ -27,7 +27,7 @@ and the unit's own repository checks (`repository.rs`). The console bundle's che
 |---|---|
 | `src/` | The service and its command: the routes, the note store, the reading of a document, the comments, the event ring, the console face's declaration |
 | `client/` | The console plugin bundle, a project of its own |
-| `deploy/` | The service's user unit |
+| `deploy/` | The service's user unit, and the app declaration its deployment publishes |
 | `tests/` | The crate's one test harness and the stand-ins it runs over |
 | `docs/` | The canonical statements of what the service is and its boundary |
 
