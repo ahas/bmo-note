@@ -3,13 +3,15 @@ import { ofetch } from "ofetch";
 
 import { createNoteApi, Refusal } from "../app/domain/api";
 
+import type { DocNode } from "../shared/types";
+
 // A stand-in of the note service's routes the screens call (`docs/api.md`, 「Notes」): a map of notes
 // with the version guard, the trash and the pages, served on the loopback for the length of a test.
 
 interface Held {
   id: string;
   title: string;
-  doc: string;
+  doc: DocNode;
   version: number;
   createdAt: number;
   changedAt: number;
@@ -17,7 +19,7 @@ interface Held {
 }
 
 function meta(held: Held) {
-  return { id: held.id, title: held.title, version: held.version, createdAt: held.createdAt, changedAt: held.changedAt, size: held.doc.length, deletedAt: held.deletedAt };
+  return { id: held.id, title: held.title, version: held.version, createdAt: held.createdAt, changedAt: held.changedAt, size: JSON.stringify(held.doc).length, deletedAt: held.deletedAt };
 }
 
 describe("the note api", () => {
@@ -37,7 +39,7 @@ describe("the note api", () => {
         return new Response(body, { status: refuse.status, headers: { "content-type": "application/json" } });
       }
 
-      const read = async (): Promise<Record<string, unknown>> => (await request.json()) as Record<string, unknown>;
+      const read = async (): Promise<Record<string, unknown>> => ((await request.json().catch(() => ({}))) as Record<string, unknown>);
 
       if (method === "GET" && path === "/notes") {
         const deleted = url.searchParams.get("deleted") === "true";
@@ -56,7 +58,7 @@ describe("the note api", () => {
 
           if (standing !== undefined) return Response.json(meta(standing), { status: 200 });
 
-          const made: Held = { id, title: String(body.title ?? ""), doc: String(body.doc), version: 1, createdAt: 1, changedAt: notes.size + 1, deletedAt: null };
+          const made: Held = { id, title: titleIn(body.doc as DocNode), doc: body.doc as DocNode, version: 1, createdAt: 1, changedAt: notes.size + 1, deletedAt: null };
 
           notes.set(id, made);
 
@@ -89,8 +91,10 @@ describe("the note api", () => {
 
             if (Number(body.version) < held.version) return Response.json({ code: "version-conflict", error: "behind", note: meta(held) }, { status: 409 });
 
-            if (typeof body.title === "string") held.title = body.title;
-            if (typeof body.doc === "string") held.doc = body.doc;
+            if (typeof body.doc === "object" && body.doc !== null) {
+              held.doc = body.doc as DocNode;
+              held.title = titleIn(held.doc);
+            }
             held.version += 1;
             held.changedAt = notes.size + 100;
 
@@ -115,9 +119,37 @@ describe("the note api", () => {
         }
       }
 
+      // The comment routes, answered as the service shapes them; the path and the body are kept for the test.
+      const threads = /^\/notes\/([^/]+)\/threads(?:\/([^/]+))?(?:\/comments(?:\/([^/]+))?)?$/.exec(path);
+
+      if (threads !== null) {
+        asked.push(`${method} ${path}${url.search}`);
+
+        if (method === "DELETE") return new Response(null, { status: 204 });
+
+        return read().then((body) => {
+          const thread = { id: threads[2] ?? String(body.id ?? ""), quote: String(body.quote ?? ""), author: "1", createdAt: 1, resolvedAt: body.resolved === true ? 2 : null, resolvedBy: null, anchored: false, mine: true, comments: [] };
+
+          if (path.endsWith("/comments")) return Response.json({ id: "c1", author: "1", body: body.body, createdAt: 3, mine: true }, { status: 201 });
+
+          return Response.json(thread, { status: method === "POST" ? 201 : 200 });
+        });
+      }
+
       return Response.json({ code: "no-route", error: "none" }, { status: 404 });
     }
   });
+  const asked: string[] = [];
+
+  /** The title the service reads from a document: its title node's words. */
+  function titleIn(doc: DocNode): string {
+    return (doc.content?.[0]?.content ?? []).map((node) => node.text ?? "").join("");
+  }
+
+  /** A document of a title and one paragraph. */
+  function doc(title: string, words = ""): DocNode {
+    return { type: "doc", content: [{ type: "title", content: title === "" ? undefined : [{ type: "text", text: title }] }, { type: "paragraph", content: words === "" ? undefined : [{ type: "text", text: words }] }] };
+  }
 
   const api = createNoteApi(<T>(path: string, options?: { method?: string; body?: unknown; query?: Record<string, string | undefined> }) =>
     ofetch<T>(`${server.url.origin}${path}${options?.query ? queryString(options.query) : ""}`, {
@@ -134,17 +166,17 @@ describe("the note api", () => {
   }
 
   test("makes a note once and finds it again idempotently", async () => {
-    const made = await api.create({ id: "a1", title: "Groceries", doc: "eA==" });
+    const made = await api.create({ id: "a1", doc: doc("Groceries") });
 
     expect(made.version).toBe(1);
 
-    const again = await api.create({ id: "a1", title: "Else", doc: "eQ==" });
+    const again = await api.create({ id: "a1", doc: doc("Else") });
 
     expect(again.title).toBe("Groceries");
   });
 
   test("reads, lists and pages by changed order", async () => {
-    await api.create({ id: "b2", title: "Second", doc: "eA==" });
+    await api.create({ id: "b2", doc: doc("Second", "x") });
 
     const page = await api.list("live");
 
@@ -152,13 +184,13 @@ describe("the note api", () => {
 
     const note = await api.read({ id: "b2" });
 
-    expect(note.doc).toBe("eA==");
+    expect(note.doc).toEqual(doc("Second", "x"));
   });
 
   test("saves forward and refuses a save from behind", async () => {
-    await expect(api.save({ id: "a1" }, { version: 1, title: "Market run", doc: "eQ==" })).resolves.toMatchObject({ version: 2, title: "Market run" });
+    await expect(api.save({ id: "a1" }, { version: 1, doc: doc("Market run") })).resolves.toMatchObject({ version: 2, title: "Market run" });
 
-    const failure = await api.save({ id: "a1" }, { version: 1, doc: "eq==" }).catch((error: unknown) => error);
+    const failure = await api.save({ id: "a1" }, { version: 1, doc: doc("Behind") }).catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(Refusal);
     expect((failure as Refusal).status).toBe(409);
@@ -174,7 +206,7 @@ describe("the note api", () => {
     expect(trash.items.map((row) => row.id)).toEqual(["a1"]);
 
     await expect(api.read({ id: "a1" })).rejects.toBeInstanceOf(Refusal);
-    await expect(api.save({ id: "a1" }, { version: 2, doc: "Zw==" })).rejects.toMatchObject({ code: "trashed" });
+    await expect(api.save({ id: "a1" }, { version: 2, doc: doc("Gone") })).rejects.toMatchObject({ code: "trashed" });
 
     await api.save({ id: "a1" }, { version: 2, restore: true });
     await api.trash("a1");
@@ -185,11 +217,31 @@ describe("the note api", () => {
   test("answers a refusal with its code", async () => {
     refuse = { status: 413, code: "too-large" };
 
-    const failure = await api.save({ id: "b2" }, { version: 2, doc: "eA==" }).catch((error: unknown) => error);
+    const failure = await api.save({ id: "b2" }, { version: 2, doc: doc("Big") }).catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(Refusal);
     expect((failure as Refusal).code).toBe("too-large");
 
     refuse = null;
+  });
+
+  test("reaches a note's threads at their own paths, naming another account's owner", async () => {
+    const key = { id: "n1", owner: "7" };
+
+    await api.threads(key).catch(() => []);
+    await api.startThread(key, { id: "t1", quote: "words", body: "Is this right?" });
+    await api.reply(key, "t1", "Yes.");
+    await api.resolveThread(key, "t1", true);
+    await api.deleteComment(key, "t1", "c1");
+    await api.deleteThread({ id: "n1" }, "t1");
+
+    expect(asked).toEqual([
+      "GET /notes/n1/threads?owner=7",
+      "POST /notes/n1/threads?owner=7",
+      "POST /notes/n1/threads/t1/comments?owner=7",
+      "PATCH /notes/n1/threads/t1?owner=7",
+      "DELETE /notes/n1/threads/t1/comments/c1?owner=7",
+      "DELETE /notes/n1/threads/t1"
+    ]);
   });
 });

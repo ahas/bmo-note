@@ -17,7 +17,7 @@ import type { Stack } from "./stack";
 // a picture for a person to read. The keys of the format bar are the library's small button, centred, their
 // hover on their own shape; the talk key stays in sight while the keys scroll on a phone; no state scrolls
 // the page sideways on a phone. The screen is the dev host's, relaying to a throwaway note service, its notes
-// written by the bundle's own document modules. Skipped where the browser build is not on the machine.
+// written through the relay. Skipped where the browser build is not on the machine.
 
 const ready = existsSync(chromium.executablePath());
 
@@ -558,7 +558,7 @@ describe.skipIf(!ready).each(WIDTHS)("the notes screen's selects at $name", (wid
     async () => {
       const page = await noteOpened(width, "light");
 
-      await page.locator("[data-note-editor] affine-paragraph").last().click();
+      await page.locator("[data-note-editor] .ProseMirror > p").last().click();
 
       const kind = formatBar(page).locator("[data-bar=kind]");
       let shown = await choicesOpened(page, kind);

@@ -1,12 +1,9 @@
 // The notes the screens' browser test stands its screens on: realistic notes of a Korean-speaking team, each a
-// real BlockSuite document made in the page by the bundle's own modules, saved through the dev host's relay
-// with its plain text and icon. The words are written as escapes, so the code holds no Hangul of its own
-// (the bundle's check, 「the code」).
+// TipTap document of its title and its lines, saved through the dev host's relay with its icon. The words are
+// written as escapes, so the code holds no Hangul of its own (the bundle's check, 「the code」).
 
 import type { Page } from "playwright-core";
-
-/** A phone as it names itself to the page, which is what the fork reads to lay out its phone's chrome. */
-export const PHONE_AGENT = "Mozilla/5.0 (Linux; Android 14; SM-S931N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36";
+import type { DocNode } from "../../shared/types";
 
 /** One note of the fixture: its id, icon, title and the lines of its text. */
 export interface FixtureNote {
@@ -84,39 +81,29 @@ export const FIXTURE: {
   }
 };
 
-/** The folder of the client, as the dev host serves its files. */
-const CLIENT = new URL("../../", import.meta.url).pathname;
+/** A note's document as the editor writes one: its title node and one paragraph a line. */
+export function docOf(title: string, lines: string[]): DocNode {
+  const text = (words: string): DocNode[] | undefined => (words === "" ? undefined : [{ type: "text", text: words }]);
 
-/** Makes each note in the page through the bundle's own document modules and saves it through the relay as
- * the reader the page's cookie names, with its text and its icon; answers once every one stands. */
+  return { type: "doc", content: [{ type: "title", content: text(title) }, ...lines.map((line) => ({ type: "paragraph", content: text(line) }))] };
+}
+
+/** Saves each note through the relay as the reader the page's cookie names, with its icon; answers once every
+ * one stands. */
 export async function seeded(page: Page, notes: FixtureNote[]): Promise<void> {
-  await page.evaluate(
-    async ({ client, notes }) => {
-      const domain = `/_nuxt/@fs${client}app/domain/`;
-      const doc = await import(/* @vite-ignore */ `${domain}doc.ts`);
-      const title = await import(/* @vite-ignore */ `${domain}title.ts`);
-      const apply = await import(/* @vite-ignore */ `${domain}apply.ts`);
-      const call = async (method: string, path: string, body?: unknown): Promise<void> => {
-        const answer = await fetch(`/proxy/note${path}`, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const made = notes.map((note) => ({ id: note.id, icon: note.icon, doc: docOf(note.title, note.text.split("\n")) }));
 
-        if (!answer.ok) throw new Error(`${method} ${path}: ${answer.status} ${await answer.text()}`);
-      };
+  await page.evaluate(async (made) => {
+    const call = async (method: string, path: string, body?: unknown): Promise<void> => {
+      const answer = await fetch(`/proxy/note${path}`, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
 
-      for (const note of notes) {
-        const made = doc.emptyNoteDoc(note.id);
-        const lines = note.text.split("\n");
+      if (!answer.ok) throw new Error(`${method} ${path}: ${answer.status} ${await answer.text()}`);
+    };
 
-        title.writeNoteTitle(made.store.root, note.title);
-        apply.replaceBody(made.store, lines);
+    for (const note of made) {
+      await call("POST", "/notes", { id: note.id, doc: note.doc });
 
-        await call("POST", "/notes", { id: note.id, title: note.title, doc: doc.toBase64(made.serialize()) });
-        await call("PUT", `/notes/${note.id}/text`, { version: 1, text: lines.join("\n") });
-
-        if (note.icon !== "") await call("PUT", `/notes/${note.id}/icon`, { icon: note.icon });
-
-        made.dispose();
-      }
-    },
-    { client: CLIENT, notes }
-  );
+      if (note.icon !== "") await call("PUT", `/notes/${note.id}/icon`, { icon: note.icon });
+    }
+  }, made);
 }

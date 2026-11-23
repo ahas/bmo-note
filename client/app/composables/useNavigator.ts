@@ -1,20 +1,19 @@
 // The navigator's board (`docs/design.md`, 「The console surface」): the pinned notes, the reader's own and
 // the ones shared with them, each section read a page at a time in the order the reader chose, and the
-// trash, read when its popover opens. The service's events read every section again in place; each read
-// hands the rows it found to the text fill, which supplies the plain text of a note saved before it was
-// asked for. The writes the screen makes from a row — a pin, a copy, the trash — are here too, each
+// trash, read when its popover opens. The service's events read every section again in place, but for a
+// thread's change, which is handed to the open note's comments. The writes the screen makes from a row — a pin, a copy, the trash — are here too, each
 // reading the board again once it lands.
 
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, shallowRef } from "vue";
 
 import { keyOfNote } from "../domain/api";
-import { emptyNoteDoc, toBase64 } from "../domain/doc";
+import { emptyDoc } from "../domain/document";
 import { cursorOf, keepPrefs, noteKeyOf, readPrefs, SECTION_PAGE } from "../domain/navigator";
-import { useNoteStream } from "../domain/stream";
-import { useTextFill } from "./useTextFill";
+import { COMMENTED_KIND, useNoteStream } from "../domain/stream";
 
 import type { NoteApi } from "../domain/api";
 import type { NavigatorPrefs, SectionName, SORTED_SECTIONS } from "../domain/navigator";
+import type { NoteStreamEvent } from "../domain/stream";
 import type { NoteMeta, NotesSort } from "../../shared/types";
 
 /** Where a section's read stands: its first fetch, its rows, or a refusal. */
@@ -41,7 +40,6 @@ export function useNavigator(api: NoteApi, service: string) {
   const pinnedStand = ref<SectionStand>("loading");
   const trash = reactive<SectionRows>(emptySection());
   const creating = ref(false);
-  const fill = useTextFill(api);
 
   // A read answered after a later one was asked is dropped, so a sort changed twice in a row stands as the
   // second asked.
@@ -77,7 +75,6 @@ export function useNavigator(api: NoteApi, service: string) {
       board.more = page.more;
       board.stand = "ready";
 
-      if (section !== "trash") fill.offer(page.items);
     } catch {
       if (turn === asked[section]) board.stand = "failed";
     }
@@ -87,7 +84,6 @@ export function useNavigator(api: NoteApi, service: string) {
     try {
       pinned.value = await api.pinned();
       pinnedStand.value = "ready";
-      fill.offer(pinned.value);
     } catch {
       pinnedStand.value = "failed";
     }
@@ -117,7 +113,6 @@ export function useNavigator(api: NoteApi, service: string) {
       board.rows = [...board.rows, ...page.items];
       board.more = page.more;
 
-      if (section !== "trash") fill.offer(page.items);
     } catch {
       // The rows standing stay; the next sight of the end asks again.
     } finally {
@@ -157,7 +152,17 @@ export function useNavigator(api: NoteApi, service: string) {
     }, 100);
   }
 
-  useNoteStream(service, refresh, refresh);
+  // A thread's change is the open note's comments panel's to read; every other event reads the board again.
+  const commented = shallowRef<NoteStreamEvent | null>(null);
+
+  useNoteStream(
+    service,
+    (event) => {
+      if (event.kind === COMMENTED_KIND) commented.value = event;
+      else refresh();
+    },
+    refresh
+  );
 
   /** Makes a note with an empty document and answers its metadata, for the screen to open. */
   async function create(): Promise<NoteMeta> {
@@ -165,10 +170,8 @@ export function useNavigator(api: NoteApi, service: string) {
 
     try {
       const id = crypto.randomUUID();
-      const doc = emptyNoteDoc(id);
-      const meta = await api.create({ id, title: "", doc: toBase64(doc.serialize()) });
+      const meta = await api.create({ id, doc: emptyDoc() });
 
-      doc.dispose();
       refresh();
 
       return meta;
@@ -227,7 +230,7 @@ export function useNavigator(api: NoteApi, service: string) {
     moveToTrash,
     restore,
     purge,
-    fill
+    commented
   };
 }
 

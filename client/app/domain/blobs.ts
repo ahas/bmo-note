@@ -1,73 +1,68 @@
-// The images of one note, held by the note unit (`docs/design.md`, 「Storage」). BlockSuite asks its
-// blob engine for the bytes of an image block; this source answers that engine with the note's own
-// blob routes on the service, or a link's share read on the share page, so an upload lands before the
-// block stands and a read-back finds the bytes wherever the note is opened. Deletes go with the note
-// itself, as the store keeps them under it; the engine is never asked to drop one on its own
-// (`docs/api.md`, 「Notes」).
+// The images of one note, held by the note unit (`docs/design.md`, 「Storage」, 「The console surface」): an
+// image block names its stored image by its blob id, and this source answers where the screen reads it — the
+// note's own blob route, or a link's share read on the share page — and uploads a picked or pasted image to
+// the note's route under a fresh id before the block stands. Deletes go with the note itself.
 
 import { relayAddress } from "bmo-ui/app/domain/relay";
 
-import type { DocCollectionOptions } from "@blocksuite/affine/store/test";
-
-type BlobSource = NonNullable<DocCollectionOptions["blobSources"]>["main"];
-
 const SERVICE = "note";
 
-/** Where the image `blobId` of a note is read and stored. */
-type BlobAddress = (blobId: string) => string;
+/// The cap an image may carry, mirroring the store's own (`settings.toml`, `[notes] max_blob_bytes`). The
+/// service refuses past its line whoever named what; this one only keeps the screen from uploading a file it
+/// already knows the store will send back.
+export const MAX_BLOB_BYTES = 8 * 1024 * 1024;
 
-/** The blob source of a note's images at `address`; a read-only one refuses every upload. */
-function blobSource(address: BlobAddress, readonly: boolean): BlobSource {
+/** Where a note's images are read and stored. */
+export interface BlobSource {
+  /** The address an image block is drawn from. */
+  address: (blobId: string) => string;
+  /** Stores one image and answers its blob id; refused where the source is read only. */
+  upload: (file: Blob) => Promise<string>;
+}
+
+/** Why an image did not stand: past the cap, or refused on the way. */
+export class ImageRefused extends Error {
+  constructor(readonly tooLarge: boolean) {
+    super(tooLarge ? "the image is past the store's cap" : "the note service refused the image");
+  }
+}
+
+/** A fresh blob id: letters and digits the blob routes take. */
+export function freshBlobId(): string {
+  return crypto.randomUUID().replace(/-/gu, "");
+}
+
+function blobSource(address: (blobId: string) => string, readonly: boolean): BlobSource {
   return {
-    name: "note",
-    readonly,
+    address,
+    upload: async (file: Blob): Promise<string> => {
+      if (readonly) throw new ImageRefused(false);
+      if (file.size > MAX_BLOB_BYTES) throw new ImageRefused(true);
 
-    get: async (key: string): Promise<Blob | null> => {
-      const answer = await fetch(address(key), { credentials: "same-origin" }).catch(() => null);
-
-      if (answer === null || answer.status === 404) return null;
-      if (!answer.ok) throw new Error(`the note service refused the image: ${answer.status}`);
-
-      return new Blob([await answer.arrayBuffer()], { type: answer.headers.get("content-type") ?? "application/octet-stream" });
-    },
-
-    set: async (key: string, value: Blob): Promise<string> => {
-      if (readonly) throw new Error("the note is open to read only");
-
-      const answer = await fetch(address(key), {
+      const id = freshBlobId();
+      const answer = await fetch(address(id), {
         method: "PUT",
         credentials: "same-origin",
-        headers: { "content-type": value.type || "application/octet-stream" },
-        body: value
-      });
+        headers: { "content-type": file.type || "application/octet-stream" },
+        body: file
+      }).catch(() => null);
 
-      if (!answer.ok) throw new Error(`the note service refused the image: ${answer.status}`);
+      if (answer === null || !answer.ok) throw new ImageRefused(answer?.status === 413);
 
-      return key;
-    },
-
-    delete: async () => {
-      // A blob stands with its note and goes when the note is purged; the editor drops none on its own.
-    },
-
-    list: async (): Promise<string[]> => {
-      // The engine reads all blobs of a workspace only for sync, which this unit has none of.
-      return [];
+      return id;
     }
   };
 }
 
-/** The blob source of one note: its own image routes, naming the owner where the note is another
- * account's shared with the reader, read only where the share opens no writes. */
+/** The images of one note: its own image routes, naming the owner where the note is another account's shared
+ * with the reader, read only where the share opens no writes. */
 export function noteBlobSource(noteId: string, owner?: string, readonly = false): BlobSource {
   const query = owner === undefined ? "" : `?owner=${encodeURIComponent(owner)}`;
 
   return blobSource((blobId) => relayAddress(SERVICE, `/notes/${encodeURIComponent(noteId)}/blobs/${encodeURIComponent(blobId)}${query}`), readonly);
 }
 
-/** The blob source of the note a link opens: its share read, read only (`docs/api.md`, 「Share reads」). */
+/** The images of the note a link opens: its share read, read only (`docs/api.md`, 「Share reads」). */
 export function sharedBlobSource(token: string): BlobSource {
   return blobSource((blobId) => relayAddress(SERVICE, `/shares/${encodeURIComponent(token)}/blobs/${encodeURIComponent(blobId)}`), true);
 }
-
-export type { BlobSource };

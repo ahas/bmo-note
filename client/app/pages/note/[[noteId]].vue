@@ -113,6 +113,24 @@ function hrefOf(note: Pick<NoteMeta, "id" | "owner" | "access" | "deletedAt">): 
   return router.resolve(notePath(note)).href;
 }
 
+/** Opens a path a note link or a backlink names, as choosing a note does. */
+function openPath(path: string, newTab: boolean): void {
+  if (newTab) {
+    window.open(router.resolve(path).href, "_blank", "noopener");
+
+    return;
+  }
+
+  void router.push(path);
+}
+
+// The reader's own account key, read off any note the reader owns, for the note links that name it.
+const readerKey = computed<string | null>(() => {
+  const owned = [openNote.value, ...board.sections.mine.rows, ...board.pinned.value].find((note) => note !== null && note.access === "owner");
+
+  return owned?.owner ?? null;
+});
+
 function choose(note: NoteMeta, newTab = false): void {
   if (newTab) {
     window.open(hrefOf(note), "_blank", "noopener");
@@ -309,7 +327,10 @@ const searchKbds = SCREEN_KBDS.search;
             :wide="wideOpen"
             navigator-key="drawer"
             :name-of="nameOf"
-            :fill="board.fill.fillOpen"
+            :reader-key="readerKey"
+            :commented="board.commented.value"
+            :href-of="hrefOf"
+            @open="openPath"
             @navigator="drawerOpen = true"
             @act="act"
             @wide="setWide"
@@ -359,7 +380,10 @@ const searchKbds = SCREEN_KBDS.search;
             :wide="wideOpen"
             :navigator-key="navigatorKey"
             :name-of="nameOf"
-            :fill="board.fill.fillOpen"
+            :reader-key="readerKey"
+            :commented="board.commented.value"
+            :href-of="hrefOf"
+            @open="openPath"
             @navigator="toggleNavigator"
             @act="act"
             @wide="setWide"

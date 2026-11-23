@@ -9,7 +9,7 @@ import type { NoteMeta } from "../shared/types";
 // it in this browser, read back whatever was kept.
 
 function note(over: Partial<NoteMeta> = {}): NoteMeta {
-  return { id: "n1", owner: "1", title: "Plan: draft", version: 1, createdAt: 10, changedAt: 20, size: 3, deletedAt: null, access: "owner", icon: "", indexed: true, ...over };
+  return { id: "n1", owner: "1", title: "Plan: draft", version: 1, createdAt: 10, changedAt: 20, size: 3, deletedAt: null, access: "owner", icon: "", ...over };
 }
 
 describe("the cursor", () => {

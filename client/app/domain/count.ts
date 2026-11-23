@@ -1,48 +1,35 @@
-// What a note holds, for its standing line: the words of its text and the bytes the service stores
-// for it (`docs/design.md`, 「The console surface」). The count walks the open document — its title,
-// every text block, the table cells among them — the same document the save writes back. A database
-// keeps its rows in a document of their own and stands outside the count.
+// What a note holds, for its standing line: the words of its title and blocks and the bytes the service
+// stores, and the moments and sizes the bar writes.
 
-import type { Store } from "@blocksuite/affine/store";
+import { wordsOf } from "./rows";
+
+import type { DocNode } from "./rows";
 
 export interface Holding {
   words: number;
 }
 
-/** A node of the walked tree, read only for what the count needs. The root's title and a text
- * block's text ride the block's own `props`, whichever shape the fork hands them in. */
-export interface Walkable {
-  props?: { title?: unknown; text?: unknown };
-  title?: unknown;
-  text?: unknown;
-  children?: Walkable[];
-}
-
-/** The words of the open note, from its root down. */
-export function countHolding(store: Store): Holding {
-  return { words: countWords(store.root as unknown as Walkable | null) };
-}
-
-/** The words of one walked tree, its title and every text block counted as a reader counts them. */
-export function countWords(root: Walkable | null): number {
+/** The words of a document, its title and every block counted as a reader counts them, block by block. */
+export function countWords(doc: DocNode): number {
   let words = 0;
+  const read = (node: DocNode): void => {
+    const holdsWords = node.type === "title" || node.type === "codeBlock" || (node.content ?? []).some((child) => INLINE.has(child.type));
 
-  const text = (value: unknown): string => {
-    const held = value as { toString?: () => string } | null | undefined;
+    if (holdsWords) {
+      words += countText(wordsOf(node));
 
-    return held?.toString?.() ?? "";
+      return;
+    }
+
+    for (const child of node.content ?? []) read(child);
   };
 
-  const walk = (node: Walkable): void => {
-    words += countText(text(node.props?.title ?? node.title)) + countText(text(node.props?.text ?? node.text));
-
-    for (const child of node.children ?? []) walk(child);
-  };
-
-  if (root !== null) walk(root);
+  read(doc);
 
   return words;
 }
+
+const INLINE = new Set(["text", "mention", "hardBreak"]);
 
 /** Words in one run of text: runs of non-space, as a reader counts them. */
 function countText(text: string): number {

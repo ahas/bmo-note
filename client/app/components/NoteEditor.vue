@@ -1,206 +1,419 @@
 <script setup lang="ts">
-// The BlockSuite editor as this unit mounts it: the fork's page editor, one document, page mode, with
-// the bundle's format bar standing over it. The element is the preset's own container, registered once
-// (docs/affine.md, 「What stands borrowed」); its standard scope reaches the bar once the container has
-// drawn, and reaches this file's caller for the foot line's count. A note opened read only — shared with
-// the reader to read, or on its share page — stands with its edits refused, the bar's keys disabled and
-// no Ask AI (`docs/design.md`, 「Sharing on the screens」).
+// The note editor (`docs/design.md`, 「The console surface」): Nuxt UI's editor over the note's TipTap document,
+// with the bundle's format bar over it, the selection toolbar over chosen words, the slash menu, the note-link
+// menus `[[` and `@` open, the drag handle beside a block under a pointer, Ask AI over a passage, and the page
+// head and the backlinks standing in the document's own scroll around it. A note opened read only — shared
+// with the reader to read, or on its share page — stands with its edits refused, the bar's keys disabled and
+// none of the writing chrome.
 
-import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { useOverlay } from "@nuxt/ui/composables/useOverlay";
-
-import QuestionDialog from "bmo-ui/app/components/QuestionDialog.vue";
-import { islandState, useIsland } from "bmo-ui/app/domain/island";
-import { useLongPress } from "bmo-ui/app/domain/longpress";
-
-import "@toeverything/theme/style.css";
+import UEditor from "@nuxt/ui/components/Editor.vue";
+import UEditorDragHandle from "@nuxt/ui/components/EditorDragHandle.vue";
+import UEditorMentionMenu from "@nuxt/ui/components/EditorMentionMenu.vue";
+import UEditorSuggestionMenu from "@nuxt/ui/components/EditorSuggestionMenu.vue";
+import { useIsland } from "bmo-ui/app/domain/island";
 
 import NoteAsk from "./NoteAsk.vue";
+import NoteSelectionBar from "./NoteSelectionBar.vue";
 import NoteToolbar from "./NoteToolbar.vue";
-import { applyOps, readRows, replaceBody, runOf } from "../domain/apply";
-import { noteBlobSource } from "../domain/blobs";
-import { keepCaretInSight } from "../domain/caret";
-import { ensureEditorRegistered, fromBase64, openNoteDoc, toBase64 } from "../domain/doc";
-import { pageExtensions } from "../domain/editor";
-import { countHolding } from "../domain/count";
-import { passageElement, passageModels } from "../domain/format";
-import { asOneStep, historyDirectionOf, stepHistory } from "../domain/history";
-import { chooseWhole, gutterBlock } from "../domain/gutter";
-import { editorMessages } from "../domain/notices";
-import { linesOf, opaqueRow } from "../domain/text";
-import { followScreenMode } from "../domain/theme";
-import { writeNoteTitle } from "../domain/title";
-import { answerEditorWords } from "../domain/words";
+import { ImageRefused } from "../domain/blobs";
+import { countWords } from "../domain/count";
+import { commentPlaces, commentRange, dropComment, snapshotOf, writeDoc } from "../domain/document";
+import { COMMENT_TINT, noteExtensions } from "../domain/extensions";
+import { INSERTS, insertInto, KINDS, turnInto } from "../domain/format";
+import { historyDirectionOf } from "../domain/history";
+import { linesOfRun, patchedDoc, retitledDoc, rewrittenDoc, rowsOfDoc, runAt } from "../domain/rows";
+import { opaqueRow } from "../domain/text";
 
+import type { Editor, JSONContent } from "@tiptap/core";
+import type { StarterKitOptions } from "@tiptap/starter-kit";
+import type { EditorView } from "@tiptap/pm/view";
+import type { DropdownMenuItem } from "@nuxt/ui";
 import type { BlobSource } from "../domain/blobs";
-import type { EditorNotice } from "../domain/editor";
 import type { Holding } from "../domain/count";
-import type { NoteDoc } from "../domain/doc";
-import type { ReplaceResult } from "../domain/apply";
+import type { InsertId, KindId } from "../domain/format";
+import type { LinkTarget } from "../domain/links";
 import type { Op } from "../domain/patch";
-import type { BlockStdScope } from "@blocksuite/affine/std";
-import type { Subscription } from "rxjs";
+import type { DocNode, Rewrite } from "../domain/rows";
+
+/** A note the link menus offer: the item Nuxt UI's mention menu draws and the attributes the link takes. */
+export interface LinkCandidate {
+  id: string;
+  owner: string;
+  label: string;
+  icon?: string;
+  description?: string;
+}
 
 const props = withDefaults(
   defineProps<{
     noteId: string;
-    doc: string;
+    doc: DocNode;
     title: string;
-    /** Where the note's images are read and stored; the reader's own note's routes where none is given. */
-    blobs?: BlobSource;
+    /** Where the note's images are read and stored. */
+    blobs: BlobSource;
     readonly?: boolean;
     /** Whether the format bar stands over the document. */
     toolbar?: boolean;
+    /** Whether the reader may lay comments. */
+    comments?: boolean;
+    /** The address a note link leads to. */
+    href: (target: LinkTarget) => string;
+    /** The notes the link menus offer for what follows the mark; recent notes for nothing. */
+    findNotes?: (term: string) => Promise<LinkCandidate[]>;
+    /** The threads whose words wear the comment tint, and the one standing chosen in the panel. */
+    openThreads?: readonly string[];
+    chosenThread?: string | null;
   }>(),
-  { blobs: undefined, readonly: false, toolbar: true }
+  { readonly: false, toolbar: true, comments: false, findNotes: undefined, openThreads: () => [], chosenThread: null }
 );
 
-const emit = defineEmits<{ change: []; title: [title: string]; ready: [] }>();
+const emit = defineEmits<{
+  change: [];
+  title: [title: string];
+  ready: [];
+  /** A note link pressed: the note it names, and whether it opens in a new tab. */
+  link: [target: LinkTarget, newTab: boolean];
+  /** Marked words pressed, or the comment key: the thread, or a new one over the words chosen. */
+  thread: [thread: string];
+  comment: [draft: { quote: string; range: { from: number; to: number } }];
+}>();
 
-const host = shallowRef<HTMLElement | null>(null);
-const scope = shallowRef<BlockStdScope | null>(null);
 const i18n = useI18n();
-const overlay = useOverlay();
-// The console's one message pill: what the editor says and what this screen says of it both stand there
-// (`docs/design.md`, 「The editor speaks on the console's message pill」).
 const island = useIsland((key: string) => i18n.t(key));
 
-// The editor reads its colours off the document element, so the console's mode stands there before
-// the container is mounted.
-followScreenMode();
+const host = shallowRef<HTMLElement | null>(null);
+const editor = shallowRef<Editor | null>(null);
+const toolbarRef = shallowRef<InstanceType<typeof NoteToolbar> | null>(null);
+const working = ref(false);
 
-let held: NoteDoc | null = null;
-let stopChange: (() => void) | null = null;
-
-const messages = editorMessages({
-  pill: island,
-  ask: async (title: string) =>
-    (await overlay.create(QuestionDialog, { props: { title, confirm: i18n.t("note.action.apply"), leaving: true }, destroyOnClose: true }).open()) === true
+const extensions = noteExtensions({
+  href: (target) => props.href(target),
+  untitled: i18n.t("note.label.untitled"),
+  image: (blobId) => props.blobs.address(blobId)
 });
-// The fork hears of a notice it asked about once the pill is done with it.
-watch(islandState(), (state) => messages.heard(state));
 
-const notice: EditorNotice = {
-  messages: messages.service,
-  ask: props.readonly ? null : () => openAsk(),
-  askLabel: i18n.t("note.ask.key"),
-  blockWords: {
-    copy: i18n.t("note.block.copy"),
-    duplicate: i18n.t("note.block.duplicate"),
-    delete: i18n.t("note.block.delete")
+// The starter kit as the note takes it: the document is the note's own (a title node first), every heading
+// level stands, and a link is followed by the screen, never by a press inside the editor.
+const starterKit: Partial<StarterKitOptions> = {
+  document: false,
+  heading: { levels: [1, 2, 3, 4, 5, 6] },
+  link: { openOnClick: false, autolink: true, defaultProtocol: "https" }
+};
+
+// The title says untitled while it is empty; a line says how to reach the menus while the caret stands in it.
+const placeholder = {
+  showOnlyCurrent: false,
+  includeChildren: false,
+  placeholder: ({ node, hasAnchor }: { node: { type: { name: string } }; hasAnchor: boolean }) =>
+    node.type.name === "title" ? i18n.t("note.label.untitled") : hasAnchor && node.type.name === "paragraph" ? i18n.t("note.editor.placeholder") : ""
+};
+
+// The caret is kept inside the note's scroll with room around it as the editor scrolls it into sight
+// (`docs/design.md`, 「Editing and saving」).
+const editorProps = {
+  scrollMargin: 48,
+  scrollThreshold: 48,
+  handlePaste: (_view: EditorView, event: ClipboardEvent) => takeImages([...(event.clipboardData?.files ?? [])]),
+  handleDrop: (_view: EditorView, event: DragEvent) => takeImages([...(event.dataTransfer?.files ?? [])])
+};
+
+// The editor Nuxt UI's component made, once it stands.
+const editorRoot = shallowRef<{ editor?: Editor } | null>(null);
+
+watch(
+  () => editorRoot.value?.editor,
+  (made) => {
+    if (made === undefined || made === editor.value) return;
+
+    editor.value = made;
+    tint();
+    emit("ready");
+  }
+);
+
+function onChanged(): void {
+  const held = editor.value;
+
+  if (held === null) return;
+
+  emit("change");
+  emit("title", snapshotOf(held).title);
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Images: the bytes go to the service first and the block stands once they are held.
+
+function takeImages(files: File[]): boolean {
+  const images = files.filter((file) => file.type.startsWith("image/"));
+
+  if (images.length === 0 || props.readonly) return false;
+
+  void insertImages(images);
+
+  return true;
+}
+
+async function insertImages(files: File[]): Promise<void> {
+  const held = editor.value;
+
+  if (held === null || working.value) return;
+
+  working.value = true;
+
+  try {
+    for (const file of files) {
+      const blob = await props.blobs.upload(file);
+
+      held.chain().focus().insertContent({ type: "image", attrs: { blob, alt: file.name } }).run();
+    }
+  } catch (error) {
+    island.say({ tone: "error", title: i18n.t(error instanceof ImageRefused && error.tooLarge ? "note.error.image_too_large" : "note.error.image_failed") });
+  } finally {
+    working.value = false;
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// The slash menu and the drag handle's menu: the kinds and the inserts, each named in the console's language.
+
+const handlers = {
+  noteKind: {
+    canExecute: () => true,
+    execute: (held: Editor, item: { turn: KindId }) => turnInto(held.chain().focus(), item.turn),
+    isActive: () => false,
+    isDisabled: undefined
+  },
+  noteInsert: {
+    canExecute: () => true,
+    execute: (held: Editor, item: { insert: InsertId }) => {
+      if (item.insert === "image") {
+        toolbarRef.value?.pickImage();
+
+        return held.chain();
+      }
+
+      return insertInto(held.chain().focus(), item.insert);
+    },
+    isActive: () => false,
+    isDisabled: undefined
   }
 };
 
-// Ask AI (`docs/design.md`, 「Ask AI」): the passage is taken as the key is pressed — the blocks the
-// selection covers, the one under the caret, or the whole note — and the result is placed over that run.
+const slashItems = computed(() => [
+  [
+    { type: "label" as const, label: i18n.t("note.slash.kinds") },
+    ...KINDS.map((kind) => ({ kind: "noteKind", turn: kind.id, label: i18n.t(`note.kind.${kind.id}`), icon: kind.icon }))
+  ],
+  [
+    { type: "label" as const, label: i18n.t("note.slash.inserts") },
+    ...INSERTS.map((insert) => ({ kind: "noteInsert", insert: insert.id, label: i18n.t(`note.insert.${insert.id}`), icon: insert.icon }))
+  ]
+]);
+
+// The block the drag handle stands beside, and its menu: turn into, duplicate, copy and delete.
+const handled = shallowRef<{ node: JSONContent; pos: number } | null>(null);
+
+function onHandleNode(chosen: { node: JSONContent; pos: number }): void {
+  handled.value = chosen;
+}
+
+const handleItems = computed<DropdownMenuItem[][]>(() => {
+  const held = editor.value;
+  const chosen = handled.value;
+
+  if (held === null || chosen === null) return [];
+
+  const atBlock = () => held.chain().focus().setNodeSelection(chosen.pos);
+
+  return [
+    [
+      {
+        label: i18n.t("note.action.turn_into"),
+        icon: "i-material-symbols-swap-horiz",
+        children: KINDS.map((kind) => ({
+          label: i18n.t(`note.kind.${kind.id}`),
+          icon: kind.icon,
+          onSelect: () => turnInto(held.chain().focus().setTextSelection(chosen.pos + 1), kind.id).run()
+        }))
+      }
+    ],
+    [
+      { label: i18n.t("note.block.duplicate"), icon: "i-material-symbols-content-copy-outline", onSelect: () => duplicateBlock(chosen) },
+      { label: i18n.t("note.block.copy"), icon: "i-material-symbols-file-copy-outline", onSelect: () => void copyBlock(chosen) },
+      { label: i18n.t("note.block.delete"), icon: "i-material-symbols-delete-outline", color: "error" as const, onSelect: () => atBlock().deleteSelection().run() }
+    ]
+  ];
+});
+
+function duplicateBlock(chosen: { node: JSONContent; pos: number }): void {
+  const held = editor.value;
+  const node = held?.state.doc.nodeAt(chosen.pos);
+
+  if (held === null || node === null || node === undefined) return;
+
+  held.chain().focus().insertContentAt(chosen.pos + node.nodeSize, node.toJSON()).run();
+}
+
+async function copyBlock(chosen: { node: JSONContent; pos: number }): Promise<void> {
+  const held = editor.value;
+  const node = held?.state.doc.nodeAt(chosen.pos);
+
+  if (held === null || node === null || node === undefined) return;
+
+  try {
+    await navigator.clipboard.writeText(node.textContent);
+    island.say({ tone: "success", title: i18n.t("note.status.block_copied") });
+  } catch {
+    island.say({ tone: "error", title: i18n.t("note.error.copy_failed") });
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// The note-link menus: `[[` and `@` each open the reader's notes, those found for what follows the mark.
+
+const linkItems = ref<LinkCandidate[]>([]);
+const linkTerm = ref("");
+let linkAsked = 0;
+
+watch(linkTerm, async (term) => {
+  const find = props.findNotes;
+
+  if (find === undefined) return;
+
+  const asked = (linkAsked += 1);
+
+  try {
+    const found = await find(term.trim());
+
+    if (asked === linkAsked) linkItems.value = found.filter((one) => !(one.id === props.noteId));
+  } catch {
+    if (asked === linkAsked) linkItems.value = [];
+  }
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// Presses inside the document: a note link opens its note; marked words open their thread.
+
+function onPress(event: MouseEvent): void {
+  const target = event.target as Element | null;
+  const link = target?.closest<HTMLAnchorElement>("a[data-note-link]") ?? null;
+
+  if (link !== null) {
+    event.preventDefault();
+    emit("link", { id: link.dataset.noteLink ?? "", owner: link.dataset.owner ?? "" }, event.ctrlKey || event.metaKey);
+
+    return;
+  }
+
+  const marked = target?.closest<HTMLElement>("[data-thread]") ?? null;
+
+  if (marked !== null && props.openThreads.includes(marked.dataset.thread ?? "")) emit("thread", marked.dataset.thread ?? "");
+}
+
+/** The comment key over chosen words: a new thread's draft, the words and the range they stand in. */
+function askComment(held: Editor): void {
+  const { from, to } = held.state.selection;
+
+  if (from === to) return;
+
+  emit("comment", { quote: held.state.doc.textBetween(from, to, " ").trim().slice(0, 1000), range: { from, to } });
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Ask AI (`docs/design.md`, 「Ask AI」): the passage is taken as the key is pressed — the rows the selection
+// covers, the one under the caret, or the whole note where the caret stands in the title — and the result is
+// placed over that run or below it.
+
 const asking = ref(false);
 const passage = shallowRef<{ at: number; count: number; lines: string[]; opaque: boolean } | null>(null);
 const anchor = shallowRef<{ getBoundingClientRect: () => DOMRect } | undefined>(undefined);
 
 function openAsk(): void {
-  const std = scope.value;
+  const held = editor.value;
 
-  if (std === null || held === null) return;
+  if (held === null) return;
 
-  // Where the editor holds neither a selection nor a caret, the passage is the whole note.
-  const chosen = passageModels(std);
-  const models = chosen.length > 0 ? chosen : readRows(held.store).map((row) => row.model);
-  const run = runOf(held.store, models);
+  const rows = rowsOfDoc(held.getJSON() as DocNode);
+  const { from, to } = held.state.selection;
+  const run = runAt(rows, from, to) ?? (rows.length > 0 ? { at: 0, count: rows.length } : null);
 
   if (run === null) return;
 
-  const element = passageElement(std, models);
+  const lastRow = rows[run.at + run.count - 1];
+  const at = Math.min(lastRow === undefined ? to : lastRow.to - 1, held.state.doc.content.size);
 
-  passage.value = { at: run.at, count: run.count, lines: linesOf(run.rows), opaque: run.rows.some(opaqueRow) };
-  anchor.value = element === null ? undefined : { getBoundingClientRect: () => element.getBoundingClientRect() };
+  passage.value = { ...run, lines: linesOfRun(rows, run), opaque: rows.slice(run.at, run.at + run.count).some(opaqueRow) };
+  anchor.value = {
+    getBoundingClientRect: () => {
+      const place = held.view.coordsAtPos(Math.max(0, at));
+
+      return new DOMRect(place.left, place.top, 0, place.bottom - place.top);
+    }
+  };
   asking.value = true;
 }
+
+// The selection toolbar stands down while the menu stands under the words, and back once it goes; a
+// transaction that changes nothing asks the toolbar to read where it stands.
+watch(asking, async () => {
+  await nextTick();
+
+  const held = editor.value;
+
+  if (held !== null && !held.isDestroyed) held.view.dispatch(held.state.tr.setMeta("addToHistory", false));
+});
 
 function placeAsked(how: "replace" | "below", lines: string[]): void {
   const taken = passage.value;
 
-  if (held === null || taken === null) return;
+  if (taken === null) return;
+
+  const op: Op = how === "replace" ? { at: taken.at, del: taken.count, insert: lines } : { at: taken.at + taken.count, del: 0, insert: lines };
+
+  if (!apply([op])) island.say({ tone: "error", title: i18n.t("note.talk.apply_failed") });
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// The talk's hand on the document, each change one transaction.
+
+function apply(ops: Op[]): boolean {
+  const held = editor.value;
+
+  if (held === null) return false;
 
   try {
-    applyOps(held.store, [how === "replace" ? { at: taken.at, del: taken.count, insert: lines } : { at: taken.at + taken.count, del: 0, insert: lines }]);
+    writeDoc(held, patchedDoc(held.getJSON() as DocNode, ops));
+
+    return true;
   } catch {
-    island.say({ tone: "error", title: i18n.t("note.talk.apply_failed") });
+    return false;
   }
 }
 
-// On a phone the block a person means is held from the gutter beside it: a finger resting left of the
-// document's column chooses whole the top-level block standing at its height, the choice a press on the
-// drag handle makes for a pointer (`docs/design.md`, 「On a phone a held finger in the gutter chooses a
-// block whole」). bmo-ui's one hold reads the finger, so a slide, a scroll that starts under it or a
-// second finger chooses nothing, and a hold on the words is never read here — the column's own edge ends
-// where this look begins, so the phone keeps its reading of a hold on text. A note held to read only has
-// nothing to choose.
-useLongPress({
-  surface: () => host.value,
-  press: (_target, at) => {
-    const std = scope.value;
-    const room = host.value;
+function replace(lines: string[]): Rewrite {
+  const held = editor.value;
 
-    if (props.readonly || std === null || room === null) return null;
+  if (held === null) return { ok: false, kinds: [] };
 
-    const blockId = gutterBlock(std, at);
+  const rewrite = rewrittenDoc(held.getJSON() as DocNode, lines);
 
-    return blockId === null ? null : () => chooseWhole(std, blockId, { surface: room, at });
-  }
-});
+  if (rewrite.ok) writeDoc(held, rewrite.doc);
 
-// While the editor holds a block chosen whole the screen carries the mark that lets the fork's selection
-// toolbar stand under a finger (`docs/design.md`, 「The console surface」).
-const blockChosen = ref(false);
+  return rewrite;
+}
 
-let stopSelection: Subscription | null = null;
+function rename(title: string): boolean {
+  const held = editor.value;
 
-onMounted(async () => {
-  await ensureEditorRegistered();
+  return held !== null && writeDoc(held, retitledDoc(held.getJSON() as DocNode, title));
+}
 
-  // The fork's own chrome — its toolbar keys and their tooltips, its menus, the slash menu, its hints and
-  // its lines of notice — answers to the console's language through the editor's word table, before the
-  // editor draws (`docs/design.md`, 「The editor's own words follow the console's language」).
-  answerEditorWords(i18n.locale.value);
+// ---------------------------------------------------------------------------------------------------------
+// The history keys, caught on the way down: they answer wherever on the screen the focus stands, and a plain
+// text field — the talk's, the ask's and the comments' own inputs — keeps the key for its own undo.
 
-  held = openNoteDoc(props.noteId, fromBase64(props.doc), props.blobs ?? noteBlobSource(props.noteId), props.readonly);
-
-  stopChange = held.onChange(() => {
-    emit("change");
-    emit("title", held?.title() ?? "");
-  });
-
-  addEventListener("keydown", answerHistoryKey, true);
-  host.value?.addEventListener("input", followCaret);
-  host.value?.addEventListener("keydown", followCaretKey);
-
-  const container = document.createElement("affine-editor-container") as HTMLElement & {
-    autofocus: boolean;
-    doc: unknown;
-    pageSpecs: unknown;
-    std?: BlockStdScope;
-    updateComplete?: Promise<boolean>;
-  };
-
-  container.autofocus = !props.readonly;
-  container.doc = held.store;
-  container.pageSpecs = pageExtensions(notice);
-  host.value?.append(container);
-
-  // The bar drives the editor through its standard scope, which stands once the container has drawn.
-  await container.updateComplete;
-  scope.value = container.std ?? null;
-  stopSelection = scope.value?.selection.slots.changed.subscribe((selections) => {
-    blockChosen.value = selections.some((one) => one.type === "block");
-  }) ?? null;
-  emit("ready");
-});
-
-// The history keys, caught on the way down before the editor sees them: they answer wherever on the
-// screen the focus stands, not only while the fork's own event flow is active. A plain text field —
-// the talk's and the ask's own inputs — keeps the key for its own undo (`docs/design.md`, 「Editing
-// and saving」).
 function standsInTextField(target: EventTarget | null): boolean {
   const tag = (target as { tagName?: string } | null)?.tagName;
 
@@ -209,88 +422,84 @@ function standsInTextField(target: EventTarget | null): boolean {
 
 function answerHistoryKey(event: KeyboardEvent): void {
   const direction = historyDirectionOf(event);
+  const held = editor.value;
 
-  if (direction === null || standsInTextField(event.target)) return;
+  if (direction === null || held === null || props.readonly || standsInTextField(event.target)) return;
 
   event.preventDefault();
   event.stopPropagation();
 
-  const store = held?.store ?? null;
-
-  if (store !== null) stepHistory(store, direction);
+  if (direction === "undo") held.commands.undo();
+  else held.commands.redo();
 }
 
-// The caret stays in sight as words are written and as the keys move it between lines: the host's scroll follows
-// it, since the editor measures it against a viewport as tall as the document (`docs/design.md`, 「Editing and
-// saving」).
-const CARET_KEYS = new Set(["Enter", "Backspace", "Delete", "ArrowUp", "ArrowDown", "PageUp", "PageDown"]);
+const selectionBar = shallowRef<InstanceType<typeof NoteSelectionBar> | null>(null);
 
-function followCaret(): void {
-  if (host.value !== null) keepCaretInSight(host.value);
+// Ctrl+K (⌘K) over chosen words opens the link field, as the editor keeps that key for a link.
+function answerLinkKey(event: KeyboardEvent): void {
+  const held = editor.value;
+
+  if (held === null || props.readonly || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "k") return;
+  if (held.state.selection.empty) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  void selectionBar.value?.openLink();
 }
 
-function followCaretKey(event: KeyboardEvent): void {
-  if (CARET_KEYS.has(event.key)) followCaret();
-}
+onMounted(() => {
+  addEventListener("keydown", answerHistoryKey, true);
+  host.value?.addEventListener("keydown", answerLinkKey, true);
+});
 
 onBeforeUnmount(() => {
   removeEventListener("keydown", answerHistoryKey, true);
-  host.value?.removeEventListener("input", followCaret);
-  host.value?.removeEventListener("keydown", followCaretKey);
-  stopSelection?.unsubscribe();
-  stopChange?.();
-  held?.dispose();
-  held = null;
+  host.value?.removeEventListener("keydown", answerLinkKey, true);
 });
 
+// The threads whose words wear the comment tint, handed to the editor's own tint as they change.
+function tint(): void {
+  const held = editor.value;
+
+  if (held === null || held.isDestroyed) return;
+
+  held.view.dispatch(held.state.tr.setMeta(COMMENT_TINT, { open: [...props.openThreads], chosen: props.chosenThread }).setMeta("addToHistory", false));
+}
+
+watch(() => [props.openThreads, props.chosenThread], tint, { deep: true });
+
 defineExpose({
-  /** The document as the save writes it: the whole state, base64, and the title of its root. */
-  snapshot: (): { doc: string; title: string } => ({
-    doc: held === null ? "" : toBase64(held.serialize()),
-    title: held?.title() ?? ""
-  }),
-  /** What the note holds now, for the foot line. */
-  holding: (): Holding => (held === null ? { words: 0 } : countHolding(held.store)),
-  /** The note's body as the talk asks over it: one line per block (`domain/text`). */
-  lines: (): string[] => (held === null ? [] : linesOf(readRows(held.store))),
-  /** Writes the talk's anchored patch into the open document; the editor's own change makes it save. */
-  apply: (ops: Op[]): boolean => {
-    if (held === null) return false;
-
-    try {
-      applyOps(held.store, ops);
-
-      return true;
-    } catch {
-      return false;
-    }
+  /** The document as the save writes it, and the title it stands under. */
+  snapshot: (): { doc: DocNode; title: string } | null => (editor.value === null ? null : snapshotOf(editor.value)),
+  /** What the note holds now, for the bar's line. */
+  holding: (): Holding => ({ words: editor.value === null ? 0 : countWords(editor.value.getJSON() as DocNode) }),
+  /** The note's body as the talk asks over it: one line a row. */
+  lines: (): string[] => (editor.value === null ? [] : linesOfRun(rowsOfDoc(editor.value.getJSON() as DocNode), { at: 0, count: Number.MAX_SAFE_INTEGER })),
+  apply,
+  replace,
+  rename,
+  /** Lays thread `thread`'s comment mark over the range that was chosen. */
+  markComment: (thread: string, range: { from: number; to: number }): boolean =>
+    editor.value?.chain().setTextSelection(range).setMark("comment", { thread }).run() ?? false,
+  /** Takes thread `thread`'s comment marks off the document. */
+  unmarkComment: (thread: string): void => {
+    if (editor.value !== null) dropComment(editor.value, thread);
   },
-  /** Writes the whole body from the answer, where the anchored patch could not land, keeping the
-   * note's images and tables: the result names what stands in the way where nothing was written. */
-  replace: (lines: string[]): ReplaceResult => {
-    if (held === null) return { ok: false, kinds: [] };
+  /** Where each thread's words first stand. */
+  commentPlaces: (): Map<string, number> => (editor.value === null ? new Map() : commentPlaces(editor.value)),
+  /** Chooses a thread's words in the note and brings them into the scroll. */
+  showThread: (thread: string): void => {
+    const held = editor.value;
+    const range = held === null ? null : commentRange(held, thread);
 
-    try {
-      return replaceBody(held.store, lines);
-    } catch {
-      return { ok: false, kinds: [] };
-    }
-  },
-  /** Writes the title the talk's answer renamed the note to into the document's own title field,
-   * as one transaction: the rename stands and goes as one undo step. */
-  rename: (title: string): boolean => {
-    const note = held;
-
-    if (note === null) return false;
-
-    return asOneStep(note.store.spaceDoc, () => writeNoteTitle(note.store.root, title));
+    if (held !== null && range !== null) held.chain().setTextSelection(range).scrollIntoView().run();
   }
 });
 </script>
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col">
-    <NoteToolbar v-if="props.toolbar" :std="props.readonly ? null : scope" :ask="!props.readonly" @failed="island.say({ tone: 'error', title: $t('note.error.image_failed') })" @ask="openAsk">
+    <NoteToolbar v-if="props.toolbar" ref="toolbarRef" :editor="props.readonly ? null : editor" :ask="!props.readonly" :working="working" @ask="openAsk" @image="insertImages">
       <template v-if="$slots.barStart" #start>
         <slot name="barStart" />
       </template>
@@ -298,7 +507,65 @@ defineExpose({
         <slot name="barEnd" />
       </template>
     </NoteToolbar>
-    <div ref="host" data-note-editor :data-block-chosen="blockChosen || undefined" class="note-editor-host min-h-0 flex-1 overflow-y-auto" />
+
+    <!-- The note's one scroll: the page head, the document and the backlinks under it, in the editor's
+         column. -->
+    <div ref="host" data-note-editor class="note-editor-host min-h-0 flex-1 overflow-y-auto" @click="onPress">
+      <div class="note-column mx-auto flex w-full flex-col px-4 pb-24 sm:px-0">
+        <slot name="head" />
+        <UEditor
+          :model-value="props.doc as JSONContent"
+          content-type="json"
+          :editable="!props.readonly"
+          :starter-kit="starterKit"
+          :image="false"
+          :mention="false"
+          :placeholder="placeholder"
+          :extensions="extensions"
+          :handlers="handlers"
+          :editor-props="editorProps"
+          ref="editorRoot"
+          @update:model-value="onChanged"
+          :ui="{ base: 'pb-8' }"
+          class="note-document"
+        >
+          <template #default="{ editor: held }">
+            <template v-if="!props.readonly">
+              <NoteSelectionBar ref="selectionBar" :editor="held" :comment="props.comments" :hidden="asking" @ask="openAsk" @comment="askComment(held)" />
+              <UEditorSuggestionMenu :editor="held" :items="slashItems" plugin-key="noteSlash" />
+              <UEditorMentionMenu
+                v-model:search-term="linkTerm"
+                :editor="held"
+                :items="linkItems"
+                char="[["
+                plugin-key="noteLinkBrackets"
+                ignore-filter
+                :suggestion="{ allowSpaces: true }"
+              />
+              <UEditorMentionMenu v-model:search-term="linkTerm" :editor="held" :items="linkItems" char="@" plugin-key="noteLinkAt" ignore-filter />
+              <UEditorDragHandle :editor="held" class="pointer-coarse:hidden" @node-change="onHandleNode">
+                <template #default="{ ui, onClick }">
+                  <UDropdownMenu :items="handleItems" :content="{ side: 'left', align: 'start' }" :modal="false">
+                    <UButton
+                      color="neutral"
+                      variant="ghost"
+                      size="sm"
+                      square
+                      icon="i-material-symbols-drag-indicator"
+                      :aria-label="$t('note.block.menu')"
+                      :class="ui.handle()"
+                      data-drag-handle-key
+                      @click="onClick()"
+                    />
+                  </UDropdownMenu>
+                </template>
+              </UEditorDragHandle>
+            </template>
+          </template>
+        </UEditor>
+        <slot name="foot" />
+      </div>
+    </div>
 
     <NoteAsk
       v-if="!props.readonly"
@@ -314,29 +581,104 @@ defineExpose({
 </template>
 
 <style scoped>
-/* The preset draws its own viewport; the host gives it the page's height and the one scroll. */
-.note-editor-host {
-  background: var(--affine-background-primary-color, var(--ui-bg));
+/* The note's column: a reading width, released where the note stands at full width. */
+.note-column {
+  max-width: var(--note-width, 52rem);
 }
 
-/* The editor's column keeps a gutter for the drag handle, but a heading over a section or a list holding others
-   carries its handle a toggle's width further out than that gutter; where the column meets the editor's edge,
-   on a phone or at full width, the viewport's own leading room keeps that handle inside what it shows, and the
-   head standing over the document moves with it (`docs/design.md`, 「Every block has its handle and its
-   toolbar」). The room is the viewport's padding, since the viewport clips what stands outside it. */
-.note-editor-host :deep(.affine-page-viewport),
-.note-editor-host > :deep([data-note-head-place]) {
-  padding-inline-start: 16px;
+/* The title the editor draws as the page's own heading, large over the blocks. */
+.note-editor-host :deep(h1[data-note-title]) {
+  font-size: var(--text-4xl);
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--ui-text-highlighted);
+  margin-bottom: 1.5rem;
 }
 
-/* On a touch screen the editor's floating format menu stands down: the bar does its work, and the phone lays its
-   own selection menu over the words. The toolbar over a block chosen whole stands there all the same — it is what
-   a held finger in the gutter answers with — so the rule reaches the widget only where no block stands chosen
-   (`docs/design.md`, 「The console surface」). The editor lays its styles unlayered, so the rule holds by
-   importance. */
-@media (pointer: coarse) {
-  .note-editor-host:not([data-block-chosen]) :deep(affine-toolbar-widget) {
-    display: none !important;
-  }
+/* The words of an open thread wear the comment tint, the thread chosen in the panel more strongly. */
+.note-editor-host :deep(.note-comment-open) {
+  background-color: color-mix(in oklab, var(--ui-warning) 22%, transparent);
+  cursor: pointer;
+}
+
+.note-editor-host :deep(.note-comment-chosen) {
+  background-color: color-mix(in oklab, var(--ui-warning) 45%, transparent);
+}
+
+/* A note link: the linked note's title in the link tone, the note mark before it. */
+.note-editor-host :deep(a.note-link) {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25em;
+  border-bottom: 0;
+}
+
+.note-editor-host :deep(.note-link-mark) {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  align-self: center;
+  background-color: currentColor;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M8 18h8v-2H8zm0-4h8v-2H8zm-2 8q-.825 0-1.412-.587T4 20V4q0-.825.588-1.412T6 2h8l6 6v12q0 .825-.587 1.413T18 22zm7-13V4H6v16h12V9zM6 4v5zv16z'/></svg>") center / contain no-repeat;
+}
+
+/* To-do items: the box beside the words, the words beside it. */
+.note-editor-host :deep(ul[data-type="taskList"]) {
+  list-style: none;
+  padding-inline-start: 0.25rem;
+}
+
+.note-editor-host :deep(li[data-type="taskItem"]) {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.note-editor-host :deep(li[data-type="taskItem"] > label) {
+  margin-top: 0.35rem;
+  flex-shrink: 0;
+}
+
+.note-editor-host :deep(li[data-type="taskItem"] > div) {
+  flex: 1;
+  min-width: 0;
+}
+
+.note-editor-host :deep(li[data-checked="true"] > div) {
+  color: var(--ui-text-muted);
+  text-decoration: line-through;
+}
+
+/* Tables: ruled cells, wide tables scrolling inside their own box. */
+.note-editor-host :deep(.tableWrapper) {
+  overflow-x: auto;
+}
+
+.note-editor-host :deep(table) {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.note-editor-host :deep(td),
+.note-editor-host :deep(th) {
+  border: 1px solid var(--ui-border);
+  padding: 0.375rem 0.5rem;
+  vertical-align: top;
+  min-width: 6rem;
+}
+
+.note-editor-host :deep(th) {
+  background-color: var(--ui-bg-elevated);
+  font-weight: 600;
+}
+
+.note-editor-host :deep(td > p),
+.note-editor-host :deep(th > p) {
+  margin: 0;
+}
+
+.note-editor-host :deep(.selectedCell) {
+  background-color: color-mix(in oklab, var(--ui-primary) 15%, transparent);
 }
 </style>

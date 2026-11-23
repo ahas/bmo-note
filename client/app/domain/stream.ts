@@ -6,13 +6,16 @@
 import { onBeforeUnmount, onMounted } from "vue";
 import { relayAddress } from "bmo-ui/app/domain/relay";
 
-export type NoteStreamEvent = { kind: string; data: { noteId: string; owner: string } };
+export type NoteStreamEvent = { kind: string; data: { noteId: string; owner: string; thread?: string } };
 
 // The kinds the screen reads, each `note.<event>`. They are put together from the event's name, since the
 // bundle build reads a dotted string the screen writes whole under the bundle's name as a key of its words.
-const STREAM_EVENTS = ["saved", "trashed", "restored", "purged", "shared", "unshared"] as const;
+const STREAM_EVENTS = ["saved", "trashed", "restored", "purged", "shared", "unshared", "commented"] as const;
 
 export const STREAM_KINDS = STREAM_EVENTS.map((event) => `note.${event}` as const);
+
+/** The kind a thread's change is published under. */
+export const COMMENTED_KIND = `note.${"commented" satisfies (typeof STREAM_EVENTS)[number]}`;
 
 // How long a stream the service refused waits before it is opened afresh.
 const REOPEN_MS = 3_000;

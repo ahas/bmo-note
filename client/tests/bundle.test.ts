@@ -4,7 +4,8 @@ import { join } from "node:path";
 
 import { parse } from "vue/compiler-sfc";
 
-import { EDITOR_WORDS, PACKS, keysOf, word } from "./words";
+import { INSERTS, KINDS, MARKS } from "../app/domain/format";
+import { PACKS, keysOf, word } from "./words";
 
 // The bundle as a console finds it: the words every key the screens ask for, in both
 // locales, under the bundle's namespace, the rows its screens stand their keys in, and no Korean anywhere in
@@ -28,42 +29,27 @@ describe("the words", () => {
     expect(keysOf(PACKS.ko).every((key) => key.startsWith("note."))).toBe(true);
   });
 
-  test("the editor's own words answer in the reader's language from a table outside the pack", () => {
-    const answered: Record<string, string> = EDITOR_WORDS.ko;
-    const hangul = /[\p{Script=Hangul}]/u;
+  test("the editor's own words are the pack's, one word for one thing wherever it is named", () => {
+    // The kinds and the marks the bar, the slash menu and the drag handle's menu name, and what the slash menu
+    // puts in, each answered in both packs.
+    for (const kind of KINDS) expect(word(PACKS.ko, `note.kind.${kind.id}`), kind.id).toBeDefined();
+    for (const mark of MARKS) expect(word(PACKS.ko, `note.mark.${mark.id}`), mark.id).toBeDefined();
+    for (const insert of INSERTS) expect(word(PACKS.ko, `note.insert.${insert.id}`), insert.id).toBeDefined();
 
-    // The words the fork says are the keys, so a word added to the fork is a word the table leaves
-    // standing rather than one it hides; English, the fork's own language, has no table to answer from.
-    expect(Object.keys(answered).length).toBeGreaterThan(80);
-
-    for (const [said, korean] of Object.entries(answered)) {
-      expect(hangul.test(korean), said).toBe(true);
-    }
-
-    // The console's own bar and the editor's keys name one thing with one word.
-    const marks = { bold: "Bold", italic: "Italic", underline: "Underline", strike: "Strikethrough", code: "Code" } as const;
-    const kinds = { text: "Text", h1: "Heading 1", h2: "Heading 2", h3: "Heading 3", bulleted: "Bulleted List", numbered: "Numbered List", todo: "To-do List", quote: "Quote", code: "Code Block" } as const;
-
-    for (const [key, said] of Object.entries(marks)) expect(answered[said], said).toBe(PACKS.ko.note.mark[key as keyof typeof PACKS.ko.note.mark]);
-    for (const [key, said] of Object.entries(kinds)) expect(answered[said], said).toBe(PACKS.ko.note.kind[key as keyof typeof PACKS.ko.note.kind]);
-
-    // A table is named by the bar's word wherever the editor or the bundle's own lines speak of one.
+    // A table is named by the bar's word wherever the bundle's own lines speak of one.
     const table = PACKS.ko.note.action.table;
     const namesTable = /\btables?\b|\btabular\b/i;
-
-    expect(answered.Table).toBe(table);
-
-    for (const [said, korean] of Object.entries(answered)) if (namesTable.test(said)) expect(korean, said).toContain(table);
 
     for (const key of keysOf(PACKS.en)) if (namesTable.test(word(PACKS.en, key)!)) expect(word(PACKS.ko, key), key).toContain(table);
   });
 
   test("every key the screens ask for is held", () => {
     // The bar's own names: the marks and kinds reach the packs through template heads, written whole here.
-    const asked = new Set(sources.flatMap((path) => [...readFileSync(path, "utf8").matchAll(/["'`](note\.(?:section|sort|search|action|label|mark|kind|talk|empty|status|question|error)\.[a-z_0-9]+)["'`]/g)].map((match) => match[1]!)));
+    const asked = new Set(sources.flatMap((path) => [...readFileSync(path, "utf8").matchAll(/["'`](note\.(?:section|sort|search|action|label|mark|kind|talk|empty|status|question|error|comment|link|editor|slash|insert|block|ask|share)\.[a-z_0-9]+)["'`]/g)].map((match) => match[1]!)));
 
-    for (const mark of ["bold", "italic", "underline", "strike", "code"]) asked.add(`note.mark.${mark}`);
-    for (const kind of ["text", "h1", "h2", "h3", "bulleted", "numbered", "todo", "quote", "code"]) asked.add(`note.kind.${kind}`);
+    for (const mark of MARKS) asked.add(`note.mark.${mark.id}`);
+    for (const kind of KINDS) asked.add(`note.kind.${kind.id}`);
+    for (const insert of INSERTS) asked.add(`note.insert.${insert.id}`);
 
     expect(asked.size).toBeGreaterThan(20);
 
@@ -78,9 +64,8 @@ describe("the words", () => {
 
 describe("the messages", () => {
   test("every line reaches the console's one message pill, never a toaster or the editor's own box", () => {
-    // The console stands the library's toaster down, so a line told through it is lost; the fork's toast
-    // helper is the editor's road, which hands its lines to the service the screen provides.
-    const roads = /@nuxt\/ui\/composables\/useToast|\buseToast\(|@blocksuite\/affine\/components\/toast|\bwindow\.(?:alert|confirm|prompt)\(/;
+    // The console stands the library's toaster down, so a line told through it is lost.
+    const roads = /@nuxt\/ui\/composables\/useToast|\buseToast\(|\bwindow\.(?:alert|confirm|prompt)\(/;
     const second = sources.filter((path) => roads.test(readFileSync(path, "utf8")));
 
     expect(second).toEqual([]);
@@ -96,14 +81,6 @@ describe("the inputs", () => {
     expect(drawn.length).toBeGreaterThan(0);
 
     for (const { path, tag } of drawn) expect(tag, path).toContain("hidden");
-  });
-
-  test("the bundle's stylesheet holds a hidden file input against the editor's element rule", () => {
-    // The editor lays an unlayered `input { display: flex }` rule when its module runs, which the
-    // attribute alone loses to; only the bundle's own `!important` rule keeps the input out of the page.
-    const css = readFileSync(join(root, "console/screens.css"), "utf8");
-
-    expect(css).toMatch(/input\[type="file"\]\[hidden\]\s*\{\s*display:\s*none\s*!important;?\s*\}/);
   });
 });
 
@@ -172,13 +149,14 @@ describe("the screens' rows", () => {
     expect(within(bars[0]!, "h1")).toHaveLength(1);
   });
 
-  test("the talk key closes the format bar, and no way back stands in it", () => {
+  test("the comments key and the talk key close the format bar, and no way back stands in it", () => {
     const bar = within(templateOf("app/components/NoteToolbar.vue"), "ToolBar")[0]!;
     const editor = within(region, "NoteEditor")[0]!;
+    const keys = within(slotOf(editor, "barEnd")!, "UButton");
 
     expect(within(bar.children[0]!, "slot").map((slot) => slot.attributes.get("name"))).toEqual(["start"]);
     expect(slotOf(editor, "barStart")).toBeUndefined();
-    expect(within(slotOf(editor, "barEnd")!, "UButton")).toHaveLength(1);
+    expect(keys.map((key) => [...key.attributes.keys()].find((name) => name.endsWith("-key")))).toEqual(["data-comments-key", "data-talk-key"]);
   });
 
   test("every key in the format bar is the library's small button at its own size", () => {

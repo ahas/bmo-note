@@ -2,7 +2,7 @@
 // (`docs/api.md`, 「Notes」). The caller hands the call itself — through the console's relay in the
 // browser, to a stand-in in a test — so this module names no address and no fetcher.
 
-import type { FoundNote, MemberPermission, Note, NoteLink, NoteMember, NoteMeta, NotesSort, NotesView, OpenedNote, Page, SearchAsk, SharedNote } from "../../shared/types";
+import type { DocNode, FoundNote, MemberPermission, Note, NoteComment, NoteLink, NoteMember, NoteMeta, NoteThread, NotesSort, NotesView, OpenedNote, Page, SearchAsk, SharedNote } from "../../shared/types";
 
 export type Call = <T>(path: string, options?: { method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; body?: unknown; query?: Record<string, string | undefined> }) => Promise<T>;
 
@@ -61,10 +61,8 @@ export interface NoteApi {
   list: (view: NotesView, after?: string, sort?: NotesSort, limit?: number) => Promise<Page<NoteMeta>>;
   /** One note; `opened` records that the reader opened it, `trashed` reads the reader's own from the trash. */
   read: (key: NoteKey, how?: { opened?: boolean; trashed?: boolean }) => Promise<Note>;
-  create: (write: { id: string; title: string; doc: string }) => Promise<NoteMeta>;
-  save: (key: NoteKey, write: { version: number; title?: string; doc?: string; text?: string; restore?: boolean }) => Promise<NoteMeta>;
-  /** The note's plain text for the version the service stores (`docs/api.md`, 「Notes」). */
-  text: (key: NoteKey, write: { version: number; text: string }) => Promise<NoteMeta>;
+  create: (write: { id: string; doc: DocNode }) => Promise<NoteMeta>;
+  save: (key: NoteKey, write: { version: number; doc?: DocNode; restore?: boolean }) => Promise<NoteMeta>;
   icon: (key: NoteKey, icon: string) => Promise<NoteMeta>;
   duplicate: (key: NoteKey, write: { id: string; title: string }) => Promise<NoteMeta>;
   trash: (id: string) => Promise<void>;
@@ -84,6 +82,15 @@ export interface NoteApi {
   unshare: (id: string, user: string) => Promise<void>;
   /** The note a link's token opens, read with the token alone. */
   shared: (token: string) => Promise<SharedNote>;
+  /** The live notes the reader reads that link to the note (`docs/api.md`, 「Notes」). */
+  backlinks: (key: NoteKey) => Promise<NoteMeta[]>;
+  /** The note's comment threads (`docs/api.md`, 「Comments」). */
+  threads: (key: NoteKey) => Promise<NoteThread[]>;
+  startThread: (key: NoteKey, write: { id: string; quote: string; body: string }) => Promise<NoteThread>;
+  reply: (key: NoteKey, thread: string, body: string) => Promise<NoteComment>;
+  resolveThread: (key: NoteKey, thread: string, resolved: boolean) => Promise<NoteThread>;
+  deleteThread: (key: NoteKey, thread: string) => Promise<void>;
+  deleteComment: (key: NoteKey, thread: string, comment: string) => Promise<void>;
 }
 
 /** The query naming the note's owner, where the note is another account's. */
@@ -117,7 +124,6 @@ export function createNoteApi(call: Call): NoteApi {
       }),
     create: (write) => sent<NoteMeta>("/notes", { method: "POST", body: write }),
     save: (key, write) => sent<NoteMeta>(`/notes/${segment(key.id)}`, { method: "PATCH", body: write, query: ownerQuery(key) }),
-    text: (key, write) => sent<NoteMeta>(`/notes/${segment(key.id)}/text`, { method: "PUT", body: write, query: ownerQuery(key) }),
     icon: (key, icon) => sent<NoteMeta>(`/notes/${segment(key.id)}/icon`, { method: "PUT", body: { icon }, query: ownerQuery(key) }),
     duplicate: (key, write) => sent<NoteMeta>(`/notes/${segment(key.id)}/duplicate`, { method: "POST", body: write, query: ownerQuery(key) }),
     trash: (id) => sent<void>(`/notes/${segment(id)}`, { method: "DELETE" }),
@@ -153,6 +159,16 @@ export function createNoteApi(call: Call): NoteApi {
     share: async (id, users, permission) => (await sent<Page<NoteMember>>(`/notes/${segment(id)}/members`, { method: "POST", body: { users, permission } })).items,
     changeMember: (id, user, permission) => sent<NoteMember>(`/notes/${segment(id)}/members/${segment(user)}`, { method: "PATCH", body: { permission } }),
     unshare: (id, user) => sent<void>(`/notes/${segment(id)}/members/${segment(user)}`, { method: "DELETE" }),
-    shared: (token) => sent<SharedNote>(`/shares/${segment(token)}`)
+    shared: (token) => sent<SharedNote>(`/shares/${segment(token)}`),
+    backlinks: async (key) => (await sent<Page<NoteMeta>>(`/notes/${segment(key.id)}/backlinks`, { query: ownerQuery(key) })).items,
+    threads: async (key) => (await sent<Page<NoteThread>>(`/notes/${segment(key.id)}/threads`, { query: ownerQuery(key) })).items,
+    startThread: (key, write) => sent<NoteThread>(`/notes/${segment(key.id)}/threads`, { method: "POST", body: write, query: ownerQuery(key) }),
+    reply: (key, thread, body) =>
+      sent<NoteComment>(`/notes/${segment(key.id)}/threads/${segment(thread)}/comments`, { method: "POST", body: { body }, query: ownerQuery(key) }),
+    resolveThread: (key, thread, resolved) =>
+      sent<NoteThread>(`/notes/${segment(key.id)}/threads/${segment(thread)}`, { method: "PATCH", body: { resolved }, query: ownerQuery(key) }),
+    deleteThread: (key, thread) => sent<void>(`/notes/${segment(key.id)}/threads/${segment(thread)}`, { method: "DELETE", query: ownerQuery(key) }),
+    deleteComment: (key, thread, comment) =>
+      sent<void>(`/notes/${segment(key.id)}/threads/${segment(thread)}/comments/${segment(comment)}`, { method: "DELETE", query: ownerQuery(key) })
   };
 }

@@ -1,8 +1,7 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, realpathSync } from "node:fs";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { vanillaExtractPlugin } from "@vanilla-extract/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import vue from "@vitejs/plugin-vue";
 import AutoImport from "unplugin-auto-import/vite";
@@ -14,18 +13,45 @@ import type { Plugin } from "vite";
 
 // The served bundle's build (bmo-ui's `docs/console-bundles.md`): the pages' routes as one browser
 // module, the utility classes they use as one stylesheet, and the language pack as one words object,
-// all written into `dist/`, which the service answers under its manifest. The editor is the fork's own
-// vendored BlockSuite, built in from source (`docs/affine.md`, 「The client's build path to the
-// vendored editor」), which asks for the decorators lowered by the build's vendor steps, the fork's own
-// vanilla-extract plugin for its styled files, and a target the console's browsers all speak. bmo-ui's
-// bundle build leaves the libraries the bundle shares with its console unbundled and writes the layer it
-// was built on beside the module.
+// all written into `dist/`, which the service answers under its manifest. bmo-ui's bundle build leaves
+// the libraries the bundle shares with its console unbundled and writes the layer it was built on beside
+// the module; the editor is built in (`docs/design.md`, 「The console surface」).
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 
-// The tags the editor draws that a Vue template must hand to the browser untouched.
-function editorElement(tag: string): boolean {
-  return tag.startsWith("affine-") || tag === "editor-host" || tag === "doc-title" || tag === "rich-text";
+// The component library's runtime as the install holds it, by its real path: the files a built-in editor
+// component imports are read from there.
+const LIBRARY_RUNTIME = realpathSync(join(root, "node_modules/@nuxt/ui/dist/runtime"));
+
+const EDITOR_COMPONENT = /^@nuxt\/ui\/components\/(Editor[A-Za-z]*)\.vue$/u;
+const SIBLING_COMPONENT = /^\.\/([A-Z][A-Za-z]*)\.vue$/u;
+
+/**
+ * Nuxt UI's editor components built into the bundle (`docs/design.md`, 「The console surface」). The console
+ * shares the component library, but the editor's components carry TipTap and ProseMirror with them, and the
+ * note's own extensions must stand on the very ProseMirror copy the editor runs; so the editor and its menus
+ * are taken from the installed library's own files and built here with the bundle's TipTap, ahead of the
+ * bundle build's sharing. Every other component they draw — a button, an icon — stays the console's shared
+ * copy, as any bundle's does.
+ */
+function editorBuiltIn(): Plugin {
+  return {
+    name: "note-editor-built-in",
+    enforce: "pre",
+    resolveId(source, importer) {
+      const editor = EDITOR_COMPONENT.exec(source);
+
+      if (editor !== null) return join(LIBRARY_RUNTIME, "components", `${editor[1]}.vue`);
+
+      const sibling = SIBLING_COMPONENT.exec(source);
+
+      if (sibling !== null && importer?.startsWith(join(LIBRARY_RUNTIME, "components")) && !sibling[1]!.startsWith("Editor")) {
+        return { id: `@nuxt/ui/components/${sibling[1]}.vue`, external: true };
+      }
+
+      return null;
+    }
+  };
 }
 
 // The layer's components, by the name a page writes them under.
@@ -61,8 +87,17 @@ function words(): Plugin {
 }
 
 export default defineConfig({
-  resolve: { alias: { "#build": join(root, ".nuxt") } },
+  // A built-in editor component reads the app's configuration through Nuxt's own import, which the console's
+  // shared copy of Nuxt's app answers.
+  resolve: {
+    alias: [
+      { find: "#build/app.config", replacement: join(root, "console/app-config.ts") },
+      { find: "#build", replacement: join(root, ".nuxt") },
+      { find: "#imports", replacement: join(root, "console/imports.ts") }
+    ]
+  },
   plugins: [
+    editorBuiltIn(),
     consoleBundle({ name: "note", words: WORDS }),
     AutoImport({
       imports: [
@@ -72,16 +107,11 @@ export default defineConfig({
       dts: false
     }),
     Components({ dirs: [join(root, "app/components")], resolvers: [libraryComponent, layerComponent], dts: false }),
-    vanillaExtractPlugin(),
-    vue({
-      template: { compilerOptions: { isCustomElement: editorElement } }
-    }),
+    vue(),
     tailwindcss(),
     words()
   ],
-  // The vendored editor tree reaches this build already decorator-free: `bun run vendor` lowers them
-  // with the TypeScript compiler (the copy's own standard mode), which the bundle's transform cannot
-  // do itself. The target is one every console browser speaks.
+  // The target is one every console browser speaks.
   oxc: {
     target: "chrome120"
   },

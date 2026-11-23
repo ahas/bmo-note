@@ -26,7 +26,7 @@ export interface NoteTalk {
 /** The paragraph the turn opens on: the note's line grammar is this screen's own protocol. */
 export const TALK_HEADING = [
   "You edit one note for its owner. The note stands in the fields below: noteId, title and lines.",
-  "Each line is one block. A plain paragraph is bare text. #, ## and ### head a section. - is a",
+  "Each line is one block. A plain paragraph is bare text. # to ###### head a section. - is a",
   "bulleted item, 1. a numbered one, - [ ] and - [x] to-do items, > a quote, and ```<tab>text a code",
   "block. [[divider]], [[image]] and [[table]] name blocks that stand as they are. A deeper block",
   "carries two spaces per level.",

@@ -8,9 +8,10 @@ import type { ChildProcess } from "node:child_process";
 import type { AddressInfo } from "node:net";
 
 // The screens as a person checks them by hand, stood up for a browser test: a throwaway note service built
-// from this checkout, on a settings folder and a store of its own under a scratch folder, and the bundle's dev
-// host relaying to it as the console would. Each runs as the head of a process group of its own, so taking the
-// stack down ends everything either started; the scratch folder goes with it.
+// from this checkout, on a settings folder and a store of its own under a scratch folder, a stand-in receiver
+// answering the talk and Ask AI, and the bundle's dev host relaying to both as the console would. The service
+// and the host each run as the head of a process group of its own, so taking the stack down ends everything
+// either started; the scratch folder goes with it.
 
 const CLIENT = new URL("../../", import.meta.url).pathname;
 const REPOSITORY = new URL("../../../", import.meta.url).pathname;
@@ -29,10 +30,45 @@ const ASK_EVERY_MS = 250;
 // The most of a process's own output a failure quotes.
 const QUOTED_CHARS = 4_000;
 
-/** The stack standing: the dev host's address, and the way to take everything down. */
+/** The stack standing: the dev host's address, what the stand-in receiver was asked, and the way to take
+ * everything down. */
 export interface Stack {
   host: string;
+  asked: ReceiverAsk[];
   down(): Promise<void>;
+}
+
+/** One talk the stand-in receiver was asked: its topic's kind and fields, and what the reader said. */
+export interface ReceiverAsk {
+  kind: string;
+  fields: Record<string, string>;
+  said: string;
+}
+
+/** The words the stand-in receiver answers an ask over a passage with: one line, in a fenced block. */
+export const RECEIVER_LINE = "Answered by the stand-in receiver";
+
+/** The stand-in receiver (`docs/design.md`, 「The AI talk panel」, 「Ask AI」): every talk is answered at once
+ * with one fenced block — an ask over a passage with the one line above, a talk about the note with the note's
+ * own lines and that line after them. */
+function standInReceiver(asked: ReceiverAsk[]): ReturnType<typeof Bun.serve> {
+  return Bun.serve({
+    port: 0,
+    hostname: "127.0.0.1",
+    async fetch(request) {
+      if (request.method !== "POST" || !new URL(request.url).pathname.endsWith("/talks")) return Response.json({ code: "no-route", error: "none" }, { status: 404 });
+
+      const body = (await request.json()) as { topic?: { kind?: string; fields?: Record<string, string> }; said?: string };
+      const kind = body.topic?.kind ?? "";
+      const fields = body.topic?.fields ?? {};
+
+      asked.push({ kind, fields, said: body.said ?? "" });
+
+      const lines = kind === "note-passage" ? [RECEIVER_LINE] : [...(fields.lines ?? "").split("\n"), RECEIVER_LINE];
+
+      return Response.json({ answer: ["```", ...lines, "```"].join("\n") });
+    }
+  });
 }
 
 // A process of the stack, its output kept for a failure to quote.
@@ -144,20 +180,26 @@ export async function stoodUp(): Promise<Stack> {
   const settings = join(scratch, "settings");
   const data = join(scratch, "data");
   const running: Running[] = [];
+  const asked: ReceiverAsk[] = [];
+  let stopReceiver = (): void => {};
 
   mkdirSync(settings, { recursive: true });
   mkdirSync(join(data, "note"), { recursive: true });
 
   const down = async (): Promise<void> => {
     for (const one of [...running].reverse()) await ended(one);
+    stopReceiver();
     rmSync(scratch, { recursive: true, force: true });
   };
 
   try {
     const servicePort = await freePort();
-    // The talk panel's receiver is relayed too; the screens measured never open it, and nothing listens here,
-    // so no call can reach a receiver that is running.
-    const nobodyPort = await freePort();
+    // The talk panel's receiver is relayed too, to a stand-in in this process, so no call reaches a receiver
+    // that is running.
+    const receiver = standInReceiver(asked);
+
+    stopReceiver = () => void receiver.stop(true);
+
     const hostPort = await freePort();
     const service = `http://127.0.0.1:${servicePort}`;
     const host = `http://127.0.0.1:${hostPort}`;
@@ -178,7 +220,7 @@ export async function stoodUp(): Promise<Stack> {
     const devHost = started(["bun", "x", "nuxt", "dev", "--host", "127.0.0.1", "--port", String(hostPort)], join(CLIENT, "dev-app"), {
       BMO_DEV_NOTE_ADDRESS: service,
       BMO_DEV_NOTE_TOKEN: CONSOLE_TOKEN,
-      BMO_DEV_RECEIVER_ADDRESS: `http://127.0.0.1:${nobodyPort}`,
+      BMO_DEV_RECEIVER_ADDRESS: `http://127.0.0.1:${receiver.port}`,
       BMO_DEV_RECEIVER_TOKEN: "",
       BMO_DEV_OWNER_KEY: "1",
       BMO_DEV_OWNER_ROLE: "member"
@@ -187,7 +229,7 @@ export async function stoodUp(): Promise<Stack> {
     running.push(devHost);
     await answering(devHost, "the dev host", `${host}/note`, HOST_ANSWERS_MS);
 
-    return { host, down };
+    return { host, asked, down };
   } catch (why) {
     await down();
     throw why;

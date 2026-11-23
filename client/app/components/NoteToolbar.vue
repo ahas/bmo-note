@@ -1,215 +1,108 @@
 <script setup lang="ts">
-// The format bar over the editor (`docs/design.md`, 「The console surface」): the inline marks, the
-// kinds a line turns into, the image upload and the table insert, in one standing row, between the
-// way back at its leading end and what acts on the whole note at its trailing end; every key is the
-// library's small button, an icon-only one its small square. It holds no formatting of its own —
-// every press rides the vendored editor's command chain through `app/domain/format`, the same
-// mechanism the hotkeys and the slash menu ride. While the editor is still mounting, or where nothing
-// stands written that a key could change, those keys stand disabled; a file past the store's cap is
-// told through the `failed` line the screen owns.
+// The format bar over the editor (`docs/design.md`, 「The console surface」): Ask AI leading it, the kind the
+// block under the caret takes, the inline marks, the image upload and the table insert, in one gathered row,
+// and what acts on the whole note at its trailing edge. Every key is the library's small button, an icon-only
+// one its small square. It holds no formatting of its own: each press rides the editor's own commands through
+// `domain/format`, the mechanism the keys and the slash menu ride. While the editor is still mounting, or over
+// a note held to read only, the keys stand disabled.
 
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import ChoiceSelect from "bmo-ui/app/components/ChoiceSelect.vue";
 import HintTip from "bmo-ui/app/components/HintTip.vue";
 import ToolBar from "bmo-ui/app/components/ToolBar.vue";
-import { BlockSelection, TextSelection } from "@blocksuite/affine/std";
 
-import { activeConversion, activeMarks, barConversions, barMarks, convert, conversionsSupported, insertImages, insertTable } from "../domain/format";
+import { activeKind, activeMarks, BAR_KINDS, insertInto, MARKS, turnInto } from "../domain/format";
 
-import type { BarConversion } from "../domain/format";
-import type { BlockStdScope } from "@blocksuite/affine/std";
-import type { BaseSelection } from "@blocksuite/affine/store";
-import type { Subscription } from "rxjs";
+import type { Editor } from "@tiptap/core";
+import type { KindId, MarkId } from "../domain/format";
 
 const props = withDefaults(
   defineProps<{
-    std: BlockStdScope | null;
+    editor: Editor | null;
     /** Whether the AI key stands: not over a note the reader holds to read only. */
     ask?: boolean;
+    /** Whether an image is being stored. */
+    working?: boolean;
   }>(),
-  { ask: true }
+  { ask: true, working: false }
 );
 
-const emit = defineEmits<{ inserted: []; failed: []; ask: [] }>();
+const emit = defineEmits<{ ask: []; image: [files: File[]] }>();
 
 const i18n = useI18n();
 
-const marks = ref<boolean[]>(barMarks.map(() => false));
-const heldMarks = ref<boolean[]>(barMarks.map(() => false));
-const heldLine = ref<string | null>(null);
-const conversion = ref(-1);
+const kind = ref<KindId | null>(null);
+const marks = ref<boolean[]>(MARKS.map(() => false));
 const writable = ref(false);
-const working = ref(false);
 const picked = shallowRef<HTMLInputElement | null>(null);
 
-let stop: Subscription | null = null;
-
-const kindChoices = computed(() => barConversions.map((item, at) => ({ label: i18n.t(`note.kind.${kindKey(item)}`), icon: item.icon, value: at })));
-
-const kindIcon = computed(() => (conversion.value < 0 ? "i-material-symbols-text-fields" : (barConversions[conversion.value]?.icon ?? "i-material-symbols-text-fields")));
-
-const markIcons: Record<string, string> = {
-  bold: "i-material-symbols-format-bold",
-  italic: "i-material-symbols-format-italic",
-  underline: "i-material-symbols-format-underlined",
-  strike: "i-material-symbols-format-strikethrough",
-  code: "i-material-symbols-code"
-};
-
-function kindKey(conversion: BarConversion): string {
-  if (conversion.flavour === "affine:code") return "code";
-
-  return String(conversion.type ?? "text");
-}
+const kindChoices = computed(() => BAR_KINDS.map((item) => ({ label: i18n.t(`note.kind.${item.id}`), icon: item.icon, value: item.id })));
+const kindIcon = computed(() => BAR_KINDS.find((item) => item.id === kind.value)?.icon ?? "i-material-symbols-text-fields");
 
 function refresh(): void {
-  const std = props.std;
+  const editor = props.editor;
 
-  if (std === null) {
-    marks.value = barMarks.map(() => false);
-    conversion.value = -1;
-    writable.value = false;
-
-    return;
-  }
-
-  // The fork reads an active mark only for a one-element range, so a whole-word selection shows no
-  // key lit though the marks land on it. The button takes its pressed state from the click that
-  // landed the mark and holds it until the caret moves to another line.
-  writable.value = conversionsSupported(std);
-  conversion.value = activeConversion(std);
-
-  const line = currentLine(std);
-
-  if (line !== heldLine.value) {
-    heldMarks.value = barMarks.map(() => false);
-    heldLine.value = line;
-  }
-
-  marks.value = activeMarks(std).map((active, at) => active || (heldMarks.value[at] ?? false));
+  writable.value = editor !== null && editor.isEditable;
+  kind.value = editor === null ? null : activeKind(editor);
+  marks.value = editor === null ? MARKS.map(() => false) : activeMarks(editor);
 }
 
-function currentLine(std: BlockStdScope): string | null {
-  const text = std.selection.find(TextSelection);
-
-  if (text !== undefined) return text.from.blockId;
-
-  return std.selection.find(BlockSelection)?.blockId ?? null;
-}
-
-// The editor's scope arrives when its container is mounted, after this row stands; the row follows
-// it, watching the fork's own selection stream for every beat after.
+// The editor arrives once it has drawn, after this row stands; the row follows its every transaction.
 watch(
-  () => props.std,
-  (std) => {
-    stop?.unsubscribe();
-    stop = std === null ? null : std.selection.slots.changed.subscribe(refresh);
+  () => props.editor,
+  (editor, before) => {
+    before?.off("transaction", refresh);
+    editor?.on("transaction", refresh);
     refresh();
   },
   { immediate: true }
 );
 
-onBeforeUnmount(() => stop?.unsubscribe());
+onBeforeUnmount(() => props.editor?.off("transaction", refresh));
 
-function toggle(id: string): void {
-  const config = barMarks.find((item) => item.id === id);
-
-  if (props.std === null || config === undefined) return;
-
-  config.action(props.std.host);
-
-  const at = barMarks.findIndex((item) => item.id === id);
-  const wasOn = marks.value[at] ?? false;
-
-  heldMarks.value = barMarks.map((_, i) => (i === at ? !wasOn : false));
-  refresh();
+function toggle(mark: MarkId): void {
+  props.editor?.chain().focus().toggleMark(mark).run();
 }
 
-// The editor's selection as the kind list opened, which a kind chosen there is laid on. As the list closes
-// the editor takes the focus back with that selection standing, so the caret stays in the block it was in;
-// the list then leaves the focus where it is rather than handing it back to its control.
-let heldSelection: BaseSelection[] = [];
+function turn(id: KindId): void {
+  const editor = props.editor;
 
-function holdSelection(open: boolean): void {
-  const std = props.std;
+  if (editor === null) return;
 
-  if (std === null) return;
-
-  if (open) {
-    heldSelection = std.selection.value;
-
-    return;
-  }
-
-  const kept = heldSelection;
-
-  heldSelection = [];
-  std.host.querySelector<HTMLElement>("[contenteditable='true']")?.focus({ preventScroll: true });
-  if (kept.length > 0) std.selection.set(kept);
-  refresh();
+  turnInto(editor.chain().focus(), id).run();
 }
 
-function turn(item: BarConversion): void {
-  if (props.std === null) return;
+function addTable(): void {
+  const editor = props.editor;
 
-  if (heldSelection.length > 0) props.std.selection.set(heldSelection);
-  convert(props.std, item);
-  refresh();
+  if (editor !== null) insertInto(editor.chain().focus(), "table").run();
 }
 
 function pickImage(): void {
   picked.value?.click();
 }
 
-async function standChosen(): Promise<void> {
+function standChosen(): void {
   const input = picked.value;
   const files = [...(input?.files ?? [])];
 
   if (input !== null) input.value = "";
-
-  if (props.std === null || files.length === 0 || working.value) return;
-
-  working.value = true;
-
-  try {
-    const stood = await insertImages(props.std, files);
-
-    if (stood.length > 0) emit("inserted");
-  } catch {
-    emit("failed");
-  } finally {
-    working.value = false;
-    refresh();
-  }
+  if (files.length > 0) emit("image", files);
 }
 
-function addTable(): void {
-  if (props.std === null) return;
-
-  if (insertTable(props.std)) emit("inserted");
-  refresh();
-}
+defineExpose({ pickImage });
 </script>
 
 <template>
-  <!-- `@mousedown.prevent` keeps the caret and selection in the document: the fork's mark and kind
-       commands run against the editor's own range, and a control that took focus would take the
-       selection with it. Keys reachable by Tab still ring on focus, as every control does. The row
-       stays one row at a phone's width and scrolls its keys sideways between its two ends, as the mobile
-       rule asks. -->
+  <!-- `@mousedown.prevent` keeps the caret and the selection in the document: the commands run against the
+       editor's own selection, and a control that took focus would take the selection with it. The row stays
+       one row at a phone's width and scrolls its keys sideways between its two ends. -->
   <ToolBar :label="$t('note.label.toolbar')" @mousedown.prevent>
-    <!-- The way back leads the row: the bar is the screen's own row under the title bar. It and the trailing
-         cell hold to the bar's ends while the keys between them scroll on a narrow screen, on the bar's own
-         ground, with the bar's bottom line drawn again over it. -->
     <div v-if="$slots.start" class="sticky start-0 z-10 flex shrink-0 items-center bg-default shadow-[inset_0_-1px_0_var(--ui-border)]">
       <slot name="start" />
     </div>
 
-    <!-- The bar spans the page; its keys gather in one row of their own width, centred, rather than
-         spreading across a wide screen. Ask AI leads it, as it leads the selection toolbar, and stands
-         whenever the editor does: with nothing selected and no caret it asks over the whole note. Over a
-         note held to read only it does not stand. -->
     <div class="mx-auto flex h-full w-max shrink-0 items-center gap-1" data-bar-row>
       <HintTip v-if="props.ask" :text="$t('note.ask.key')" press>
         <UButton
@@ -218,7 +111,7 @@ function addTable(): void {
           variant="ghost"
           icon="i-material-symbols-auto-awesome-outline"
           :label="$t('note.ask.key')"
-          :disabled="props.std === null"
+          :disabled="!writable"
           data-bar="ask"
           @click="emit('ask')"
         />
@@ -228,11 +121,9 @@ function addTable(): void {
 
       <HintTip :text="$t('note.action.turn_into')" press>
         <!-- The kind the block under the caret takes is a value chosen from a list, so it is the layer's one
-             select, its control the bar's small key showing the standing kind's icon. The list's search
-             takes the focus, and the editor lets its selection go with it, so the selection standing as
-             the list opens is the one the kind chosen lands on. -->
+             select, its control the bar's small key showing the standing kind's icon. -->
         <ChoiceSelect
-          :model-value="conversion < 0 ? undefined : conversion"
+          :model-value="kind ?? undefined"
           :items="kindChoices"
           value-key="value"
           variant="ghost"
@@ -242,8 +133,7 @@ function addTable(): void {
           :disabled="!writable"
           :aria-label="$t('note.action.turn_into')"
           data-bar="kind"
-          @update:open="holdSelection"
-          @update:model-value="(at: number) => turn(barConversions[at]!)"
+          @update:model-value="(id: KindId) => turn(id)"
         >
           <template #default>
             <UIcon :name="kindIcon" class="size-4 shrink-0" />
@@ -253,17 +143,18 @@ function addTable(): void {
 
       <div class="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden="true" />
 
-      <HintTip v-for="(config, at) in barMarks" :key="config.id" :text="$t(`note.mark.${config.id}`)" press>
+      <HintTip v-for="(mark, at) in MARKS" :key="mark.id" :text="$t(`note.mark.${mark.id}`)" press>
         <UButton
           size="sm"
           color="neutral"
           :variant="marks[at] ? 'subtle' : 'ghost'"
           square
-          :icon="markIcons[config.id] ?? 'i-material-symbols-text-fields'"
+          :icon="mark.icon"
           :disabled="!writable"
-          :aria-label="$t(`note.mark.${config.id}`)"
-          :data-bar="config.id"
-          @click="toggle(config.id)"
+          :aria-label="$t(`note.mark.${mark.id}`)"
+          :aria-pressed="marks[at]"
+          :data-bar="mark.id"
+          @click="toggle(mark.id)"
         />
       </HintTip>
 
@@ -276,8 +167,8 @@ function addTable(): void {
           variant="ghost"
           square
           icon="i-material-symbols-add-photo-alternate"
-          :loading="working"
-          :disabled="!writable || working"
+          :loading="props.working"
+          :disabled="!writable || props.working"
           :aria-label="$t('note.action.image')"
           data-bar="image"
           @click="pickImage"
@@ -285,26 +176,15 @@ function addTable(): void {
       </HintTip>
 
       <HintTip :text="$t('note.action.table')" press>
-        <UButton
-          size="sm"
-          color="neutral"
-          variant="ghost"
-          square
-          icon="i-material-symbols-grid-view"
-          :disabled="!writable || working"
-          :aria-label="$t('note.action.table')"
-          data-bar="table"
-          @click="addTable"
-        />
+        <UButton size="sm" color="neutral" variant="ghost" square icon="i-material-symbols-grid-view" :disabled="!writable" :aria-label="$t('note.action.table')" data-bar="table" @click="addTable" />
       </HintTip>
 
-      <!-- The input the image action opens, never drawn: the native attribute, which the bundle's own
-           stylesheet holds hidden against the editor's injected `input` rule. -->
+      <!-- The input the image key opens, never drawn. -->
       <input ref="picked" type="file" accept="image/*" multiple hidden data-bar="file" @change="standChosen" />
     </div>
 
     <!-- What acts on the whole note rather than the selection stands apart at the bar's trailing edge. -->
-    <div v-if="$slots.end" class="sticky end-0 z-10 flex shrink-0 items-center bg-default shadow-[inset_0_-1px_0_var(--ui-border)]">
+    <div v-if="$slots.end" class="sticky end-0 z-10 flex shrink-0 items-center gap-1 bg-default shadow-[inset_0_-1px_0_var(--ui-border)]">
       <slot name="end" />
     </div>
   </ToolBar>

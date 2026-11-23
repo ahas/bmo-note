@@ -18,13 +18,20 @@ export interface NoteMeta {
   access: NoteAccess;
   /** The note's icon, one emoji; empty where it has none. */
   icon: string;
-  /** Whether the service holds the note's plain text for its stored document. */
-  indexed: boolean;
 }
 
-/** A note with its document, base64 of the whole Yjs state. */
+/** A node of a note's document, the ProseMirror JSON of its TipTap editor (docs/api.md, 「Notes」). */
+export interface DocNode {
+  type: string;
+  attrs?: Record<string, unknown>;
+  content?: DocNode[];
+  marks?: Array<{ type: string; attrs?: Record<string, unknown> }>;
+  text?: string;
+}
+
+/** A note with its document. */
 export interface Note extends NoteMeta {
-  doc: string;
+  doc: DocNode;
 }
 
 /** A page of rows, in the order the call named. */
@@ -95,5 +102,34 @@ export interface SharedNote {
   changedAt: number;
   size: number;
   expiresAt: number | null;
-  doc: string;
+  /** The document, its comment marks taken off. */
+  doc: DocNode;
+}
+
+/** One comment of a thread (docs/api.md, 「Comments」). */
+export interface NoteComment {
+  id: string;
+  /** The account key that wrote it. */
+  author: string;
+  body: string;
+  createdAt: number;
+  /** Whether the reader wrote it. */
+  mine: boolean;
+}
+
+/** A comment thread laid on words of a note. */
+export interface NoteThread {
+  /** The id its comment marks carry. */
+  id: string;
+  /** The words it was laid on, as they read then. */
+  quote: string;
+  author: string;
+  createdAt: number;
+  resolvedAt: number | null;
+  resolvedBy: string | null;
+  /** Whether the stored document holds a mark of it. */
+  anchored: boolean;
+  /** Whether the reader started it. */
+  mine: boolean;
+  comments: NoteComment[];
 }

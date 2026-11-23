@@ -1,48 +1,41 @@
 import { describe, expect, test } from "bun:test";
 
-import { noteTitle, TITLE_MAX } from "../app/domain/title";
+import { titleOf, TITLE_MAX } from "../app/domain/title";
 
-// The title a note stands under in the list: the document's own, else the first line of content
-// (`docs/design.md`, 「What a note is」). The shapes below stand for the block texts the fork hands:
-// a plain `Y.Text`, a wrapper holding one, or a bare string.
+import type { DocNode } from "../shared/types";
 
-const ytext = (value: string) => ({ toString: () => value });
-const wrapped = (value: string) => ({ yText: { toString: () => value }, toString: () => `wrapped:${value}` });
+// The title a note stands under: the title node's words, else the first line of words the blocks hold
+// (`docs/design.md`, 「What a note is」), as the service reads it.
 
-describe("noteTitle", () => {
-  test("the root's own title wins, in whichever field it rides", () => {
-    expect(noteTitle({ props: { title$: ytext("Budget 2027") }, children: [{ text: ytext("first line") }] })).toBe("Budget 2027");
-    expect(noteTitle({ props: { title: "Plain" }, children: [] })).toBe("Plain");
-    expect(noteTitle({ props: { title: wrapped("Nested") }, children: [] })).toBe("Nested");
-    expect(noteTitle({ title: ytext("Old document"), children: [{ text: ytext("first line") }] })).toBe("Old document");
+const doc = (title: string, ...blocks: DocNode[]): DocNode => ({
+  type: "doc",
+  content: [title === "" ? { type: "title" } : { type: "title", content: [{ type: "text", text: title }] }, ...blocks]
+});
+const paragraph = (...content: DocNode[]): DocNode => (content.length === 0 ? { type: "paragraph" } : { type: "paragraph", content });
+const text = (words: string): DocNode => ({ type: "text", text: words });
+
+describe("titleOf", () => {
+  test("the title node wins, laid on one line", () => {
+    expect(titleOf(doc("  Budget\t 2027 ", paragraph(text("first line"))))).toBe("Budget 2027");
   });
 
-  test("an empty or blank root title falls through to the content", () => {
-    expect(noteTitle({ props: { title$: ytext("   ") }, children: [{ text: ytext("Quarterly budget notes") }] })).toBe("Quarterly budget notes");
+  test("an empty title falls through to the first line of words, a line break ending it", () => {
+    const untitled = doc("", paragraph(), paragraph(text("  Ship the   release"), { type: "hardBreak" }, text("second")), paragraph(text("next")));
+
+    expect(titleOf(untitled)).toBe("Ship the release");
   });
 
-  test("the first line of the first block carrying text titles the note", () => {
-    const root = {
-      children: [
-        { children: [] },
-        { text: ytext("") },
-        { children: [{ text: ytext("  \n ") }] },
-        { text: ytext("  Ship the   release\nsecond line\nthird") },
-        { text: ytext("next block") }
-      ]
-    };
+  test("a list item's words title a note as a paragraph's do", () => {
+    const listed = doc("", { type: "bulletList", content: [{ type: "listItem", content: [paragraph(text("milk"))] }] });
 
-    expect(noteTitle(root)).toBe("Ship the release");
+    expect(titleOf(listed)).toBe("milk");
   });
 
   test("the line is capped where the service stores it", () => {
-    const long = "あ".repeat(TITLE_MAX + 50);
-
-    expect(Array.from(noteTitle({ children: [{ text: ytext(long) }] })).length).toBe(TITLE_MAX);
+    expect(Array.from(titleOf(doc("あ".repeat(TITLE_MAX + 50)))).length).toBe(TITLE_MAX);
   });
 
   test("a document with nothing written stands without a title", () => {
-    expect(noteTitle(null)).toBe("");
-    expect(noteTitle({ children: [{ children: [{ text: ytext("") }] }] })).toBe("");
+    expect(titleOf(doc("", paragraph()))).toBe("");
   });
 });

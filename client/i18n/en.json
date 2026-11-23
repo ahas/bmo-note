@@ -33,7 +33,8 @@
       "change_icon": "Change icon",
       "remove_icon": "Remove icon",
       "full_width": "Full width",
-      "details": "Details"
+      "details": "Details",
+      "link": "Link"
     },
     "label": {
       "conflict": "Conflict",
@@ -59,7 +60,8 @@
       "in_trash": "This note is in the trash.",
       "picked_icon": "Icon",
       "list": "Notes",
-      "width": "List width"
+      "width": "List width",
+      "selection_bar": "Selection"
     },
     "mark": {
       "bold": "Bold",
@@ -77,7 +79,10 @@
       "numbered": "Numbered List",
       "quote": "Quote",
       "text": "Text",
-      "todo": "To-do List"
+      "todo": "To-do List",
+      "h4": "Heading 4",
+      "h5": "Heading 5",
+      "h6": "Heading 6"
     },
     "talk": {
       "answering": "The supervisor is answering",
@@ -118,7 +123,8 @@
       "trashed": "Moved to trash.",
       "restored": "Restored.",
       "purged": "Deleted for good.",
-      "duplicated": "Duplicated."
+      "duplicated": "Duplicated.",
+      "block_copied": "Copied."
     },
     "question": {
       "leave": "Changes are unsaved. Leave this screen?",
@@ -135,7 +141,8 @@
       "read_failed": "This note could not be read.",
       "too-large": "This note is past the size the store keeps.",
       "copy_failed": "The link could not be copied.",
-      "section_failed": "These notes could not be read."
+      "section_failed": "These notes could not be read.",
+      "image_too_large": "This image is past the size the store keeps."
     },
     "ask": {
       "key": "Ask AI",
@@ -213,7 +220,41 @@
     "block": {
       "copy": "Copy",
       "duplicate": "Duplicate",
-      "delete": "Delete"
+      "delete": "Delete",
+      "menu": "Block menu"
+    },
+    "link": {
+      "placeholder": "Paste or type a link",
+      "backlinks": "Linked from"
+    },
+    "editor": {
+      "placeholder": "Type / for a block, [[ or @ to link a note"
+    },
+    "slash": {
+      "kinds": "Turn into",
+      "inserts": "Insert"
+    },
+    "insert": {
+      "divider": "Divider",
+      "table": "Table",
+      "image": "Image"
+    },
+    "comment": {
+      "title": "Comments",
+      "add": "Add comment",
+      "placeholder": "Write a comment",
+      "reply": "Reply",
+      "resolve": "Resolve",
+      "reopen": "Reopen",
+      "resolved": "Resolved ({n})",
+      "detached": "Its words were deleted from the note.",
+      "delete": "Delete comment",
+      "delete_thread": "Delete",
+      "delete_question": "Delete this comment and its replies?",
+      "empty": "No comments yet.",
+      "failed": "The comment did not go.",
+      "read_failed": "The comments could not be read.",
+      "width": "Comments panel width"
     }
   }
 }

@@ -46,7 +46,7 @@ export const ASK_HEADING = [
   "stands in the field passage and the instruction in the field instruction; the turns before this one",
   "are the instruction's earlier rounds over the same passage, the last result included.",
   "The passage is written in the note's line grammar. Each line is one block. A plain paragraph is bare",
-  "text. #, ## and ### head a section. - is a bulleted item, 1. a numbered one, - [ ] and - [x] to-do",
+  "text. # to ###### head a section. - is a bulleted item, 1. a numbered one, - [ ] and - [x] to-do",
   "items, > a quote, and ```<tab>text a code block. [[divider]], [[image]] and [[table]] name blocks",
   "that stand as they are. A deeper block carries two spaces per level.",
   "Follow the instruction and answer with the result alone, in the same line grammar, in one fenced",

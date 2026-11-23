@@ -5,7 +5,7 @@
 // block without a parser of a general format.
 //
 //   <text>                 a plain paragraph
-//   # text / ## / ###      the three headings
+//   # text … ###### text   the six headings
 //   - text                 a bulleted list item
 //   1. text                a numbered list item (the run numbers itself when read back)
 //   - [ ] text / - [x]     a to-do item, open or done
@@ -27,6 +27,9 @@ export type RowKind =
   | "h1"
   | "h2"
   | "h3"
+  | "h4"
+  | "h5"
+  | "h6"
   | "bulleted"
   | "numbered"
   | "todo"
@@ -59,6 +62,9 @@ const MARKS: Array<[RowKind, string]> = [
   ["h1", "# "],
   ["h2", "## "],
   ["h3", "### "],
+  ["h4", "#### "],
+  ["h5", "##### "],
+  ["h6", "###### "],
   ["todo-done", "- [x] "],
   ["todo", "- [ ] "],
   ["bulleted", "- "],
@@ -128,7 +134,7 @@ function readsAsMark(body: string): boolean {
   // it wears a backslash too and never reads as that rename.
   if (body === "[[divider]]" || body === "[[image]]" || body === "[[table]]" || body === "[[title]]" || body.startsWith("[[title]] ")) return true;
 
-  return body.startsWith("# ") || body.startsWith("## ") || body.startsWith("### ") || body.startsWith("- ") || body.startsWith("> ") || body.startsWith("```") || /^\d+\.\s/u.test(body);
+  return /^#{1,6} /u.test(body) || body.startsWith("- ") || body.startsWith("> ") || body.startsWith("```") || /^\d+\.\s/u.test(body);
 }
 
 function markEscape(body: string): string {

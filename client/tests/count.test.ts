@@ -2,30 +2,43 @@ import { describe, expect, test } from "bun:test";
 
 import { countWords } from "../app/domain/count";
 
-// What the status line counts (`docs/design.md`, 「The console surface」): the document's title and every
-// text block under it, as runs of non-space. The shapes below stand for the block texts the fork hands.
+import type { DocNode } from "../shared/types";
 
-const text = (value: string) => ({ toString: () => value });
+// What the bar's line counts (`docs/design.md`, 「The console surface」): the title and every block's words,
+// block by block, as runs of non-space.
+
+const text = (words: string): DocNode => ({ type: "text", text: words });
 
 describe("countWords", () => {
-  test("the title and the text blocks are counted together", () => {
-    expect(countWords({ props: { title: text("Budget plan") }, children: [{ props: { text: text("Ship it") } }] })).toBe(4);
+  test("the title and the blocks are counted together, a block's end parting two words", () => {
+    const doc: DocNode = {
+      type: "doc",
+      content: [
+        { type: "title", content: [text("Budget plan")] },
+        { type: "paragraph", content: [text("Ship")] },
+        { type: "paragraph", content: [text("it now")] }
+      ]
+    };
+
+    expect(countWords(doc)).toBe(5);
   });
 
-  test("a text block's text is read through its own props or its text field", () => {
-    expect(countWords({ children: [{ props: { text: text("one two") } }, { text: text("three") }] })).toBe(3);
+  test("lists, tables and code are walked; a note link counts its title", () => {
+    const doc: DocNode = {
+      type: "doc",
+      content: [
+        { type: "title" },
+        { type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph", content: [text("deep words")] }] }] },
+        { type: "table", content: [{ type: "tableRow", content: [{ type: "tableCell", content: [{ type: "paragraph", content: [text("cell")] }] }] }] },
+        { type: "codeBlock", content: [text("let a")] },
+        { type: "paragraph", content: [{ type: "mention", attrs: { id: "n2", owner: "1", label: "Other note" } }] }
+      ]
+    };
+
+    expect(countWords(doc)).toBe(7);
   });
 
-  test("an older document's title field still counts", () => {
-    expect(countWords({ title: text("Old title"), children: [] })).toBe(2);
-  });
-
-  test("a tree with nothing written counts none", () => {
-    expect(countWords(null)).toBe(0);
-    expect(countWords({ props: { title: text("   ") }, children: [{ props: { text: text("") } }] })).toBe(0);
-  });
-
-  test("children of children are walked", () => {
-    expect(countWords({ children: [{ children: [{ props: { text: text("deep words") } }] }] })).toBe(2);
+  test("a document with nothing written counts none", () => {
+    expect(countWords({ type: "doc", content: [{ type: "title" }, { type: "paragraph" }] })).toBe(0);
   });
 });

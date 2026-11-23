@@ -2,8 +2,6 @@
 // browser check of the screens before the platform console is told about the unit at all (the job report
 // names what it stands in for and what it cannot). It is not the console: the frame, the sign-in, the
 // owner headers the console sets and the people directory it offers stand here as development values.
-import { vanillaExtractPlugin } from "@vanilla-extract/vite-plugin";
-
 export default defineNuxtConfig({
   extends: [".."],
   compatibilityDate: "2025-09-01",
@@ -23,19 +21,8 @@ export default defineNuxtConfig({
     }
   },
   vite: {
-    plugins: [vanillaExtractPlugin()],
-    // The editor rides the same road the bundle build takes: its sources arrive decorator-free from
-    // `bun run vendor` and transform file by file, never through the optimizer, which reads no
-    // tsconfigs, and never by the plain Node import of the server renderer, which reads no TypeScript
-    // either. The target is one every console browser speaks, as the bundle build's config states.
+    // The target is one every console browser speaks, as the bundle build's config states.
     oxc: { target: "chrome120" },
-    build: { target: "chrome120" },
-    optimizeDeps: {
-      // Vite reads this list as package names, not patterns: the bare scope keeps every package under
-      // it out of the optimizer, where a regular expression breaks the dev server's scan.
-      exclude: ["@blocksuite"]
-    },
-    ssr: { noExternal: [/@blocksuite/] }
-  },
-
+    build: { target: "chrome120" }
+  }
 });

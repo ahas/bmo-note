@@ -2,12 +2,12 @@
 // The open note, the note region of the notes screen (`docs/design.md`, 「The console surface」, 「Editing
 // and saving」): its bar — the key that brings the navigator, the note's state as one key opening its
 // properties, and the pin star, the share key and the more menu — then the band a reader must act on, and
-// the format bar and the BlockSuite editor in one column, the page head standing at the top of the
-// document's own scroll. The note saves itself a short moment after each edit, with its plain text, and
-// at once on Ctrl+S. A note in the trash opens read only under its band; a note shared with the reader
-// opens as the share allows. The talk's panel is docked beside the document.
+// the format bar and the editor in one column, the page head standing at the top of the document's own
+// scroll and the backlinks under it. The note saves itself a short moment after each edit, and at once on
+// Ctrl+S. A note in the trash opens read only under its band; a note shared with the reader opens as the
+// share allows. The talk and the comments stand one at a time in the column beside the document.
 
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from "vue-router";
 import { useI18n } from "vue-i18n";
 import HintTip from "bmo-ui/app/components/HintTip.vue";
@@ -15,25 +15,33 @@ import IconButton from "bmo-ui/app/components/IconButton.vue";
 import PropertyList from "bmo-ui/app/components/PropertyList.vue";
 import { askQuestion } from "bmo-ui/app/domain/question";
 
+import NoteBacklinks from "./NoteBacklinks.vue";
+import NoteComments from "./NoteComments.vue";
 import NoteEditor from "./NoteEditor.vue";
 import NoteHead from "./NoteHead.vue";
+import NotePanel from "./NotePanel.vue";
 import NoteTalk from "./NoteTalk.vue";
 import NoteToolbar from "./NoteToolbar.vue";
+import { useComments } from "../composables/useComments";
 import { Refusal, Unreachable } from "../domain/api";
 import { noteBlobSource } from "../domain/blobs";
 import { clockOf, sizeOf } from "../domain/count";
 import { SCREEN_KBDS } from "../domain/keys";
+import { candidateOf, linkCandidates, linkPath } from "../domain/links";
 import { noteKeyOf } from "../domain/navigator";
-import { plainText } from "../domain/plain";
 import { holdsChange, initialSaveState, nextSaveState, versionOf } from "../domain/save";
 
 import type { DropdownMenuItem } from "@nuxt/ui";
 import type { RouteLocationNormalized } from "vue-router";
+import type { LinkCandidate } from "./NoteEditor.vue";
+import type { Draft } from "../composables/useComments";
 import type { NoteApi, NoteKey } from "../domain/api";
 import type { Holding } from "../domain/count";
-import type { ReplaceResult } from "../domain/apply";
+import type { LinkTarget } from "../domain/links";
 import type { Op } from "../domain/patch";
+import type { Rewrite } from "../domain/rows";
 import type { SaveState } from "../domain/save";
+import type { NoteStreamEvent } from "../domain/stream";
 import type { Note, NoteMeta } from "../../shared/types";
 
 /** What the bar and the band ask the screen to do with the open note. */
@@ -50,12 +58,23 @@ const props = defineProps<{
   /** Whether a key brings the navigator: on a phone, or with the navigator folded. */
   navigatorKey: "drawer" | "unfold" | null;
   nameOf: (key: string) => string;
-  /** Writes the open note's text where the service holds none; answers the note as it then stands. */
-  fill: (note: NoteMeta, lines: readonly string[]) => Promise<NoteMeta | null>;
+  /** The reader's own account key, where the screen knows it. */
+  readerKey: string | null;
+  /** The latest `note.commented` event the screen heard. */
+  commented: NoteStreamEvent | null;
+  /** Where a note's row leads, as an address the browser can open in a new tab. */
+  hrefOf: (note: NoteMeta) => string;
 }>();
 
-// `saved` tells the screen the note as it now stands: read, saved, its icon set or its text filled.
-const emit = defineEmits<{ navigator: []; act: [act: NoteAct, note: NoteMeta]; wide: [wide: boolean]; saved: [note: NoteMeta] }>();
+// `saved` tells the screen the note as it now stands: read, saved or its icon set. `open` asks the screen to
+// open a note a link or a backlink names.
+const emit = defineEmits<{
+  navigator: [];
+  act: [act: NoteAct, note: NoteMeta];
+  wide: [wide: boolean];
+  saved: [note: NoteMeta];
+  open: [path: string, newTab: boolean];
+}>();
 
 const i18n = useI18n();
 
@@ -63,11 +82,13 @@ const note = shallowRef<Note | null>(null);
 const stand = ref<"loading" | "ready" | "missing" | "failed">("loading");
 const readCount = ref(0);
 const saveState = ref<SaveState>(
-  initialSaveState({ id: props.noteKey.id, owner: props.noteKey.owner ?? "", title: "", version: 1, createdAt: 0, changedAt: 0, size: 0, deletedAt: null, access: "owner", icon: "", indexed: false })
+  initialSaveState({ id: props.noteKey.id, owner: props.noteKey.owner ?? "", title: "", version: 1, createdAt: 0, changedAt: 0, size: 0, deletedAt: null, access: "owner", icon: "" })
 );
 const editor = shallowRef<InstanceType<typeof NoteEditor> | null>(null);
 const holding = ref<Holding>({ words: 0 });
-const talkOpen = ref(false);
+const panel = ref<"talk" | "comments" | null>(null);
+const chosenThread = ref<string | null>(null);
+const backlinks = shallowRef<NoteMeta[]>([]);
 const detailsOpen = ref(false);
 const liveTitle = ref("");
 const retrying = ref(false);
@@ -87,6 +108,74 @@ const shared = computed(() => note.value !== null && note.value.access !== "owne
 
 const blobs = computed(() => noteBlobSource(props.noteKey.id, props.noteKey.owner, readonly.value));
 
+// The talk and the comments stand one at a time in the column beside the note.
+const talkOpen = computed({
+  get: () => panel.value === "talk",
+  set: (open: boolean) => {
+    panel.value = open ? "talk" : panel.value === "talk" ? null : panel.value;
+  }
+});
+const commentsOpen = computed({
+  get: () => panel.value === "comments",
+  set: (open: boolean) => {
+    panel.value = open ? "comments" : panel.value === "comments" ? null : panel.value;
+  }
+});
+
+// The comments: started, answered and resolved by whoever writes the note, read by every member.
+const comments = useComments(
+  props.api,
+  () => props.noteKey,
+  () => editor.value
+);
+
+watch(
+  () => props.commented,
+  (event) => {
+    if (event === null || note.value === null) return;
+    if (event.data.noteId === note.value.id && event.data.owner === note.value.owner) void comments.load();
+  }
+);
+
+function draftComment(draft: Draft): void {
+  comments.draft.value = draft;
+  panel.value = "comments";
+}
+
+function openThread(thread: string): void {
+  chosenThread.value = thread;
+  panel.value = "comments";
+}
+
+// The note links: where one leads, the notes the menus offer, and the press that opens one.
+function linkHref(target: LinkTarget): string {
+  return linkPath(target, props.readerKey);
+}
+
+async function findNotes(term: string): Promise<LinkCandidate[]> {
+  const found = await linkCandidates(props.api, term);
+
+  return found.map((one) => candidateOf(one, i18n.t("note.label.untitled"), props.nameOf));
+}
+
+function openLink(target: LinkTarget, newTab: boolean): void {
+  emit("open", linkPath(target, props.readerKey), newTab);
+}
+
+function openBacklink(linking: NoteMeta, newTab: boolean): void {
+  emit("open", props.hrefOf(linking), newTab);
+}
+
+async function readBacklinks(): Promise<void> {
+  if (props.trashed) return;
+
+  try {
+    backlinks.value = await props.api.backlinks(props.noteKey);
+  } catch {
+    // The list stands empty; the note itself reads on.
+  }
+}
+
 async function read(): Promise<void> {
   stand.value = "loading";
 
@@ -100,6 +189,8 @@ async function read(): Promise<void> {
     readCount.value += 1;
     stand.value = "ready";
     emit("saved", found);
+    void comments.load();
+    void readBacklinks();
   } catch (error) {
     stand.value = error instanceof Refusal && error.status === 404 ? "missing" : "failed";
   }
@@ -145,6 +236,7 @@ function onEdit(): void {
 
   saveState.value = nextSaveState(saveState.value, { type: "edited" });
   count();
+  comments.placesChanged();
 
   if (debounce !== null) clearTimeout(debounce);
 
@@ -161,10 +253,8 @@ function count(): void {
   holding.value = exposed?.holding?.() ?? holding.value;
 }
 
-function snapshot(): { doc: string; title: string } | null {
-  const exposed = editor.value as { snapshot?: () => { doc: string; title: string } } | null;
-
-  return exposed?.snapshot?.() ?? null;
+function snapshot(): { doc: Note["doc"]; title: string } | null {
+  return editor.value?.snapshot() ?? null;
 }
 
 /** The note's title as the open document holds it, which the talk names it by. */
@@ -186,7 +276,7 @@ function talkApply(ops: Op[]): boolean {
   return editor.value?.apply(ops) ?? false;
 }
 
-function talkReplace(lines: string[]): ReplaceResult {
+function talkReplace(lines: string[]): Rewrite {
   return editor.value?.replace(lines) ?? { ok: false, kinds: [] };
 }
 
@@ -194,28 +284,14 @@ function talkRename(title: string): boolean {
   return editor.value?.rename(title) ?? false;
 }
 
-/** The editor has drawn the note: the count and the title are read, and a note the service holds no text
- * for is given it quietly. */
-async function ready(): Promise<void> {
+/** The editor has drawn the note: the count, the title and the places of the comment marks are read. */
+function ready(): void {
   count();
   readTitle();
-  await nextTick();
-  placeHead();
-
-  const held = note.value;
-
-  if (held === null || readonly.value || held.indexed) return;
-
-  const filled = await props.fill(held, talkLines());
-
-  if (filled !== null && note.value === held) {
-    note.value = { ...held, ...filled, doc: held.doc };
-    emit("saved", filled);
-  }
+  comments.placesChanged();
 }
 
-/** Sends what the editor holds, naming the version it was made from, with its plain text (`docs/api.md`,
- * 「Notes」). */
+/** Sends what the editor holds, naming the version it was made from (`docs/api.md`, 「Notes」). */
 async function flush(): Promise<void> {
   const held = note.value;
 
@@ -232,9 +308,7 @@ async function flush(): Promise<void> {
   try {
     const meta = await props.api.save(props.noteKey, {
       version: versionOf(saveState.value) ?? held.version,
-      title: taken?.title,
-      doc: taken?.doc,
-      text: taken === null ? undefined : plainText(talkLines())
+      doc: taken?.doc
     });
 
     note.value = { ...held, ...meta, doc: held.doc };
@@ -431,38 +505,11 @@ async function pickIcon(icon: string): Promise<void> {
   }
 }
 
-// The page head stands at the top of the document's own scroll, before the editor's container, in an
-// element of the region's own that the head is drawn into.
-const headPlace = shallowRef<HTMLElement | null>(null);
-const region = shallowRef<HTMLElement | null>(null);
-
-function placeHead(): void {
-  const host = region.value?.querySelector<HTMLElement>("[data-note-editor]") ?? null;
-
-  if (host === null) return;
-
-  let place = host.querySelector<HTMLElement>(":scope > [data-note-head-place]");
-
-  if (place === null) {
-    place = document.createElement("div");
-    place.dataset.noteHeadPlace = "";
-    place.style.containerType = "inline-size";
-    place.style.containerName = "note-head";
-    host.prepend(place);
-  }
-
-  headPlace.value = place;
-}
-
-watch(readCount, () => {
-  headPlace.value = null;
-});
-
 const iconShown = computed(() => note.value?.icon ?? "");
 </script>
 
 <template>
-  <div ref="region" class="flex h-full min-h-0 min-w-0 flex-1 flex-col" :style="props.wide ? { '--affine-editor-width': 'none' } : undefined" data-note-region>
+  <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col" :style="props.wide ? { '--note-width': 'none' } : undefined" data-note-region>
     <!-- The bar: the navigator's key and the note's state at its leading end, its actions at its trailing end. -->
     <div class="flex h-12 shrink-0 items-center gap-2 border-b border-default ps-2 pe-3 sm:ps-3" data-note-bar>
       <IconButton
@@ -517,7 +564,7 @@ const iconShown = computed(() => note.value?.icon ?? "");
     </div>
 
     <template v-if="stand === 'loading'">
-      <NoteToolbar :std="null" />
+      <NoteToolbar :editor="null" />
       <div role="status" :aria-label="$t('note.status.loading')" class="flex w-full flex-col gap-4 px-6 py-6">
         <USkeleton class="h-12 w-12 rounded-md" />
         <USkeleton class="h-9 w-2/5 rounded-md" />
@@ -568,23 +615,57 @@ const iconShown = computed(() => note.value?.icon ?? "");
           :title="titleLine"
           :blobs="blobs"
           :readonly="readonly"
+          :comments="!readonly"
+          :href="linkHref"
+          :find-notes="findNotes"
+          :open-threads="comments.openIds.value"
+          :chosen-thread="chosenThread"
           @change="onEdit"
           @title="liveTitle = $event"
           @ready="ready"
+          @link="openLink"
+          @thread="openThread"
+          @comment="draftComment"
         >
-          <template v-if="!readonly" #barEnd>
-            <HintTip :text="$t('note.action.talk')" press>
-              <UButton size="sm" color="neutral" variant="ghost" icon="i-material-symbols-forum-outline" :label="$t('note.action.talk')" @click="talkOpen = true" />
+          <template #barEnd>
+            <HintTip :text="$t('note.comment.title')" press>
+              <UButton
+                size="sm"
+                color="neutral"
+                :variant="commentsOpen ? 'subtle' : 'ghost'"
+                icon="i-material-symbols-comment-outline"
+                :label="comments.openCount.value > 0 ? new Intl.NumberFormat($i18n.locale).format(comments.openCount.value) : undefined"
+                :aria-label="$t('note.comment.title')"
+                :aria-pressed="commentsOpen"
+                class="tabular-nums"
+                data-comments-key
+                @click="commentsOpen = !commentsOpen"
+              />
+            </HintTip>
+            <HintTip v-if="!readonly" :text="$t('note.action.talk')" press>
+              <UButton size="sm" color="neutral" :variant="talkOpen ? 'subtle' : 'ghost'" icon="i-material-symbols-forum-outline" :label="$t('note.action.talk')" data-talk-key @click="talkOpen = !talkOpen" />
             </HintTip>
           </template>
+          <template #head>
+            <NoteHead :icon="iconShown" :writable="!readonly" :busy="iconBusy" @pick="pickIcon" />
+          </template>
+          <template #foot>
+            <NoteBacklinks :notes="backlinks" :href-of="props.hrefOf" @open="openBacklink" />
+          </template>
         </NoteEditor>
-
-        <Teleport v-if="headPlace !== null" :to="headPlace">
-          <NoteHead :icon="iconShown" :writable="!readonly" :busy="iconBusy" @pick="pickIcon" />
-        </Teleport>
       </div>
 
       <NoteTalk v-if="!readonly" v-model:open="talkOpen" :note-id="note.id" :title="titleLine" :lines="talkLines" :apply="talkApply" :replace="talkReplace" :rename="talkRename" />
+      <NotePanel v-model:open="commentsOpen" :title="$t('note.comment.title')" :width-label="$t('note.comment.width')">
+        <NoteComments
+          v-model:chosen="chosenThread"
+          :comments="comments"
+          :writable="!readonly"
+          :owns="owns"
+          :name-of="props.nameOf"
+          @show="(thread) => editor?.showThread(thread)"
+        />
+      </NotePanel>
     </div>
   </div>
 </template>

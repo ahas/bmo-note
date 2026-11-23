@@ -1,159 +1,101 @@
-// The format bar's reads and writes (`docs/design.md`, 「The console surface」). The bar is the bundle's
-// own; every line it changes is changed through the fork's own commands — the ones the hotkeys, the
-// selection toolbar and the slash menu ride: the image insert opens the fork's own picker, stands the
-// block beside the written line and keeps its rule of bytes first, block after.
+// The kinds a block turns into and the marks words take (`docs/design.md`, 「The console surface」): the one
+// list the format bar's select, the slash menu and the drag handle's menu all read, each kind turned through
+// the editor's own commands, so every road to a kind is one mechanism.
 
-import { addSiblingImageBlocks } from "@blocksuite/affine/blocks/image";
-import { insertTableBlockCommand } from "@blocksuite/affine/blocks/table";
-import { updateBlockType } from "@blocksuite/affine/blocks/note";
-import { getSelectedModelsCommand } from "@blocksuite/affine/shared/commands";
-import { FORMAT_BLOCK_SUPPORT_FLAVOURS, FORMAT_TEXT_SUPPORT_FLAVOURS, textFormatConfigs } from "@blocksuite/affine/inlines/preset";
-import { BlockSelection, TextSelection } from "@blocksuite/affine/std";
+import type { ChainedCommands, Editor } from "@tiptap/core";
 
-import type { TextFormatConfig } from "@blocksuite/affine/inlines/preset";
-import type { BlockModel } from "@blocksuite/affine/store";
-import type { BlockStdScope, Command } from "@blocksuite/affine/std";
-
-export interface BarConversion {
-  flavour: string;
-  type?: string;
+/** A kind a block can be turned into: its id, which names its words (`note.kind.<id>`), and its icon. */
+export interface Kind {
+  id: KindId;
   icon: string;
 }
 
-/** The inline marks the bar carries, in the fork's own order. The link keeps its own affordance in
- * the selection toolbar and the hotkey: it opens a field for an address, not a toggle. */
-export const barMarks: TextFormatConfig[] = textFormatConfigs.filter((config) => config.id !== "link");
+export type KindId = "text" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "bulleted" | "numbered" | "todo" | "quote" | "code";
 
-/** The kinds the bar turns lines into, in its order. */
-export const barConversions: BarConversion[] = [
-  { flavour: "affine:paragraph", type: "text", icon: "i-material-symbols-text-fields" },
-  { flavour: "affine:paragraph", type: "h1", icon: "i-material-symbols-format-h1" },
-  { flavour: "affine:paragraph", type: "h2", icon: "i-material-symbols-format-h2" },
-  { flavour: "affine:paragraph", type: "h3", icon: "i-material-symbols-format-h3" },
-  { flavour: "affine:list", type: "bulleted", icon: "i-material-symbols-format-list-bulleted" },
-  { flavour: "affine:list", type: "numbered", icon: "i-material-symbols-format-list-numbered" },
-  { flavour: "affine:list", type: "todo", icon: "i-material-symbols-checklist" },
-  { flavour: "affine:paragraph", type: "quote", icon: "i-material-symbols-format-quote" },
-  { flavour: "affine:code", icon: "i-material-symbols-code" }
+export const KINDS: Kind[] = [
+  { id: "text", icon: "i-material-symbols-text-fields" },
+  { id: "h1", icon: "i-material-symbols-format-h1" },
+  { id: "h2", icon: "i-material-symbols-format-h2" },
+  { id: "h3", icon: "i-material-symbols-format-h3" },
+  { id: "h4", icon: "i-material-symbols-format-h4" },
+  { id: "h5", icon: "i-material-symbols-format-h5" },
+  { id: "h6", icon: "i-material-symbols-format-h6" },
+  { id: "bulleted", icon: "i-material-symbols-format-list-bulleted" },
+  { id: "numbered", icon: "i-material-symbols-format-list-numbered" },
+  { id: "todo", icon: "i-material-symbols-checklist" },
+  { id: "quote", icon: "i-material-symbols-format-quote" },
+  { id: "code", icon: "i-material-symbols-code-blocks-outline" }
 ];
 
-/** Whether the bar turns on now: the written line's kind is one the fork's own format support lists
- * carry. (The fork's `isFormatSupported` answers false for a multi-character text selection — it
- * reads single-element conversions only — so the bar reads the same support lists at the model.) */
-export function conversionsSupported(std: BlockStdScope): boolean {
-  const model = writtenModel(std);
+/** The kinds the format bar's select offers, in its order: the three first headings stand there. */
+export const BAR_KINDS: Kind[] = KINDS.filter((kind) => !["h4", "h5", "h6"].includes(kind.id));
 
-  if (model === undefined) return false;
+/** What the slash menu puts in beside the kinds: a divider, a table and an image. */
+export type InsertId = "divider" | "table" | "image";
 
-  return FORMAT_BLOCK_SUPPORT_FLAVOURS.includes(model.flavour) || FORMAT_TEXT_SUPPORT_FLAVOURS.includes(model.flavour);
+export const INSERTS: Array<{ id: InsertId; icon: string }> = [
+  { id: "divider", icon: "i-material-symbols-horizontal-rule" },
+  { id: "table", icon: "i-material-symbols-grid-view" },
+  { id: "image", icon: "i-material-symbols-add-photo-alternate" }
+];
+
+/** The marks the bars carry, in their order. */
+export const MARKS = [
+  { id: "bold", icon: "i-material-symbols-format-bold" },
+  { id: "italic", icon: "i-material-symbols-format-italic" },
+  { id: "underline", icon: "i-material-symbols-format-underlined" },
+  { id: "strike", icon: "i-material-symbols-format-strikethrough" },
+  { id: "code", icon: "i-material-symbols-code" }
+] as const;
+
+export type MarkId = (typeof MARKS)[number]["id"];
+
+/** The chain turning the block under the selection into `kind`: what it stands in is lifted off first — a
+ * list, a quote, a code block — so every kind is reached from every other in one step. */
+export function turnInto(chain: ChainedCommands, kind: KindId): ChainedCommands {
+  const plain = chain.clearNodes();
+  const heading = /^h([1-6])$/u.exec(kind);
+
+  if (heading !== null) return plain.setHeading({ level: Number(heading[1]) as 1 | 2 | 3 | 4 | 5 | 6 });
+
+  switch (kind) {
+    case "bulleted":
+      return plain.toggleBulletList();
+    case "numbered":
+      return plain.toggleOrderedList();
+    case "todo":
+      return plain.toggleTaskList();
+    case "quote":
+      return plain.toggleBlockquote();
+    case "code":
+      return plain.setCodeBlock();
+    default:
+      return plain.setParagraph();
+  }
 }
 
-/** The kind the written line stands in, as an index of the bar's kinds; -1 where none does. */
-export function activeConversion(std: BlockStdScope): number {
-  const model = writtenModel(std);
-
-  if (model === undefined) return -1;
-
-  const type = "type" in model.props ? String(model.props.type) : undefined;
-
-  return barConversions.findIndex((conversion) => conversion.flavour === model.flavour && (conversion.type ?? undefined) === type);
+/** The chain putting `insert` in at the selection: a divider, or a table of three rows and three columns. The
+ * image is the screen's own, since its bytes go to the service first. */
+export function insertInto(chain: ChainedCommands, insert: Exclude<InsertId, "image">): ChainedCommands {
+  return insert === "divider" ? chain.setHorizontalRule() : chain.insertTable({ rows: 3, cols: 3, withHeaderRow: false });
 }
 
-/** The marks' active states, in the bar's order, read the fork's own way; none where nothing is written. */
-export function activeMarks(std: BlockStdScope): boolean[] {
-  return barMarks.map((config) => config.activeWhen(std.host));
-}
+/** The kind the block under the selection stands in, the innermost first; null where none of the kinds is. */
+export function activeKind(editor: Pick<Editor, "isActive">): KindId | null {
+  if (editor.isActive("codeBlock")) return "code";
+  if (editor.isActive("taskList")) return "todo";
+  if (editor.isActive("orderedList")) return "numbered";
+  if (editor.isActive("bulletList")) return "bulleted";
+  if (editor.isActive("blockquote")) return "quote";
 
-/** Turns the written line into one kind: the selection where the fork reads one, the caret's line
- * otherwise, and the written line itself where a press on the bar left the selection behind. */
-export function convert(std: BlockStdScope, conversion: BarConversion): void {
-  const input = { flavour: conversion.flavour, ...(conversion.type === undefined ? {} : { props: { type: conversion.type } }) };
-
-  if (std.command.chain().pipe(updateBlockType, input).run()[0]) return;
-
-  const model = caretModel(std) ?? writtenModel(std);
-  if (model === undefined) return;
-
-  std.command
-    .chain()
-    .pipe(asSelected(model))
-    .pipe(updateBlockType, input)
-    .run();
-}
-
-/** A command that stands the one written model where the fork's selection commands read back none. */
-function asSelected(model: BlockModel): Command<{ selectedModels?: BlockModel[] }, { selectedModels: BlockModel[] }> {
-  return (_ctx: unknown, next: (output?: { selectedModels: BlockModel[] }) => void) => next({ selectedModels: [model] });
-}
-
-/** Images chosen on the bar, through the fork's own insert: bytes first, block after, at the line
- * the selection names or the one under the caret. The picker is the bar's own input, so the accept
- * line and the button's words stay the bundle's and the flow needs no user-activation-gated API. */
-export async function insertImages(std: BlockStdScope, files: File[]): Promise<string[]> {
-  const model = writtenModel(std);
-
-  if (files.length === 0 || model === undefined) return [];
-
-  return addSiblingImageBlocks(std, files, model, "after");
-}
-
-/** A table through the fork's own insert, at the same place. */
-export function insertTable(std: BlockStdScope): boolean {
-  const model = writtenModel(std);
-  if (model === undefined) return false;
-
-  return std.command
-    .chain()
-    .pipe(asSelected(model))
-    .pipe(insertTableBlockCommand, { place: "after", removeEmptyLine: true })
-    .run()[0];
-}
-
-/** The model the writer is at: a selected one where the fork reads any, else the block under the caret. */
-export function writtenModel(std: BlockStdScope): BlockModel | undefined {
-  const [ok, context] = std.command
-    .chain()
-    .pipe(getSelectedModelsCommand, { types: ["text", "block"], mode: "highest" })
-    .run();
-
-  if (ok && context.selectedModels.length > 0) return context.selectedModels[0];
-
-  return caretModel(std);
-}
-
-/** The block the caret or the selection stands at. */
-export function caretModel(std: BlockStdScope): BlockModel | undefined {
-  const text = std.selection.find(TextSelection);
-  if (text !== undefined) {
-    const model = std.store.getBlock(text.from.blockId)?.model;
-
-    return model === undefined ? undefined : (std.store.getParent(model) ?? model);
+  for (const level of [1, 2, 3, 4, 5, 6]) {
+    if (editor.isActive("heading", { level })) return `h${level}` as KindId;
   }
 
-  const block = std.selection.find(BlockSelection);
-  if (block !== undefined) return std.store.getBlock(block.blockId)?.model;
-
-  return undefined;
+  return editor.isActive("paragraph") ? "text" : null;
 }
 
-/** The blocks a passage covers: every block the selection reaches, else the one under the caret. */
-export function passageModels(std: BlockStdScope): BlockModel[] {
-  const [ok, context] = std.command
-    .chain()
-    .pipe(getSelectedModelsCommand, { types: ["text", "block"], mode: "flat" })
-    .run();
-
-  if (ok && context.selectedModels.length > 0) return context.selectedModels;
-
-  const text = std.selection.find(TextSelection);
-  const model = text === undefined ? undefined : std.store.getBlock(text.from.blockId)?.model;
-
-  return model === undefined ? [] : [model];
-}
-
-/** The element a passage's last block is drawn as, which the result stands under. */
-export function passageElement(std: BlockStdScope, models: BlockModel[]): HTMLElement | null {
-  const last = models.at(-1);
-
-  return last === undefined ? null : (std.view.getBlock(last.id) as HTMLElement | null);
+/** The marks the selection's words wear, in the bars' order. */
+export function activeMarks(editor: Pick<Editor, "isActive">): boolean[] {
+  return MARKS.map((mark) => editor.isActive(mark.id));
 }

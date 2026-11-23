@@ -2,12 +2,10 @@ import { describe, expect, test } from "bun:test";
 
 import { askOf, asksAnything, emptyFinding, findingOf, markedTerm, queryOfFinding, sinceOf, withFinding } from "../app/domain/finding";
 import { screenKeyOf } from "../app/domain/keys";
-import { plainText } from "../app/domain/plain";
 
 import type { FoundNote } from "../shared/types";
 
-// The search as the address carries it (docs/design.md, 「Search」), the screen's own keys, and the plain
-// text a save carries (docs/design.md, 「What a note is」).
+// The search as the address carries it (docs/design.md, 「Search」) and the screen's own keys.
 
 describe("the search in the address", () => {
   test("stands only where the address names one, its defaults left out", () => {
@@ -59,11 +57,5 @@ describe("the screen's keys", () => {
     expect(screenKeyOf(press("k", { ctrlKey: false }), false)).toBeNull();
     expect(screenKeyOf(press("k", { shiftKey: true }), false)).toBeNull();
     expect(screenKeyOf(press("p", { isComposing: true }), false)).toBeNull();
-  });
-});
-
-describe("the plain text", () => {
-  test("is each block's words, its line mark taken off, the wordless blocks dropped", () => {
-    expect(plainText(["# Plan", "- milk", "[[image]]", "  1. two", "> quote", ""])).toBe("Plan\nmilk\ntwo\nquote");
   });
 });

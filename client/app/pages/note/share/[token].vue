@@ -77,6 +77,7 @@ onMounted(() => {
       <UButton color="neutral" variant="soft" icon="i-material-symbols-refresh" :label="$t('note.action.retry')" @click="read" />
     </div>
 
-    <NoteEditor v-else-if="note !== null" :note-id="note.id" :doc="note.doc" :title="titleLine" :blobs="blobs" readonly :toolbar="false" />
+    <!-- The page opens no other note, so a note link stands as its title alone. -->
+    <NoteEditor v-else-if="note !== null" :note-id="note.id" :doc="note.doc" :title="titleLine" :blobs="blobs" :href="() => '#'" readonly :toolbar="false" />
   </div>
 </template>

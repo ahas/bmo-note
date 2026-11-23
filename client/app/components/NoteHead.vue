@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // The page head (`docs/design.md`, 「The console surface」): the note's icon, large, standing over the title
-// the editor draws as the document's own, in the editor's column at the top of the document's scroll. A
+// the editor draws as the document's own title node, in the editor's column at the top of the document's
+// scroll. A
 // note with no icon offers a key to add one while the pointer is over the head or the keyboard's focus is
 // in it; the icon key opens a popover of a small set of emoji and a key that removes the icon. A reader who
 // cannot write the note sees the icon and nothing to press.
@@ -68,23 +69,17 @@ function pick(icon: string): void {
 </template>
 
 <style scoped>
-/* The head stands in the editor's own column: as wide as the document's text and inset as its title is, so
-   the icon lines up with the title's first letter whatever width the note stands at. */
+/* The head stands in the editor's own column, inset as its title is, so the icon lines up with the title's
+   first letter whatever width the note stands at. */
 .note-head {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: var(--affine-editor-width);
-  margin-inline: auto;
-  padding-inline: var(--affine-editor-side-padding, 24px);
   padding-top: 24px;
+  padding-bottom: 8px;
   min-height: 56px;
 }
 
-/* Where the editor's own column narrows to a phone's, it takes its fixed inset there; the head does the
-   same, read off the width of the place it stands in, the editor's own width. */
-@container note-head (width <= 640px) {
+@media (min-width: 640px) {
   .note-head {
-    padding-inline: 24px;
+    padding-inline: 2rem;
   }
 }
 </style>
