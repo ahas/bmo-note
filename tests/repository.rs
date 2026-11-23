@@ -332,7 +332,7 @@ fn the_readme_table_names_the_unit_folders() {
 fn the_unit_stands_under_the_mit_licence_alone() {
   let licence = text_of("LICENSE").expect("LICENSE is at the root");
   assert!(licence.starts_with("MIT License"), "LICENSE is the MIT licence");
-  assert!(licence.contains("the bmo-note authors"), "LICENSE names the unit's authors");
+  assert!(licence.contains("Copyright (c) 2026 ahas"), "LICENSE names its copyright holder");
   let manifest: toml::Table =
     text_of("Cargo.toml").expect("Cargo.toml").parse().expect("Cargo.toml is TOML");
   let package = table(&manifest, "workspace")
