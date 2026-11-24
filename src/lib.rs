@@ -13,6 +13,7 @@ pub mod events;
 pub mod folders;
 pub mod model;
 pub mod own;
+pub mod removal;
 pub mod search;
 pub mod settings;
 pub mod share;

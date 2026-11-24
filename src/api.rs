@@ -54,7 +54,10 @@ pub fn router(app: Arc<App>, face: Option<ConsoleFace>) -> Router {
     Some(face) => face.guard_screens(screens),
     None => screens,
   };
-  let mut routes = Router::new().route("/health", get(health)).merge(screens);
+  let mut routes = Router::new()
+    .route("/health", get(health))
+    .merge(screens)
+    .merge(crate::removal::routes());
   if let Some(face) = &face {
     routes = routes.merge(face.router());
   }

@@ -176,6 +176,9 @@ search, links and comments, and shows the notes through a console bundle under i
   account's record of opening it. A save that drops an image leaves its bytes standing until the note goes: the store
   collects no garbage of its own. A link another note holds to a purged note stands in that note's
   document and opens onto the note's absence.
+- **An account deleted for good takes its notes with it** (`docs/api.md`, 「Removing an account」): each note it owns
+  is purged as above, and its folders, its bookmarks, its records of opening and its member shares of others' notes
+  go; what it wrote in another account's note stays there.
 - **Bookmarks and what was opened are the reader's, not the note's.** Each is kept by the account that made
   it, so a member bookmarks and opens a note shared with them as the owner does their own, and nobody reads
   another's. They are answered only for what the account reads at the moment of the read — a share

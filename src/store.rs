@@ -151,6 +151,34 @@ CREATE TABLE IF NOT EXISTS legacy_docs (
 );
 ";
 
+/// What the store keeps of one account (docs/api.md, 「Removing an account」).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct AccountHeld {
+  pub notes: i64,
+  pub folders: i64,
+  pub member_shares: i64,
+  pub bookmarks: i64,
+  pub opened: i64,
+}
+
+// What an account holds, and the notes it owns.
+fn held_of(connection: &Connection, account: &str) -> rusqlite::Result<(AccountHeld, Vec<String>)> {
+  let count = |sql: &str| connection.query_row(sql, params![account], |row| row.get::<_, i64>(0));
+  let held = AccountHeld {
+    notes: count("SELECT COUNT(*) FROM notes WHERE owner = ?1")?,
+    folders: count("SELECT COUNT(*) FROM folders WHERE owner = ?1")?,
+    member_shares: count("SELECT COUNT(*) FROM members WHERE member = ?1")?,
+    bookmarks: count("SELECT COUNT(*) FROM bookmarks WHERE account = ?1")?,
+    opened: count("SELECT COUNT(*) FROM opened WHERE account = ?1")?,
+  };
+  let mut statement = connection.prepare("SELECT id FROM notes WHERE owner = ?1 ORDER BY id")?;
+  let notes = statement
+    .query_map(params![account], |row| row.get::<_, String>(0))?
+    .collect::<Result<_, _>>()?;
+  Ok((held, notes))
+}
+
 /// The tables a purge empties of the note beside its own row, each keyed by `owner` and `note`.
 const BESIDE_A_NOTE: [&str; 10] = [
   "blobs",
@@ -526,6 +554,31 @@ impl Store {
       }
       transaction.commit()?;
       Ok(changed == 1)
+    })
+  }
+
+  /// What the store keeps of `account`, as its removal counts and takes it (docs/api.md, 「Removing an account」),
+  /// with the notes it owns, each with the accounts it is shared with.
+  pub fn account_held(&self, account: &str) -> Result<(AccountHeld, Vec<String>), String> {
+    self.with(|connection| held_of(connection, account))
+  }
+
+  /// Everything the store keeps of `account` taken in one transaction: its notes purged whole, its folders,
+  /// its member shares, its bookmarks and its records of opening. Answers what it took.
+  pub fn remove_account(&self, account: &str) -> Result<AccountHeld, String> {
+    self.with(|connection| {
+      let transaction = connection.unchecked_transaction()?;
+      let (held, _) = held_of(&transaction, account)?;
+      for table in BESIDE_A_NOTE {
+        transaction.execute(&format!("DELETE FROM {table} WHERE owner = ?1"), params![account])?;
+      }
+      transaction.execute("DELETE FROM notes WHERE owner = ?1", params![account])?;
+      transaction.execute("DELETE FROM folders WHERE owner = ?1", params![account])?;
+      transaction.execute("DELETE FROM members WHERE member = ?1", params![account])?;
+      transaction.execute("DELETE FROM bookmarks WHERE account = ?1", params![account])?;
+      transaction.execute("DELETE FROM opened WHERE account = ?1", params![account])?;
+      transaction.commit()?;
+      Ok(held)
     })
   }
 

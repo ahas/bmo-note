@@ -329,6 +329,34 @@ service token or the console credential (「Console」):
 A token that opens nothing, an ended link's, an unknown one's, or one whose note stands in the trash, is
 404 `not-found`.
 
+## Removing an account
+
+The platform administrator deleting an account or an organisation unit for good takes what the note keeps of it.
+These routes stand outside the screens' guard: the service token reaches them, and the console credential only with
+`Owner-Role: administrator`; any other caller is 403 `forbidden`. An account or a unit is its key as the account
+service names it, positive decimal digits; any other is 400 `bad-request`.
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/accounts/{account}/removal` | What the removal below would take now, changing nothing: `{"counts": {kind: n}}` |
+| DELETE | `/accounts/{account}` | Takes it, answering `{"removed": {kind: n}}` |
+| GET | `/org-units/{unit}/removal` | `{"counts": {}}`: the note keeps nothing of an organisation unit |
+| DELETE | `/org-units/{unit}` | `{"removed": {}}` |
+
+The kinds, each always present:
+
+- `notes`: every note the account owns, trashed or not, purged as a purge of one note is (「Notes」), so each takes
+  its images, its link, its member shares, its search row, its links, its threads and comments, its former document,
+  and every account's bookmarks and records of opening it; each publishes `note.purged` to whoever it was shared
+  with;
+- `folders`: the account's folders;
+- `member-shares`: the notes of other accounts shared with it, which keep their owner and their other members;
+- `bookmarks` and `opened`: the account's own bookmarks and records of what it opened, of any account's notes.
+
+A thread or a comment the account wrote in another account's note stays with that note, under the key it was
+written by. A second removal takes nothing and answers zeros, so a removal broken half-way is finished by calling
+again; the `company` query a caller may add is not read.
+
 ## Console
 
 The note brings its screens to a console under bmo-ui's console plugin contract (bmo-ui

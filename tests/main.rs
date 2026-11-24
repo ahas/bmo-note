@@ -13,6 +13,7 @@ mod events;
 mod folders;
 mod notes;
 mod own;
+mod removal;
 mod repository;
 mod search;
 mod sharing;
