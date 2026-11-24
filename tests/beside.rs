@@ -1,6 +1,5 @@
 //! What stands beside a note's document (`docs/api.md`, 「Notes」): what it says, its links, its icon, a copy of it,
-//! the orders its lists stand in, its read from the trash — and a store from before any of it, upgraded in
-//! place as it opens (`docs/design.md`, 「Storage」).
+//! the orders its lists stand in, and its read from the trash.
 
 use axum::http::StatusCode;
 use base64::Engine;
@@ -334,73 +333,4 @@ async fn a_trashed_note_is_read_by_its_owner_alone() {
   assert_eq!(status, StatusCode::NOT_FOUND);
   let (status, _) = answered(ran.as_reader("GET", "/notes/g1", OWNER, "member")).await;
   assert_eq!(status, StatusCode::NOT_FOUND, "a plain read answers the live note alone, as before");
-}
-
-#[tokio::test]
-async fn a_store_from_before_the_search_is_upgraded_in_place_and_opens_unchanged_again() {
-  let scratch = Scratch::make("upgrade");
-  let path = scratch.join("old.db");
-  {
-    // The store as the unit kept it before icons, search, folders, bookmarks and what was opened, its
-    // favourites kept in a table of their own.
-    let old = rusqlite::Connection::open(&path).expect("an old store");
-    old
-      .execute_batch(
-        "CREATE TABLE notes (owner TEXT NOT NULL, id TEXT NOT NULL, title TEXT NOT NULL, doc BLOB NOT NULL, \
-         version INTEGER NOT NULL, created_at INTEGER NOT NULL, changed_at INTEGER NOT NULL, deleted_at INTEGER, \
-         PRIMARY KEY (owner, id)); \
-         CREATE TABLE blobs (owner TEXT NOT NULL, note TEXT NOT NULL, id TEXT NOT NULL, mime TEXT NOT NULL, \
-         bytes BLOB NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (owner, note, id)); \
-         CREATE TABLE pins (account TEXT NOT NULL, owner TEXT NOT NULL, note TEXT NOT NULL, \
-         pinned_at INTEGER NOT NULL, PRIMARY KEY (account, owner, note)); \
-         INSERT INTO pins VALUES ('1', '1', 'new', 30); \
-         INSERT INTO pins VALUES ('1', '1', 'old', 40); \
-         INSERT INTO notes VALUES ('1', 'old', 'Kept from before', x'01', 3, 10, 20, NULL); \
-         INSERT INTO notes VALUES ('1', 'new', '', CAST('{\"type\":\"doc\",\"content\":[{\"type\":\"title\",\"content\":[{\"type\":\"text\",\"text\":\"Written\"}]},{\"type\":\"paragraph\",\"content\":[{\"type\":\"mention\",\"attrs\":{\"id\":\"old\",\"owner\":\"1\",\"label\":\"x\"}}]}]}' AS BLOB), 1, 10, 20, NULL);",
-      )
-      .expect("the old tables");
-  }
-  for _ in 0..2 {
-    let store = bmo_note::store::Store::open(&path).expect("the store opens");
-    let meta = store.meta("1", "old", Some(false)).expect("a read").expect("the old note");
-    assert_eq!((meta.title.as_str(), meta.version, meta.icon.as_str()), ("Kept from before", 3, ""));
-    assert_eq!(meta.folder, None, "a note of an earlier store stands in no folder");
-    let bookmarks = store.bookmarks("1").expect("the bookmarks");
-    let kept: Vec<_> = bookmarks
-      .iter()
-      .map(|one| (one.kind, one.created_at, one.note.as_ref().map(|note| note.id.clone())))
-      .collect();
-    assert_eq!(
-      kept,
-      vec![
-        (bmo_note::wire::BookmarkKind::Note, 30, Some("new".to_owned())),
-        (bmo_note::wire::BookmarkKind::Note, 40, Some("old".to_owned())),
-      ],
-      "every favourite is a note bookmark, made when it was"
-    );
-    assert_eq!(store.foreign_documents(), 1, "the earlier editor's document is left for the migration");
-    let written = store.meta("1", "new", Some(false)).expect("a read").expect("the new note");
-    assert_eq!(written.title, "Written", "a document of the editor's format is read as the store opens");
-    let linking = store.backlinks("1", "1", "old").expect("the backlinks");
-    assert_eq!(linking.iter().map(|meta| meta.id.as_str()).collect::<Vec<_>>(), vec!["new"]);
-    let (rows, _) = store
-      .search(&bmo_note::store::Search {
-        account: "1".to_owned(),
-        views: bmo_note::store::Views {
-          mine: true,
-          shared: false,
-          trash: false,
-        },
-        index_query: Some("\"before\"".to_owned()),
-        short_terms: Vec::new(),
-        title_only: false,
-        since: None,
-        order: bmo_note::wire::SearchOrder::Best,
-        recent_since: 0,
-        offset: 0,
-        limit: 10,
-      })
-      .expect("a search");
-    assert_eq!(rows.len(), 1, "the old note's title is searchable at once");
-  }
 }

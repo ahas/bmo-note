@@ -189,16 +189,13 @@ search, links and comments, and shows the notes through a console bundle under i
   tokenizer, kept in step with the rows by the table's own triggers. A search joins the index back to
   the notes by owner and id, and the access clause is laid on the notes, so the index decides only what
   matches, never who may read it (`docs/api.md`, 「Search」).
-- **The store upgrades itself in place as it opens.** There is no migration ladder: every table, index
-  and trigger is made where it does not stand, each column a later version added is added where the
-  table lacks it (read from the table's own column list) — a note's folder among them, so every note of an
-  earlier store stands in no folder — a table of favourites left by an earlier store is turned into note
-  bookmarks and dropped, and every note whose derived rows do not
-  stand for its document — a note the migration converted, or one written before the rows were kept —
-  has its title, search text and links derived again, all in one transaction, so a store from before
-  any of it opens whole and a store already upgraded opens unchanged, however often it is opened. A
-  document that is not of this format is left as it stands and holds the health not ready (「What a
-  note is」).
+- **The store starts at the 1.0.0 baseline.** The file records no version of its own: as the service opens
+  it, every table, index and trigger of the baseline is made where it does not stand, so a new file takes the
+  baseline whole, and an install from the last release before 1.0.0, which already holds it, is read as it
+  stands with nothing written, however often it is opened. A file from an older release — one still keeping
+  favourites in a table of their own, or whose notes lack an icon or a folder — is refused and left as it
+  stands: the last release before 1.0.0 brings it up first. A document that is not of this format is left as it stands
+  and holds the health not ready (「What a note is」).
 - **The former documents.** The migration keeps each converted note's BlockSuite bytes in a table of their
   own, beside the note, with the moment it converted it; nothing reads them, a purge takes them with the
   note, and they stand until the owner confirms the conversion, when a later release drops the table.

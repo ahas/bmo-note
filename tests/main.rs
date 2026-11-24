@@ -4,6 +4,7 @@
 //! finds it, and the repository's own checks.
 
 mod agent;
+mod baseline;
 mod beside;
 mod blobs;
 mod comments;

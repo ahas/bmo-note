@@ -12,14 +12,16 @@ use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
 
 use std::collections::HashMap;
 
-use crate::doc::{Derived, block_words, derived, parsed};
+use crate::doc::{Derived, block_words, parsed};
 use crate::model::{CursorKey, ListCursor, fresh_id};
 use crate::wire::{
   Access, Bookmark, BookmarkKind, Comment, Folder, Link, ListOrder, Member, NoteMeta, Permission,
   SearchOrder, Thread,
 };
 
-const SCHEMA: &str = "
+/// The store's schema at 1.0.0, whole: every table, index and trigger, each made where it does not stand
+/// (`docs/design.md`, 「Storage」).
+pub const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS notes (
   owner TEXT NOT NULL,
   id TEXT NOT NULL,
@@ -29,10 +31,11 @@ CREATE TABLE IF NOT EXISTS notes (
   created_at INTEGER NOT NULL,
   changed_at INTEGER NOT NULL,
   deleted_at INTEGER,
-  icon TEXT NOT NULL DEFAULT '',
+  icon TEXT NOT NULL DEFAULT '', folder TEXT,
   PRIMARY KEY (owner, id)
 );
 CREATE INDEX IF NOT EXISTS notes_changed ON notes (owner, deleted_at, changed_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS notes_folder ON notes (owner, folder);
 CREATE TABLE IF NOT EXISTS blobs (
   owner TEXT NOT NULL,
   note TEXT NOT NULL,
@@ -193,27 +196,8 @@ const BESIDE_A_NOTE: [&str; 10] = [
   "legacy_docs",
 ];
 
-/// The columns a table gained after it was first made, each with its declaration, added where an older
-/// store's table lacks them (`docs/design.md`, 「Storage」).
-const ADDED_COLUMNS: [(&str, &str, &str); 2] =
-  [("notes", "icon", "TEXT NOT NULL DEFAULT ''"), ("notes", "folder", "TEXT")];
-
-/// What stands on the added columns, made once they stand.
-const ON_ADDED_COLUMNS: &str = "CREATE INDEX IF NOT EXISTS notes_folder ON notes (owner, folder);";
-
-/// The favourites an earlier store kept, each turned into a note bookmark of the account that made it, at the
-/// moment it was made, before their table is dropped (`docs/design.md`, 「Storage」).
-const FAVOURITES_AS_BOOKMARKS: &str = "INSERT INTO bookmarks (account, id, kind, owner, note, created_at) \
-  SELECT account, lower(hex(randomblob(8))), 'note', owner, note, pinned_at FROM pins WHERE true \
-  ON CONFLICT DO NOTHING; DROP TABLE pins;";
-
 /// How many levels folders stand in, the top one first.
 pub const FOLDER_LEVELS: usize = 8;
-
-/// Every note's search row, made where a note has none: its title, and no text, derived on the same
-/// opening (`indexed` false until then).
-const SEARCH_ROWS: &str = "INSERT INTO texts (owner, note, title) SELECT owner, id, title FROM notes WHERE true \
-  ON CONFLICT (owner, note) DO NOTHING";
 
 /// How many notes an account's record of what it opened keeps.
 const OPENED_KEPT: i64 = 100;
@@ -344,8 +328,8 @@ pub struct Store {
 }
 
 impl Store {
-  /// The store at `path`, its folder and its tables made where they do not stand, and a store from an
-  /// earlier version upgraded in place (`docs/design.md`, 「Storage」).
+  /// The store at `path`, its folder and its tables made where they do not stand (`docs/design.md`,
+  /// 「Storage」).
   pub fn open(path: &Path) -> Result<Self, String> {
     if let Some(folder) = path.parent().filter(|folder| !folder.as_os_str().is_empty()) {
       std::fs::create_dir_all(folder).map_err(|why| format!("{}: {why}", folder.display()))?;
@@ -353,7 +337,7 @@ impl Store {
     let connection = Connection::open(path).map_err(|why| format!("{}: {why}", path.display()))?;
     connection.pragma_update(None, "journal_mode", "WAL").map_err(|why| why.to_string())?;
     connection.pragma_update(None, "busy_timeout", 5000).map_err(|why| why.to_string())?;
-    let foreign = upgrade(&connection).map_err(|why| format!("{}: {why}", path.display()))?;
+    let foreign = settle(&connection).map_err(|why| format!("{}: {why}", path.display()))?;
     Ok(Self {
       connection: Arc::new(Mutex::new(connection)),
       foreign,
@@ -1364,60 +1348,38 @@ impl Store {
   }
 }
 
-/// The store brought up to this version, in one transaction: every table, index and trigger made where it
-/// does not stand, every column added since a table was first made added where it lacks it, every note
-/// given its search row, and every note whose search row does not stand for its document given what its
-/// document says. Answers how many notes hold a document not of the editor's format, which are left as
-/// they stand. Run again, it changes nothing.
-fn upgrade(connection: &Connection) -> rusqlite::Result<usize> {
-  let transaction = connection.unchecked_transaction()?;
-  transaction.execute_batch(SCHEMA)?;
-  for (table, column, declared) in ADDED_COLUMNS {
-    let standing = transaction
-      .prepare(&format!("SELECT name FROM pragma_table_info('{table}')"))?
-      .query_map([], |row| row.get::<_, String>(0))?
-      .collect::<rusqlite::Result<Vec<_>>>()?;
-    if !standing.iter().any(|name| name == column) {
-      transaction.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {declared}"))?;
-    }
+/// The schema made where it does not stand, which changes nothing in a store that holds it already, and a store
+/// from a release before 1.0.0 short of its last refused and left as it stands: one still keeping favourites in a
+/// table of their own, or whose notes lack an icon or a folder. Answers how many notes hold a document not of
+/// the editor's format, which are left as they stand.
+fn settle(connection: &Connection) -> Result<usize, String> {
+  let older = connection
+    .query_row(
+      "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'pins') \
+       OR (EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'notes') \
+         AND (SELECT count(*) FROM pragma_table_info('notes') WHERE name IN ('icon', 'folder')) < 2)",
+      [],
+      |row| row.get::<_, bool>(0),
+    )
+    .map_err(|why| why.to_string())?;
+  if older {
+    return Err(
+      "the store is from a release before 1.0.0 short of its last; that release brings it up first"
+        .to_owned(),
+    );
   }
-  transaction.execute_batch(ON_ADDED_COLUMNS)?;
-  let favourites: bool = transaction.query_row(
-    "SELECT count(*) > 0 FROM sqlite_master WHERE type = 'table' AND name = 'pins'",
-    [],
-    |row| row.get(0),
-  )?;
-  if favourites {
-    transaction.execute_batch(FAVOURITES_AS_BOOKMARKS)?;
-  }
-  transaction.execute(SEARCH_ROWS, [])?;
-  let underived = transaction
-    .prepare(
-      "SELECT n.owner, n.id, n.doc FROM notes n JOIN texts t ON t.owner = n.owner AND t.note = n.id \
-       WHERE t.indexed = 0",
-    )?
-    .query_map([], |row| {
-      Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Vec<u8>>(2)?))
-    })?
-    .collect::<rusqlite::Result<Vec<_>>>()?;
-  for (owner, id, bytes) in underived {
-    if let Some(doc) = parsed(&bytes) {
-      let said = derived(&doc);
-      transaction.execute(
-        "UPDATE notes SET title = ?3 WHERE owner = ?1 AND id = ?2",
-        params![owner, id, said.title],
-      )?;
-      write_derived(&transaction, &owner, &id, &said)?;
-    }
-  }
-  let foreign = transaction
+  counted(connection).map_err(|why| why.to_string())
+}
+
+fn counted(connection: &Connection) -> rusqlite::Result<usize> {
+  connection.execute_batch(SCHEMA)?;
+  let foreign = connection
     .prepare("SELECT doc FROM notes")?
     .query_map([], |row| row.get::<_, Vec<u8>>(0))?
     .collect::<rusqlite::Result<Vec<_>>>()?
     .iter()
     .filter(|bytes| parsed(bytes).is_none())
     .count();
-  transaction.commit()?;
   Ok(foreign)
 }
 
