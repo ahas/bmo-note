@@ -1,11 +1,13 @@
-//! The Agent (`docs/api.md`, 「Agent」, `docs/design.md`, 「Agent」): one ask over a passage of a note, or over the
-//! whole note, answered by an agent of the note-assistant role under the reader's own account. Each ask is one
-//! slot of the role asked under the reader's supervisor, one session started on it with the unit's instructions
-//! and no tool, and one turn; everything the ask held of agency is given back by its owner as the ask ends, however
-//! it ends.
+//! The Agent (`docs/api.md`, 「Agent」, `docs/design.md`, 「Agent」, 「The talk panel」): one ask over a passage of a
+//! note, or over the whole note, answered by an agent of the note-assistant role under the reader's own account.
+//! Each ask is one slot of the role asked under the reader's supervisor, one session started on it on agency's
+//! plain line with the unit's instructions and no tool, and one turn; everything the ask held of agency is given
+//! back by its owner as the ask ends, however it ends. A talk's next round continues the session its last round
+//! answered on, handed only what changed since that session last read the note.
 
-use std::sync::Arc;
-use std::time::Duration;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use axum::Router;
 use axum::body::Bytes;
@@ -28,12 +30,19 @@ use crate::wire::NoteQuery;
 const ADMINISTRATOR: &str = "administrator";
 /// The source and the owner prefix every slot of the Agent is asked under.
 const SOURCE: &str = "note";
-/// The line a session of the role goes out on, which runs on the instructions its caller hands in.
-const LINE: &str = "search";
+/// The line a session of the role goes out on, whose system prompt is the instructions its caller hands in alone.
+const LINE: &str = "plain";
 /// How often a waiting slot is asked for admission again: a pace, never a bound.
 const ADMISSION_PACE: Duration = Duration::from_secs(1);
 /// The most characters an instruction holds.
 const INSTRUCTION_MAX: usize = 10_000;
+/// The most characters a talk's name holds.
+const TALK_MAX: usize = 100;
+/// How long a talk's session is kept unused: the life of the agent's cache, past which a resumed session reads its
+/// whole context uncached and costs what a new one carrying the turns does.
+const TALK_IDLE: Duration = Duration::from_secs(3_600);
+/// The most talks whose session is kept at once; past it the longest idle is dropped.
+const TALKS_MAX: usize = 256;
 
 /// What the Agent is asked to work over.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
@@ -60,6 +69,9 @@ pub struct AgentAsk {
   pub instruction: String,
   #[serde(default)]
   pub turns: Vec<Round>,
+  /// The talk the ask is a round of, over the whole note alone.
+  #[serde(default)]
+  pub talk: Option<String>,
 }
 
 /// The agent's words, or null where it said nothing.
@@ -75,10 +87,9 @@ bulleted item, 1. a numbered one, - [ ] and - [x] to-do items, > a quote, and ``
 
 /// What every session opens on, before the instructions of its mode.
 const STANDING: &str = "You are the note assistant: you work on the notes of the one person who asks you, and on \
-nothing else. Use no tool of any kind: no shell, no file, no web, no MCP tool, no skill and no subagent. Everything \
-you know of the note stands in the turn, as one JSON object: noteId and title name the note, lines holds the text \
-you work on, instruction is what the person asks now, and rounds are the earlier asks and answers over the same \
-text, oldest first. This is no job: no item, no report, no brain and no question for anyone.";
+nothing else. You have no tool, and none is needed. Everything you know of the note stands in the turn, as one JSON \
+object pasted after one typed line: noteId and title name the note, lines holds the text you work on, instruction \
+is what the person asks now, and rounds are the earlier asks and answers over the same text, oldest first.";
 
 /// The instructions of an ask over a passage.
 const PASSAGE: &str = "The lines are one passage of the note. Follow the instruction and answer with the result \
@@ -89,7 +100,10 @@ const NOTE: &str = "The lines are the whole note. Answer with the whole edited n
 nothing outside it. Change only what the person asks for, and keep every line the request does not change. To \
 rename the note, put [[title]] and the new title on the first line of your block, above the lines; it carries no \
 indent and is the title alone, not a line of the note. Where the title stands, write no such line. Where the \
-person asks a question rather than a change, answer in words with no fenced block.";
+person asks a question rather than a change, answer in words with no fenced block. A later round of the same talk \
+holds instruction alone, with lines only where the note changed since you last read it or since your last fenced \
+block wrote it, and title only where the note was renamed; where lines are absent, the note stands as your last \
+fenced block wrote it, or as you last read it where you wrote none.";
 
 /// The instructions a session of `mode` opens on.
 pub fn instructions(mode: Mode) -> String {
@@ -115,6 +129,88 @@ pub fn prompt(note: &str, title: &str, ask: &AgentAsk) -> String {
     "rounds": rounds,
   })
   .to_string()
+}
+
+/// A talk's next round's prompt: the instruction, and the lines and the title only where they differ from what the
+/// talk's session last read.
+pub fn round_prompt(talk: &Talk, title: &str, ask: &AgentAsk) -> String {
+  let mut round = json!({ "instruction": ask.instruction.trim() });
+  if ask.lines != talk.lines {
+    round["lines"] = json!(ask.lines.join("\n"));
+  }
+  if title != talk.title {
+    round["title"] = json!(title);
+  }
+  round.to_string()
+}
+
+/// The note's lines a fenced answer wrote, its `[[title]]` line taken off, read as the talk panel reads it; none
+/// where the answer holds no whole fenced block.
+pub fn answered_lines(answer: &str) -> Option<Vec<String>> {
+  let normal = answer.replace("\r\n", "\n").replace('\r', "\n");
+  let lines: Vec<&str> = normal.split('\n').collect();
+  let opening = lines.iter().position(|line| line.trim_start().starts_with("```"))?;
+  let mut body = Vec::new();
+  for line in &lines[opening + 1..] {
+    if line.trim() == "```" {
+      if body.first().is_some_and(|first: &String| first.starts_with(TITLE_LINE)) {
+        body.remove(0);
+      }
+      return Some(body);
+    }
+    body.push((*line).to_owned());
+  }
+  None
+}
+
+/// What opens the first line of a fenced answer that renames the note.
+const TITLE_LINE: &str = "[[title]] ";
+
+/// One talk's session as the service keeps it: the agent's own session its last round answered on, the note's
+/// lines and title as that session last read them, and when it was last used.
+#[derive(Clone, Debug)]
+pub struct Talk {
+  pub session: String,
+  pub lines: Vec<String>,
+  pub title: String,
+  pub used: Instant,
+}
+
+/// Whose talk over which note: the reader's account (empty for the deployment's own), the note's owner and id,
+/// and the talk's own name.
+type TalkKey = (String, String, String, String);
+
+/// The talks whose session the service keeps, in its memory alone (`docs/api.md`, 「Agent」).
+#[derive(Default)]
+pub struct Talks(Mutex<HashMap<TalkKey, Talk>>);
+
+impl Talks {
+  /// The talk's session where one is kept and not idle past its life; an idle one is dropped.
+  fn kept(&self, key: &TalkKey) -> Option<Talk> {
+    let mut talks = self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    talks.retain(|_, talk| talk.used.elapsed() < TALK_IDLE);
+    talks.get(key).cloned()
+  }
+
+  /// The talk's session after a round: kept with what it last read, or dropped where the round named none; the
+  /// longest idle goes once more are kept than the service holds.
+  fn settle(&self, key: TalkKey, talk: Option<Talk>) {
+    let mut talks = self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    match talk {
+      Some(talk) => {
+        talks.insert(key, talk);
+      }
+      None => {
+        talks.remove(&key);
+      }
+    }
+    while talks.len() > TALKS_MAX {
+      let Some(oldest) = talks.iter().min_by_key(|(_, talk)| talk.used).map(|(key, _)| key.clone()) else {
+        break;
+      };
+      talks.remove(&oldest);
+    }
+  }
 }
 
 pub fn routes() -> Router<Arc<App>> {
@@ -166,12 +262,46 @@ async fn ask_agent(
   if instruction.is_empty() || instruction.chars().count() > INSTRUCTION_MAX {
     return Err(ApiError::bad_request("An instruction is 1 to 10000 characters."));
   }
+  let talk = match (&ask.talk, ask.mode) {
+    (None, _) => None,
+    (Some(talk), Mode::Note) if !talk.trim().is_empty() && talk.trim().chars().count() <= TALK_MAX => {
+      Some(talk.trim().to_owned())
+    }
+    (Some(_), _) => {
+      return Err(ApiError::bad_request("A talk is named over the whole note, in 1 to 100 characters."));
+    }
+  };
   let asker = asker(&app, &headers, &reach.account)?;
   let agency = Agency::of(&app)?;
-  let answer = agency
-    .answer(&asker, &instructions(ask.mode), &prompt(&id, &row.meta.title, &ask), &id)
-    .await?;
-  Ok(Json(AgentAnswer { answer }))
+  let title = row.meta.title.clone();
+  let whole = prompt(&id, &title, &ask);
+  let key =
+    talk.map(|talk| (asker.account.clone().unwrap_or_default(), reach.owner.clone(), id.clone(), talk));
+  let kept = key.as_ref().and_then(|key| app.talks.kept(key));
+  let (words, continues) = match &kept {
+    Some(talk) => (round_prompt(talk, &title, &ask), Some((talk.session.as_str(), whole.as_str()))),
+    None => (whole.clone(), None),
+  };
+  let answered = agency.answer(&asker, &instructions(ask.mode), &words, continues, &id).await?;
+  if let Some(key) = key {
+    let read = answered.answer.as_deref().and_then(answered_lines).unwrap_or_else(|| ask.lines.clone());
+    let talk = answered.session.map(|session| Talk {
+      session,
+      lines: read,
+      title,
+      used: Instant::now(),
+    });
+    app.talks.settle(key, talk);
+  }
+  Ok(Json(AgentAnswer {
+    answer: answered.answer,
+  }))
+}
+
+/// What a turn came back with: the agent's words, and the agent's own session it answered on.
+struct Answered {
+  answer: Option<String>,
+  session: Option<String>,
 }
 
 /// Agency's control port, as the settings name it.
@@ -265,15 +395,17 @@ impl Agency {
     self.call(reqwest::Method::POST, "/role-agents", Some(&added)).await.map(|_| ())
   }
 
-  /// One ask answered: a slot under the asker, a session on it with `instructions` and no tool, one turn of
-  /// `prompt`, and everything given back.
+  /// One ask answered: a slot under the asker, a session on it with `instructions` and no tool — continuing the
+  /// agent's session `continues` names, with the words that stand in for it where it cannot be resumed — one turn
+  /// of `prompt`, and everything given back.
   async fn answer(
     &self,
     asker: &Asker,
     instructions: &str,
     prompt: &str,
+    continues: Option<(&str, &str)>,
     note: &str,
-  ) -> Answer<Option<String>> {
+  ) -> Answer<Answered> {
     if let Some(account) = &asker.account {
       self.stand_agent(account).await.map_err(ApiError::unanswered)?;
     }
@@ -283,7 +415,7 @@ impl Agency {
       owner: owner.clone(),
       given: false,
     };
-    let answered = self.asked(asker, &owner, instructions, prompt, note).await;
+    let answered = self.asked(asker, &owner, instructions, prompt, continues, note).await;
     held.give_back().await;
     answered
   }
@@ -294,8 +426,9 @@ impl Agency {
     owner: &str,
     instructions: &str,
     prompt: &str,
+    continues: Option<(&str, &str)>,
     note: &str,
-  ) -> Answer<Option<String>> {
+  ) -> Answer<Answered> {
     let mut asked = json!({
       "requestKey": owner,
       "owner": owner,
@@ -333,44 +466,51 @@ impl Agency {
         .map_err(ApiError::unanswered)?;
       state = admitted["state"].as_str().unwrap_or("waiting").to_owned();
     }
+    let mut started = json!({
+      "scope": "role",
+      "slot": token,
+      "line": LINE,
+      "systemPrompt": instructions,
+      "toolsAllowed": [],
+    });
+    let mut sent = json!({
+      "prompt": prompt,
+      "key": owner,
+      "title": format!("note {note}"),
+      "hearsWords": false,
+    });
+    match continues {
+      Some((session, instead)) => {
+        started["continues"] = json!(session);
+        started["continuesElse"] = json!(instead);
+      }
+      None => sent["resume"] = json!({ "kind": "fresh" }),
+    }
     let session = self
-      .call(
-        reqwest::Method::POST,
-        "/sessions",
-        Some(&json!({
-          "scope": "role",
-          "slot": token,
-          "line": LINE,
-          "systemPrompt": instructions,
-          "toolsAllowed": [],
-        })),
-      )
+      .call(reqwest::Method::POST, "/sessions", Some(&started))
       .await
       .map_err(ApiError::unanswered)?;
     let session = session["id"].as_str().ok_or_else(|| ApiError::unanswered("agency named no session"))?;
     let turn = self
-      .call(
-        reqwest::Method::POST,
-        &format!("/sessions/{session}/turns"),
-        Some(&json!({
-          "prompt": prompt,
-          "key": owner,
-          "resume": { "kind": "fresh" },
-          "title": format!("note {note}"),
-          "hearsWords": false,
-        })),
-      )
+      .call(reqwest::Method::POST, &format!("/sessions/{session}/turns"), Some(&sent))
       .await
       .map_err(ApiError::unanswered)?;
+    let harness = turn["harnessSession"].as_str().filter(|named| !named.is_empty()).map(str::to_owned);
     if let Some(answer) = turn["answer"].as_str().map(str::trim).filter(|answer| !answer.is_empty()) {
-      return Ok(Some(answer.to_owned()));
+      return Ok(Answered {
+        answer: Some(answer.to_owned()),
+        session: harness,
+      });
     }
     match turn["outcome"].as_str().filter(|outcome| *outcome != "answered") {
       Some(outcome) => Err(ApiError::unanswered(format!(
         "the agent's turn ended {outcome}: {}",
         turn["reason"].as_str().unwrap_or("no reason given")
       ))),
-      None => Ok(None),
+      None => Ok(Answered {
+        answer: None,
+        session: harness,
+      }),
     }
   }
 }

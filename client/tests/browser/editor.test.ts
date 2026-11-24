@@ -342,6 +342,37 @@ describe.skipIf(!ready).each(WIDTHS)("the note editor at $name", (width) => {
   );
 
   test(
+    "a talk's second round goes on in the session its first answered on, handed the instruction alone",
+    async () => {
+      const page = await noteOpened(width, `talk-${width.width}`, "Talk", ["A line to talk about"]);
+      const said = page.getByPlaceholder(WORDS.talk.placeholder);
+
+      await press(width, page.getByRole("button", { name: WORDS.action.talk, exact: true }));
+      await said.waitFor({ timeout: STANDING_MS });
+
+      for (const [round, words] of ["Add a line", "Add one more"].entries()) {
+        const before = stack!.asked.length;
+
+        await said.fill(words);
+        await press(width, page.getByRole("button", { name: WORDS.action.send, exact: true }));
+        await document(page).locator("p", { hasText: AGENT_LINE }).nth(round).waitFor({ timeout: STANDING_MS });
+        expect(stack!.asked.length).toBe(before + 1);
+      }
+
+      const [first, second] = stack!.asked.slice(-2);
+
+      expect([first!.continues, first!.lines, first!.instruction]).toEqual([null, "A line to talk about", "Add a line"]);
+      expect(second!.continues).not.toBeNull();
+      expect(second!.handed).toEqual(["instruction"]);
+      expect(second!.instruction).toBe("Add one more");
+      await shot(page, width, "talk-second-round");
+      await saved(page);
+      await page.context().close();
+    },
+    TEST_MS
+  );
+
+  test(
     "the Agent over a line shows the stand-in agent's answer under it and inserts it below",
     async () => {
       const page = await noteOpened(width, `agent-${width.width}`, "Agent", ["A line for the agent", "The line after"]);

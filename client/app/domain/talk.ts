@@ -1,8 +1,9 @@
 // The talk about one note (`docs/design.md`, 「The talk panel」): each turn one ask of the note service's Agent
-// over the whole note, answered by the note assistant under the reader's own account. Nothing keeps the turns of
-// such a talk but the screen, which hands every turn with the turns before it. What comes back is either words
-// alone, which change nothing, or one fenced block holding the whole edited note, which the patch applies a
-// changed run at a time.
+// over the whole note, answered by the note assistant under the reader's own account. The screen keeps the turns
+// of such a talk and names the talk, so the service carries each next turn into the session the last one answered
+// on; every turn is still handed with the turns before it, for a turn whose session cannot go on. What comes back
+// is either words alone, which change nothing, or one fenced block holding the whole edited note, which the patch
+// applies a changed run at a time.
 
 import { Refusal } from "./api";
 
@@ -21,6 +22,8 @@ export interface NoteTalk {
   /** The turns said before this one. */
   turns: TalkTurn[];
   said: string;
+  /** The talk this turn is a round of, named as the talk began. */
+  talk: string;
 }
 
 /** The answer's fenced block as lines, or null where the answer carries none — then nothing changes. */
@@ -80,7 +83,7 @@ export type AgentCall = (ask: AgentAsk) => Promise<string | null>;
 
 /** One turn of the note's talk: the whole note, what the reader says now and the turns before it. */
 export function askNote(agent: AgentCall, talk: NoteTalk): Promise<string | null> {
-  return agent({ mode: "note", lines: talk.lines, instruction: talk.said, turns: talk.turns });
+  return agent({ mode: "note", lines: talk.lines, instruction: talk.said, turns: talk.turns, talk: talk.talk });
 }
 
 /** The pack's key for why an ask came back with no answer: no agent to ask, or none that answered. */

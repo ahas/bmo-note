@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // The talk about one note (`docs/design.md`, 「The talk panel」): the reader asks for a change, the note
 // assistant of his account answers with the whole note as lines, and the changed runs land in the open editor at
-// once. The talk is kept here alone — nothing keeps a turn of it — and every turn is handed with the turns before
-// it. Where the anchored patch cannot land, the note stands as
+// once. The talk's turns are kept here alone, and the talk is named as the panel begins it, so the service
+// carries each next turn into the agent's session the last one answered on; every turn is still handed with the
+// turns before it, for a turn whose session cannot go on. Where the anchored patch cannot land, the note stands as
 // it was and the panel says why, and the whole answer waits for the reader's word to be applied outright —
 // an image or a table in the note is kept and moved into the new body, and a refusal names what cannot be.
 //
@@ -44,6 +45,8 @@ const i18n = useI18n();
 const phone = useNarrow();
 
 const turns = ref<TalkTurn[]>([]);
+// The talk's name, made as the panel begins it: a note opened again begins a new talk.
+const talk = crypto.randomUUID();
 const said = ref("");
 const busy = ref(false);
 const failure = ref<string | null>(null);
@@ -91,7 +94,7 @@ async function send(): Promise<void> {
   fallback.value = null;
 
   try {
-    const answer = await askNote(props.agent, { lines: base, turns: earlier, said: words });
+    const answer = await askNote(props.agent, { lines: base, turns: earlier, said: words, talk });
 
     if (answer === null) {
       failure.value = i18n.t("note.talk.no_answer");

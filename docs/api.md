@@ -146,13 +146,14 @@ A service-token call on these routes answers for the `owner` it names; one namin
 
 | Method | Path | Does |
 |---|---|---|
-| POST | `/notes/{noteId}/agent?owner=` | One ask of the note assistant: `mode`, `lines`, `instruction`, `turns` — 200 `{answer}`, the agent's words, or null where it said nothing |
+| POST | `/notes/{noteId}/agent?owner=` | One ask of the note assistant: `mode`, `lines`, `instruction`, `turns`, `talk` — 200 `{answer}`, the agent's words, or null where it said nothing |
 
 - **The ask.** `mode` is `passage`, one passage of the note, or `note`, the whole note (`docs/design.md`,
   「Agent」, 「The talk panel」); `lines` is that text in the note's line grammar, one string a line;
   `instruction` is what the reader asks now, 1 to 10,000 characters with its ends trimmed; `turns` is the
-  rounds said before it over the same text, oldest first, each `owner` (true for the reader's) and `text`.
-  Anything else is 400 `bad-request`.
+  rounds said before it over the same text, oldest first, each `owner` (true for the reader's) and `text`;
+  `talk`, with `note` alone, names the talk the ask is a round of, 1 to 100 characters the panel makes as the talk
+  begins. Anything else is 400 `bad-request`.
 - **Who asks.** It needs the note live and the caller's writes, as a save does: a member holding `read` is 403
   `forbidden`, and a note the caller does not reach live is 404 `not-found`. Agency is asked nothing then.
 - **What it asks.** One slot of the role `[agent] role` names, `note-assistant`, under an owner of its own,
@@ -162,11 +163,19 @@ A service-token call on these routes answers for the `owner` it names; one namin
   account. A slot agency answers under another account than the one asked for is given back unused and the ask
   is 502 `unanswered`. A member's account that holds no agent of the role is first given one, named
   `<role>-u<key>`, on the road and the settings of the role's agent of no account. On the slot, once it is let
-  in, one session on the `search` line with the service's own instructions for the mode as its `systemPrompt`
-  and no tool allowed, and one turn starting afresh whose prompt is one JSON object: `noteId`, `title` (the
-  stored note's), `lines`, `instruction` and `rounds`, each `by` (`person` or `assistant`) and `text`. Whatever
-  the ask ends in, everything it held is given back by its owner. The service waits for the slot and the turn
-  however long they take; a caller that lets go ends the ask, and what it held is given back all the same.
+  in, one session on agency's `plain` line with the service's own instructions for the mode as its
+  `systemPrompt` and no tool allowed, and one turn. The turn's whole prompt is one JSON object: `noteId`, `title`
+  (the stored note's), `lines`, `instruction` and `rounds`, each `by` (`person` or `assistant`) and `text`.
+  Whatever the ask ends in, everything it held is given back by its owner. The service waits for the slot and the
+  turn however long they take; a caller that lets go ends the ask, and what it held is given back all the same.
+- **A talk's next round.** Where the service keeps a session for the talk an ask names, under the same reader and
+  note (`docs/design.md`, 「The talk panel」), the session's start names it as `continues`, with the whole prompt
+  as `continuesElse`, and the turn's prompt is one JSON object of the round alone: `instruction`, `lines` only
+  where they differ from what that session last read, and `title` only where it differs. Every other ask starts
+  afresh with the whole prompt. A turn that answered keeps its `harnessSession` for the talk's next round, with
+  the lines and the title the session last read; one that names none drops the talk's session. A talk's session
+  is dropped once it stands idle for an hour, and the longest idle goes first past the 256 talks the service
+  keeps; the service keeps them in its memory alone.
 - **Refusals.** 503 `no-agent` where no agency is named or its token cannot be read; 502 `unanswered` where
   agency refused a step, could not be reached, or the turn ended with no answer, the `error` naming why.
 
@@ -384,7 +393,7 @@ token_file` holds:
 |---|---|---|
 | agency | `GET /role-agents?role=`, `POST /role-agents` | the reader's account's agent of the role, given one where it holds none |
 | agency | `POST /slot-requests`, `PATCH /slot-requests/{token}`, `DELETE /slot-requests?owner=` | the ask's slot, waited for and given back |
-| agency | `POST /sessions`, `POST /sessions/{sessionId}/turns` | the ask's session on the slot and its one turn |
+| agency | `POST /sessions`, `POST /sessions/{sessionId}/turns` | the ask's session on the slot, continuing a talk's session where one is kept, and its one turn |
 
 ## Codes
 

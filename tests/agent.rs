@@ -1,7 +1,8 @@
 //! The Agent (`docs/api.md`, 「Agent」): an ask over a passage or the whole note, answered by an agent of the
 //! note-assistant role under the reader's own account, through a stand-in agency in this process that records
 //! every call it is made: the account's agent stood where it holds none, the slot asked under the reader's own
-//! BMO, a session on the search line with the unit's instructions and no tool, one turn, and everything given back.
+//! BMO, a session on agency's plain line with the unit's instructions and no tool, one turn, and everything given
+//! back; and a talk's next round carried into the session its last round answered on, handed only what changed.
 
 use std::sync::{Arc, Mutex};
 
@@ -18,6 +19,7 @@ const EDITOR: &str = "8";
 const READER: &str = "9";
 const AGENCY_TOKEN: &str = "agency-token";
 const ANSWER: &str = "```\nThe line, made better\n```";
+const HARNESS_SESSION: &str = "the-agents-own-session";
 
 /// One call the stand-in agency was made: its method, its path with its query, and its body.
 #[derive(Clone, Debug)]
@@ -74,7 +76,9 @@ async fn agency(State(held): State<Shared>, request: Request) -> Response {
       json!({ "cancelled": 0, "released": 1, "reservations": 0, "sessionsEnded": [] })
     }
     ("POST", "/sessions") => json!({ "id": "note-assistant@run:1" }),
-    ("POST", "/sessions/note-assistant@run:1/turns") => json!({ "outcome": "answered", "answer": ANSWER }),
+    ("POST", "/sessions/note-assistant@run:1/turns") => {
+      json!({ "outcome": "answered", "answer": ANSWER, "harnessSession": HARNESS_SESSION })
+    }
     _ => return (StatusCode::NOT_FOUND, Json(json!({ "code": "no-route" }))).into_response(),
   };
   Json(answer).into_response()
@@ -205,7 +209,7 @@ async fn a_members_ask_runs_on_an_agent_of_their_own_account_and_gives_everythin
   let session = &made[4].body;
   assert_eq!(
     (&session["slot"], &session["line"], &session["toolsAllowed"]),
-    (&json!("slot-1"), &json!("search"), &json!([]))
+    (&json!("slot-1"), &json!("plain"), &json!([]))
   );
   assert_eq!(
     session["systemPrompt"],
@@ -344,4 +348,123 @@ async fn no_agency_named_answers_no_agent_and_a_slot_of_another_account_is_given
     "no session runs on another account's seat"
   );
   assert_eq!(made.last().map(|call| call.method.as_str()), Some("DELETE"));
+}
+
+fn round(lines: &[&str], instruction: &str, talk: &str) -> Value {
+  json!({ "mode": "note", "lines": lines, "instruction": instruction, "turns": [], "talk": talk })
+}
+
+// The session start and the turn of the ask made last.
+fn last_round(held: &Shared) -> (Value, Value) {
+  let made = made(held);
+  let session = made.iter().rev().find(|call| call.path == "/sessions").expect("a session").body.clone();
+  let turn = made
+    .iter()
+    .rev()
+    .find(|call| call.path.ends_with("/turns"))
+    .expect("a turn")
+    .body
+    .clone();
+  (session, turn)
+}
+
+#[tokio::test]
+async fn a_talks_next_round_goes_on_in_the_session_its_last_round_answered_on() {
+  let (_scratch, ran, held) = ground("talk", true).await;
+  let ask = |body: Value| answered(ran.as_reader("POST", "/notes/n1/agent", OWNER, "member").json(&body));
+
+  let (status, _) = ask(round(&["The line"], "Make it better", "talk-1")).await;
+  assert_eq!(status, StatusCode::OK);
+  let (session, turn) = last_round(&held);
+  assert!(session.get("continues").is_none(), "a talk's first round opens a session of its own");
+  assert_eq!(turn["resume"], json!({ "kind": "fresh" }));
+
+  // The note stands as the answer wrote it: the round hands the instruction alone.
+  let mut next = round(&["The line, made better"], "Shorter", "talk-1");
+  next["turns"] = json!([{ "owner": true, "text": "Make it better" }, { "owner": false, "text": ANSWER }]);
+  let (status, _) = ask(next).await;
+  assert_eq!(status, StatusCode::OK);
+  let (session, turn) = last_round(&held);
+  assert_eq!(session["continues"], json!(HARNESS_SESSION));
+  assert_eq!(
+    session["systemPrompt"],
+    json!(bmo_note::agent::instructions(bmo_note::agent::Mode::Note)),
+    "the session opens on the unit's instructions and nothing else"
+  );
+  let prompt: Value = serde_json::from_str(turn["prompt"].as_str().unwrap()).unwrap();
+  assert_eq!(prompt, json!({ "instruction": "Shorter" }));
+  assert!(turn.get("resume").is_none(), "{turn}");
+  let instead: Value = serde_json::from_str(session["continuesElse"].as_str().unwrap()).unwrap();
+  assert_eq!(
+    (&instead["lines"], &instead["title"], &instead["rounds"]),
+    (
+      &json!("The line, made better"),
+      &json!("Plans"),
+      &json!([{ "by": "person", "text": "Make it better" }, { "by": "assistant", "text": ANSWER }])
+    ),
+    "where the session cannot be resumed, a new one reads the whole note and the rounds before"
+  );
+
+  // The reader changed the note since: the round hands it whole.
+  let (status, _) =
+    ask(round(&["The line, made better", "A line of the reader's"], "Again", "talk-1")).await;
+  assert_eq!(status, StatusCode::OK);
+  let prompt: Value = serde_json::from_str(last_round(&held).1["prompt"].as_str().unwrap()).unwrap();
+  assert_eq!(
+    prompt,
+    json!({ "instruction": "Again", "lines": "The line, made better\nA line of the reader's" })
+  );
+
+  // Another talk, and another reader's talk of the same name, open sessions of their own.
+  let (status, _) = ask(round(&["The line"], "Make it better", "talk-2")).await;
+  assert_eq!(status, StatusCode::OK);
+  assert!(last_round(&held).0.get("continues").is_none());
+  let (status, _) = answered(
+    ran
+      .as_reader("POST", &format!("/notes/n1/agent?owner={OWNER}"), EDITOR, "member")
+      .json(&round(&["The line"], "Make it better", "talk-1")),
+  )
+  .await;
+  assert_eq!(status, StatusCode::OK);
+  assert!(last_round(&held).0.get("continues").is_none(), "a talk is the reader's own");
+}
+
+#[tokio::test]
+async fn a_talk_is_named_over_the_whole_note_alone() {
+  let (_scratch, ran, held) = ground("talk-refused", true).await;
+  let mut asked = passage();
+  asked["talk"] = json!("talk-1");
+  for body in [
+    asked,
+    round(&["The line"], "Make it better", " "),
+    round(&["The line"], "x", &"t".repeat(101)),
+  ] {
+    let (status, answer) =
+      answered(ran.as_reader("POST", "/notes/n1/agent", OWNER, "member").json(&body)).await;
+    assert_eq!((status, &answer["code"]), (StatusCode::BAD_REQUEST, &json!("bad-request")), "{body}");
+  }
+  assert!(made(&held).is_empty());
+}
+
+#[test]
+fn the_instructions_are_the_note_assistants_alone() {
+  for mode in [bmo_note::agent::Mode::Passage, bmo_note::agent::Mode::Note] {
+    let text = bmo_note::agent::instructions(mode);
+    assert!(text.starts_with("You are the note assistant"), "{text}");
+    for foreign in ["BMO", "bmo use", "brain", "harness", "job", "Claude Code"] {
+      assert!(!text.contains(foreign), "the instructions hold nothing of the platform's: {foreign}");
+    }
+  }
+}
+
+#[test]
+fn a_fenced_answer_reads_as_the_lines_it_wrote_without_its_title_line() {
+  use bmo_note::agent::answered_lines;
+  assert_eq!(
+    answered_lines("Here:\n```\n# Head\n  - item\n```\nDone"),
+    Some(vec!["# Head".into(), "  - item".into()])
+  );
+  assert_eq!(answered_lines("```\n[[title]] New\nA line\n```"), Some(vec!["A line".into()]));
+  assert_eq!(answered_lines("No block at all"), None);
+  assert_eq!(answered_lines("```\ncut off"), None);
 }

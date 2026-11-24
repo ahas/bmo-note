@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use crate::agent::Talks;
 use crate::events::Events;
 use crate::settings::Settings;
 use crate::store::Store;
@@ -13,6 +14,8 @@ pub struct App {
   pub settings: Settings,
   pub store: Store,
   pub events: Events,
+  /// The talks whose session the Agent keeps for their next round (`docs/design.md`, 「The talk panel」).
+  pub talks: Talks,
 }
 
 impl App {
@@ -21,6 +24,7 @@ impl App {
       settings,
       store,
       events: Events::new(),
+      talks: Talks::default(),
     })
   }
 }

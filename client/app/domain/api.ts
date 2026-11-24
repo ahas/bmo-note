@@ -105,13 +105,14 @@ export interface NoteApi {
   agent: (key: NoteKey, ask: AgentAsk) => Promise<string | null>;
 }
 
-/** One ask of the Agent: what it works over, in the note's line grammar, the reader's instruction and the rounds
- * said before it over the same text. */
+/** One ask of the Agent: what it works over, in the note's line grammar, the reader's instruction, the rounds
+ * said before it over the same text, and over the whole note the talk it is a round of. */
 export interface AgentAsk {
   mode: "passage" | "note";
   lines: string[];
   instruction: string;
   turns: { owner: boolean; text: string }[];
+  talk?: string;
 }
 
 /** The query naming the note's owner, where the note is another account's. */

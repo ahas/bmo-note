@@ -39,10 +39,12 @@ export interface Stack {
   down(): Promise<void>;
 }
 
-/** One turn the stand-in agency's agent was asked: the instructions its session opened on, and the text, the
- * instruction and the earlier rounds its prompt handed. */
+/** One turn the stand-in agency's agent was asked: the instructions its session opened on, the agent's session it
+ * continued where its start named one, and the text, the instruction and the earlier rounds its prompt handed. */
 export interface AgentAsked {
   instructions: string;
+  continues: string | null;
+  handed: string[];
   lines: string;
   instruction: string;
   rounds: { by: string; text: string }[];
@@ -53,9 +55,12 @@ export const AGENT_LINE = "Answered by the stand-in agent";
 
 /** The stand-in agency (`docs/api.md`, 「Agent」): the note-assistant role's one agent, a slot let in at once, a
  * session per slot, and every turn answered at once with one fenced block — an ask over a passage with the one line
- * above, an ask over the whole note with the note's own lines and that line after them. */
+ * above, an ask over the whole note with the note's own lines and that line after them — and the agent's own
+ * session it answered on, a turn continuing one reading the note as that session last wrote it where it is handed
+ * no lines. */
 function standInAgency(asked: AgentAsked[]): ReturnType<typeof Bun.serve> {
-  const sessions = new Map<string, string>();
+  const sessions = new Map<string, { instructions: string; continues: string | null }>();
+  const written = new Map<string, string[]>();
   let made = 0;
 
   return Bun.serve({
@@ -81,7 +86,7 @@ function standInAgency(asked: AgentAsked[]): ReturnType<typeof Bun.serve> {
       if (request.method === "POST" && path === "/sessions") {
         const id = `note-assistant@run:${made}`;
 
-        sessions.set(id, String(body.systemPrompt ?? ""));
+        sessions.set(id, { instructions: String(body.systemPrompt ?? ""), continues: typeof body.continues === "string" ? body.continues : null });
 
         return Response.json({ id }, { status: 201 });
       }
@@ -89,15 +94,20 @@ function standInAgency(asked: AgentAsked[]): ReturnType<typeof Bun.serve> {
       const turn = /^\/sessions\/([^/]+)\/turns$/.exec(path);
 
       if (request.method === "POST" && turn !== null) {
-        const instructions = sessions.get(decodeURIComponent(turn[1]!)) ?? "";
-        const prompt = JSON.parse(String(body.prompt ?? "{}")) as { lines?: string; instruction?: string; rounds?: { by: string; text: string }[] };
+        const session = sessions.get(decodeURIComponent(turn[1]!)) ?? { instructions: "", continues: null };
+        const { instructions, continues } = session;
+        const prompt = JSON.parse(String(body.prompt ?? "{}")) as Record<string, unknown> & { lines?: string; instruction?: string; rounds?: { by: string; text: string }[] };
+        const harness = continues ?? `harness-${made}`;
+        const read = prompt.lines === undefined ? (written.get(harness) ?? []) : prompt.lines.split("\n");
 
-        asked.push({ instructions, lines: prompt.lines ?? "", instruction: prompt.instruction ?? "", rounds: prompt.rounds ?? [] });
+        asked.push({ instructions, continues, handed: Object.keys(prompt).sort(), lines: prompt.lines ?? "", instruction: prompt.instruction ?? "", rounds: prompt.rounds ?? [] });
 
         const whole = instructions.includes("The lines are the whole note");
-        const lines = whole ? [...(prompt.lines ?? "").split("\n"), AGENT_LINE] : [AGENT_LINE];
+        const lines = whole ? [...read, AGENT_LINE] : [AGENT_LINE];
 
-        return Response.json({ outcome: "answered", answer: ["```", ...lines, "```"].join("\n") });
+        written.set(harness, lines);
+
+        return Response.json({ outcome: "answered", answer: ["```", ...lines, "```"].join("\n"), harnessSession: harness });
       }
 
       return Response.json({ code: "no-route", error: "none" }, { status: 404 });

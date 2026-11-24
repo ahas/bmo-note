@@ -223,8 +223,22 @@ search, links and comments, and shows the notes through a console bundle under i
 
 - An open note offers a panel in which the reader talks about that one note with the note assistant of his own
   account, the same agent the Agent asks (「Agent」). The panel is the note screen's own; each turn is one ask of
-  the note service's Agent route over the whole note (`docs/api.md`, 「Agent」). Nothing keeps the turns of such a
-  talk, so the panel holds the conversation and hands each turn with the turns before it.
+  the note service's Agent route over the whole note (`docs/api.md`, 「Agent」). The panel holds the talk's turns
+  and names the talk by an id it makes as the talk begins, so a talk lasts while the note stays open and a note
+  opened again begins a new one.
+- **A talk goes on in one session of the note assistant.** The service keeps, for each talk of a reader over a
+  note, the agent's own session the talk's last round answered on, with the note's lines and title as that
+  session last read them, and carries each next round into that same session: the round hands the agent what
+  the reader asks now, the note's lines only where they differ from what the session last read — whole, never as
+  a difference, since the agent answers with the whole note and writes it best from the whole — and the title
+  only where it differs. The lines a session last read are the ones it was handed, or, where its answer held a
+  fenced block, the lines that block wrote, so a round after an answer that landed hands no lines again.
+- **A round that cannot go on opens a fresh session.** The panel still hands every turn with the turns before it,
+  so where the service keeps no session for the talk — it restarted, the talk stood idle past an hour, or more
+  talks are kept than it holds — or the agent's session can no longer be resumed, the round opens a new session
+  on the whole note, the title and the turns before it, and the talk goes on in that one. An hour is the life of
+  the agent's cache: a session resumed after it reads its whole context uncached, which costs what a new one
+  carrying the turns does, so nothing is kept past it.
 - The panel is named for the talk alone, with no subtitle under its name. Docked, it stands at a
   width the reader drags at its leading edge or steps with the arrow keys, between its bounds, and the
   width is kept in that browser. The reader writes in the console's chat prompt.
@@ -285,8 +299,9 @@ search, links and comments, and shows the notes through a console bundle under i
 - **The note assistant answers.** An ask goes to the note service's Agent route (`docs/api.md`, 「Agent」) with
   the passage in the note's line grammar, the rule or the reader's words and the rounds before it; the service
   asks an agent of agency's `note-assistant` role under the reader's own account — his own BMO's account for a
-  member, the deployment's for the platform administrator — on a session that opens on the service's own
-  instructions and holds no tool, so the agent reads the passage it is handed and no other note. The role's
+  member, the deployment's for the platform administrator — on a session of agency's plain line, whose system
+  prompt is the service's own instructions and nothing else, and which holds no tool and no MCP server, so the
+  agent reads the passage it is handed and no other note. The role's
   road is the deployment's default answerer's (agency's `docs/agent-roles.md`, 「The note-assistant role」).
   The answer is one fenced block in the line grammar; an answer with none is shown as words and offers nothing
   to place.
@@ -295,6 +310,9 @@ search, links and comments, and shows the notes through a console bundle under i
   result enters the document as one transaction through the same row writer the talk's patch uses, so the
   autosave carries it and one undo takes it back. A passage holding an image or a table is never replaced,
   since no line brings either back; its result can still be inserted below.
+- **An ask over a passage opens a session of its own,** its rounds handed whole each time. A passage is short,
+  its rounds are few and are dropped once its result is placed, so a continued session would save little and
+  leave a session behind every passage.
 - The ask's rounds are held while the result stands and dropped when it is placed or discarded. An ask that
   finds no agency named, or whose agent came back with nothing, says so in one line under the passage with the
   key that asks again.
