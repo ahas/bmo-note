@@ -9,7 +9,7 @@ use bmo_note::wire::Health;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "bmo-note", version, about = "The note service and its command.")]
+#[command(name = "bmo-note", version = bmo_note::VERSION, about = "The note service and its command.")]
 struct Command {
   #[command(subcommand)]
   verb: Verb,

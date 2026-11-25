@@ -317,7 +317,7 @@ async fn health_answers_the_ready_service_to_its_credential() {
   assert_eq!(status, StatusCode::OK);
   assert_eq!(health["ready"], true);
   assert!(health["reason"].is_null());
-  assert_eq!(health["version"], env!("CARGO_PKG_VERSION"));
+  assert_eq!(health["version"], bmo_note::VERSION);
 
   let client = reqwest::Client::builder().no_proxy().build().expect("a client");
   let (status, _) = answered(client.get(format!("{}{}", ran.address, "/health"))).await;
