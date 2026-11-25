@@ -180,7 +180,8 @@ function titleOf(note: NoteMeta): string {
 }
 
 // Every group lists what it was handed as it stands: the service did the finding, so the palette filters
-// nothing of its own.
+// nothing of its own and cuts no group at its own count of rows, which would leave the pages read past it unseen.
+const UNCUT = { resultLimit: Number.POSITIVE_INFINITY };
 
 // A row carries the note it opens, and what the search found of it.
 type Row = CommandPaletteItem & { note: NoteMeta; found?: FoundNote };
@@ -321,6 +322,7 @@ const nextFailure = computed(() => (nextPages.failure.value === null ? "" : fail
       <UCommandPalette
         v-model:search-term="words"
         :groups="groups"
+        :fuse="UNCUT"
         :loading="searching || nextPages.adding.value"
         icon="i-material-symbols-search"
         :placeholder="$t('note.search.placeholder')"
