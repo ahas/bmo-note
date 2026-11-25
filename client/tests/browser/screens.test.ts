@@ -596,3 +596,91 @@ describe.skipIf(!ready).each(WIDTHS)("the notes screen's selects at $name", (wid
     TEST_MS
   );
 });
+
+// The search's results read a page at a time (`docs/design.md`, 「Search」): the next page asked as the last row comes
+// into view, here by the arrow keys walking the rows, as a reader on the keyboard reaches it; nothing to press for more;
+// a page that fails keeping the rows found and read again from its retry under the list. The service's search is
+// answered by a stand-in of forty-five hits, so the pages are the test's own.
+describe.skipIf(!ready).each(WIDTHS)("the search's results at $name", (width) => {
+  const HITS = 45;
+  const hit = (n: number) => ({
+    id: `paged-${n}`,
+    owner: "reader-a",
+    title: `Paged note ${n}`,
+    version: 1,
+    createdAt: n,
+    changedAt: n,
+    size: 1,
+    deletedAt: null,
+    access: "owner",
+    icon: "",
+    folder: null,
+    titleHits: [],
+    snippet: null
+  });
+
+  test(
+    "read a page at a time as the keys walk to the last row, a failed page read again from its retry",
+    async () => {
+      const page = await opened(width, "light", "/note?search=");
+      const dialog = page.locator("[data-note-search]");
+      const rows = dialog.locator("[role=option]");
+      const asked: number[] = [];
+      let failNext = true;
+
+      await page.route(
+        (url) => url.pathname.endsWith("/notes/search"),
+        (route) => {
+          const url = new URL(route.request().url());
+          const after = Number(url.searchParams.get("after") ?? 0);
+          const limit = Number(url.searchParams.get("limit") ?? 20);
+
+          asked.push(after);
+
+          // A status the fetcher does not retry on its own, so the one failure reaches the screen.
+          if (after > 0 && failNext) {
+            failNext = false;
+
+            return route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ code: "bad-request", error: "unavailable" }) });
+          }
+
+          const items = Array.from({ length: HITS }, (_, at) => hit(at + 1)).slice(after, after + limit);
+
+          return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items, more: after + limit < HITS }) });
+        }
+      );
+
+      // The arrow key pressed, a row at a time, until what is waited for holds.
+      async function walkUntil(holds: () => Promise<boolean>): Promise<void> {
+        const end = Date.now() + STANDING_MS;
+
+        while (!(await holds())) {
+          if (Date.now() > end) throw new Error("walking the rows did not bring it");
+
+          await page.keyboard.press("ArrowDown");
+          await page.waitForTimeout(50);
+        }
+      }
+
+      await dialog.locator("input").fill("paged");
+      await dialog.getByText("Paged note 1", { exact: true }).waitFor({ timeout: STANDING_MS });
+      expect(await rows.count()).toBe(20);
+      expect(await dialog.getByRole("button", { name: WORDS.action.more }).count()).toBe(0);
+
+      // The keys walk the rows down; the last one in view asks the next page, which fails.
+      const retry = dialog.locator("[data-search-next-failed]").getByRole("button", { name: WORDS.action.retry });
+
+      await walkUntil(async () => (await retry.count()) > 0);
+      expect(await rows.count()).toBe(20);
+
+      await retry.click();
+      await dialog.getByText("Paged note 40", { exact: true }).waitFor({ timeout: STANDING_MS });
+
+      await dialog.locator("input").focus();
+      await walkUntil(async () => (await rows.count()) === HITS);
+      expect(asked).toEqual([0, 20, 20, 40]);
+      await page.context().close();
+    },
+    TEST_MS
+  );
+});

@@ -631,6 +631,11 @@ search, links and comments, and shows the notes through a console bundle under i
   note it is where it is shared, when it was last edited, and under them one line of the text around the
   match, marked. The marks are the layer's list-search marking, handed the term the service found first.
   A search that finds nothing says so in one line.
+- **The results are read a page at a time, the next page as the last row comes into view** in the list's own
+  scroll, as the arrow keys bring it there too (bmo-ui's next-pages module, its `docs/design.md`, 「Lists」): the
+  palette's busy mark turns while a page is on its way, a page that fails leaves the rows already found and stands
+  its reason with a retry under the list, and nothing more is shown once the service holds no more. Nothing is
+  pressed to read more.
 - **Inside the dialog, under the list,** a sort select, bmo-ui's one select, of best match (the default), last edited
   and created, and a filter menu: titles only; the reader's own notes, the notes shared with them and the trash, the first two on at first; and a date of
   last edit: any, today, the last 7 days or the last 30 days. A phrase in double quotes is matched exactly.

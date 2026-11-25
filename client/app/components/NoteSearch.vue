@@ -12,6 +12,9 @@ import { computed, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import ChoiceSelect from "bmo-ui/app/components/ChoiceSelect.vue";
 import SearchText from "bmo-ui/app/components/SearchText.vue";
+import { failureText } from "bmo-ui/app/domain/errors";
+import { useFootInView } from "bmo-ui/app/domain/foot";
+import { useNextPages } from "bmo-ui/app/domain/next-pages";
 import { countLocale } from "bmo-ui/app/domain/numbers";
 import { OFF_HISTORY } from "bmo-ui/app/domain/overlays";
 import { hitSnippet } from "bmo-ui/shared/search";
@@ -260,9 +263,50 @@ const filtersOn = computed(() => {
   return Number(finding.titleOnly) + Number(views !== "mine,shared") + Number(finding.span !== "any");
 });
 
-function readMore(): void {
-  void search(held.value, found.value.length);
+// The results' next page, read as the last row comes into view in the list's own scroll, as the arrow keys bring it
+// there too (bmo-ui's next-pages module). The foot is the last row's own mark, found once the rows are drawn; a page
+// that fails keeps the rows already found and stands its reason with a retry under the list.
+const foot = shallowRef<HTMLElement | null>(null);
+
+watch(
+  [found, open],
+  () => {
+    foot.value = document.querySelector<HTMLElement>("[data-note-search] [data-search-foot]");
+  },
+  { flush: "post" }
+);
+
+const atFoot = useFootInView(foot, searching);
+
+async function readMore(): Promise<boolean> {
+  const turn = asked;
+  const finding = held.value;
+  const page = await props.api.search(askOf(finding, new Date(), found.value.length));
+
+  if (turn !== asked || answered.value !== fingerprint(finding)) return false;
+
+  found.value = [...found.value, ...page.items];
+  more.value = page.more;
+
+  return true;
 }
+
+const nextPages = useNextPages({
+  atFoot,
+  more: () => typing.value && more.value && answered.value === fingerprint(held.value),
+  busy: () => searching.value,
+  next: readMore
+});
+
+// A new search asks afresh: a page of the last one that failed is no failure of this one.
+watch(
+  () => fingerprint(held.value),
+  () => {
+    nextPages.failure.value = null;
+  }
+);
+
+const nextFailure = computed(() => (nextPages.failure.value === null ? "" : failureText(nextPages.failure.value, i18n.t("note.search.failed"))));
 </script>
 
 <template>
@@ -277,7 +321,7 @@ function readMore(): void {
       <UCommandPalette
         v-model:search-term="words"
         :groups="groups"
-        :loading="searching"
+        :loading="searching || nextPages.adding.value"
         icon="i-material-symbols-search"
         :placeholder="$t('note.search.placeholder')"
         :close="false"
@@ -310,6 +354,7 @@ function readMore(): void {
 
         <template #item-trailing="{ item }">
           <span class="shrink-0 text-sm tabular-nums text-dimmed">{{ editedOf(rowOf(item).note) }}</span>
+          <span v-if="rowOf(item).found !== undefined && rowOf(item).found === found[found.length - 1]" data-search-foot aria-hidden="true" />
         </template>
 
         <template #empty>
@@ -332,7 +377,10 @@ function readMore(): void {
             <UDropdownMenu :items="filterItems" :content="{ align: 'start', side: 'top' }">
               <UButton color="neutral" variant="ghost" size="sm" icon="i-material-symbols-filter-list" :label="filtersOn > 0 ? `${$t('note.action.filter')} ${filtersOn}` : $t('note.action.filter')" />
             </UDropdownMenu>
-            <UButton v-if="typing && more" color="neutral" variant="ghost" size="sm" class="ms-auto" :loading="searching" :label="$t('note.action.more')" @click="readMore" />
+            <div v-if="typing && nextFailure !== ''" role="alert" class="ms-auto flex min-w-0 items-center gap-2" data-search-next-failed>
+              <span class="min-w-0 truncate text-sm text-error">{{ nextFailure }}</span>
+              <UButton color="neutral" variant="ghost" size="sm" icon="i-material-symbols-refresh" :label="$t('note.action.retry')" @click="nextPages.retry" />
+            </div>
           </div>
         </template>
       </UCommandPalette>
