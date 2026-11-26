@@ -3,7 +3,6 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 
-
 /// Every code the service answers, each with its status and what it means.
 pub const CODES: [(&str, u16, &str); 18] = [
   ("bad-request", 400, "the body or the query is not the shape the route takes"),
