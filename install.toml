@@ -1,6 +1,7 @@
-# What installing the note service on a fresh machine needs, read by the testbed's install verb (bmo-testbed's
-# docs/install.md, 「The install declaration」). The settings are docs/api.md's 「Settings」.
+# Generated from bmo-app.toml by bmo-app-sdk's bmo-app-declare.
+# Change the manifest and run `bmo-app-declare bmo-app.toml` again; do not hand-edit this file.
 
+# What installing this application needs on a machine, read by the testbed's install verb.
 install = 1
 
 restart = "systemctl --user restart bmo-note.service"
@@ -11,7 +12,7 @@ what = "Builds the service; the Rust toolchain from https://rustup.rs."
 
 [[needs]]
 program = "bun"
-what = "Builds the console bundle and its vendored editor at every release; the Bun runtime from https://bun.sh."
+what = "Builds the console bundle at every release; the Bun runtime from https://bun.sh."
 
 [[port]]
 name = "note.server"
@@ -25,7 +26,7 @@ file = "env/note-service.token"
 name = "note.console"
 file = "env/note-console.token"
 
-# The release's settings.local.toml. The store stands under the data root, outside every release.
+# The deployed settings the release links beside its own.
 [[settings]]
 file = "env/note.toml"
 text = """

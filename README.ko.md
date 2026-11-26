@@ -27,10 +27,11 @@
 | `src/` | 서비스와 명령: 라우트, 노트 저장소, 문서 읽기, 의견, 이벤트 링, 콘솔 화면 선언 |
 | `client/` | 독립된 프로젝트인 콘솔 플러그인 번들 |
 | `deploy/` | 서비스의 사용자 유닛과 배포가 게시하는 앱 선언 |
+| `scripts/` | 선언물과 함께 생성되는, 이 앱을 컴퓨터에서 제거하는 절차 |
 | `tests/` | 크레이트의 유일한 테스트 하네스와 그 하네스가 쓰는 대역 |
 | `docs/` | 서비스가 무엇인지와 그 경계를 정한 기준 문서 |
 
-루트에는 Cargo 매니페스트와 잠금 파일, `testbed.toml`, `install.toml`, `rustfmt.toml`, `settings.toml`(바이너리에 내장된 기본값),
+루트에는 Cargo 매니페스트와 잠금 파일, `bmo-app.toml`(단 하나의 선언; `testbed.toml`, `install.toml`, `deploy/`의 유닛과 `scripts/remove.sh`는 여기서 생성된다), `rustfmt.toml`, `settings.toml`(바이너리에 내장된 기본값),
 `CLAUDE.md`, `PERSONAL-DATA.md`, 라이선스가 있습니다.
 
 ## 명령

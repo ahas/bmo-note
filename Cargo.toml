@@ -47,6 +47,8 @@ test = false
 axum.workspace = true
 # The list cursors and the share tokens, base64url.
 base64.workspace = true
+# The shared service skeleton: the answer envelope, the serving loop and the health checks.
+bmo-app-service = { path = "../../../bmo-app-sdk/crates/service" }
 # The console face: the manifest, the bundle's files and their guard, by bmo-ui's console plugin contract.
 bmo-console-face = { path = "../../base/chat/console-face" }
 # The binary's command line.

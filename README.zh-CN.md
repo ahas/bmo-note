@@ -24,10 +24,11 @@
 | `src/` | 服务及其命令:路由、笔记存储、文档读取、评论、事件环、控制台界面的声明 |
 | `client/` | 作为独立项目的控制台插件包 |
 | `deploy/` | 服务的用户单元，以及部署发布的应用声明 |
+| `scripts/` | 与声明一并生成的、把本应用从机器上移除的脚本 |
 | `tests/` | crate 唯一的测试入口及其使用的替身 |
 | `docs/` | 规定服务是什么及其边界的正式文档 |
 
-根目录下有 Cargo 清单和锁文件、`testbed.toml`、`rustfmt.toml`、`settings.toml`(内置于二进制文件的默认值)、
+根目录下有 Cargo 清单和锁文件、`bmo-app.toml`(唯一声明;`testbed.toml`、`install.toml`、`deploy/` 单元与 `scripts/remove.sh` 由它生成)、`testbed.toml`、`rustfmt.toml`、`settings.toml`(内置于二进制文件的默认值)、
 `CLAUDE.md`、`PERSONAL-DATA.md` 和许可证。
 
 ## 命令

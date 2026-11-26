@@ -1,0 +1,57 @@
+# The one declaration this application answers to: bmo-app-sdk's docs/manifest.md states every
+# field, and testbed.toml, install.toml, the unit and the removal script are generated from this
+# file by bmo-app-declare. What is bmo-note's own — its routes, its store, its bundle and words —
+# stands in src/, client/ and docs/.
+
+app = 1
+name = "bmo-note"
+description = "editable BlockSuite notes kept as binary documents, shown in the console"
+env_prefix = "BMO_NOTE"
+deploy_root = "~/.local/share/bmo-note"
+data_root = "~/.local/share/bmo/data"
+data_folder = "note"
+service_port = 13129
+port_name = "note.server"
+checkout = "~/repos/ahas/bmo/services/note"
+base_libraries = ["bmo-console-face"]
+shared_versions = "bmo-chat"
+test_setup = ["cd client && bun scripts/install.ts"]
+
+[console]
+project = "client"
+install = "bun scripts/install.ts"
+reach = true
+publish = true
+
+[[token]]
+name = "note.service"
+file = "env/note-service.token"
+
+[[token]]
+name = "note.console"
+file = "env/note-console.token"
+
+[[settings]]
+file = "env/note.toml"
+text = """
+[server]
+listen = "127.0.0.1:{{port.note.server}}"
+token = "{{token.note.service}}"
+data_root = "{{data_root}}"
+
+[console]
+token = "{{token.note.console}}"
+
+[store]
+path = "{{data_root}}/note/note.db"
+"""
+
+[[line]]
+file = "env/web-console.env"
+key = "NOTE_ADDRESS"
+value = "http://127.0.0.1:{{port.note.server}}"
+
+[[line]]
+file = "env/web-console.env"
+key = "NOTE_TOKEN"
+value = "{{token.note.console}}"

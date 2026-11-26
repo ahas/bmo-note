@@ -1,64 +1,51 @@
-# How the testbed tests, checks, builds and deploys this repository, in the testbed's declaration format.
+# Generated from bmo-app.toml by bmo-app-sdk's bmo-app-declare.
+# Change the manifest and run `bmo-app-declare bmo-app.toml` again; do not hand-edit this file.
 
 testbed = 0
 name = "bmo-note"
 
+# The shared base whose generator and skeletons this repository stands on.
+upstreams = ["bmo-app-sdk"]
+
 [test]
-# The service crate at the root, and the console bundle under client/, whose check script installs the bundle's
-# locked packages, typechecks the bundle and builds it as the deployment's console-bundle step does, its word
-# check among it, before its tests.
 languages = ["cargo", "bun"]
-# A fresh tree (a bench copy, a gate's checkout, the daily run's tree) holds none of the bundle's ignored
-# folders, and the browser files under client/ drive the dev host, which imports the bundle's packages: the
-# locked packages are installed before any unit runs, a tree left in another layout taken away first
-# (client/scripts/install.ts).
+# What a fresh tree lacks, laid before any unit runs.
 setup = ["cd client && bun scripts/install.ts"]
 
-# The console bundle under client/ is a project of its own: its manifest and lockfile stand in its own folder,
-# outside any package workspace.
 [projects]
+# The console bundle is a project of its own, its manifest and lockfile outside any package workspace.
 paths = ["client"]
 
 [check]
-# The sweeps that read the tree before anything runs: the README's folder table, the dependencies the manifests
-# name, the build profiles and the shared versions.
+# The sweeps that read the tree before anything runs.
 quick = ["layout", "dependencies", "cargo-profile", "shared-versions"]
-# The one base library the crate takes; the repository's own check of its dependencies reads this list.
-base_libraries = ["bmo-console-face"]
+# The base library the service crate takes by a path beside this checkout.
+base_libraries = ["bmo-app-service", "bmo-console-face"]
 
 # The repository whose root holds the shared versions the manifests and the lock hold to.
 [check.shared_versions]
 repository = "bmo-chat"
 
-# No static step is declared for the crate. The testbed's own Cargo workspace check formats and lints it, every
-# target compiled, through its Cargo verb in the shared build directory wherever a change marks the crate, and
-# the change check compiles every crate a change marks; a change that marks none has no Rust to judge.
-
 [build]
-# The service's binary.
 binaries = ["bmo-note"]
 
-# The note service's own deploy tree, and the data root its settings stand under: the data root's
-# env/note.toml, which each release links to as settings.local.toml, the file the service reads beside
-# settings.toml (docs/api.md, 「Settings」).
+# The service's deploy tree and its data, kept apart from every release.
 [deploy]
 root = "~/.local/share/bmo-note"
 link = "deploy"
 data_root = "~/.local/share/bmo/data"
+# The deployed settings each release links beside its own.
 env_links = [{ link = "settings.local.toml", target = "env/note.toml" }]
-# The service's user unit, marked bot: the repository's one service, whose health the deployment waits on.
 units = ["deploy/*.service"]
-# Answers 0 once the service the deployed settings name answers ready, which it does only once every stored
-# document is of the editor's format (docs/api.md, 「Health」).
 health = "~/.local/share/bmo-note/deploy/bin/bmo-note health"
 
-# The note screens the service brings to a console, whose face the deployment probes once the service is up:
-# how a console reaches it, printed from the release's settings (docs/api.md, 「Console」).
+# The screen the service brings to a console, whose face the deployment probes once
+# the service is up.
 [deploy.console]
 reach = "bin/bmo-note console-reach"
 
-# The console bundle the service serves from the release (docs/api.md, 「Console」): its locked packages
-# installed and its folder built inside client/, where the settings' console.folder reads it.
+# The console bundle the service serves from the release: its locked packages laid
+# and its folder built inside the release, where the settings' console folder reads it.
 [[deploy.step]]
 id = "console-bundle"
 phase = "before-flip"
@@ -69,9 +56,8 @@ bun scripts/install.ts
 bun run bundle
 '''
 
-# The Notes app the console screen is, published on the delegation chain once the service answers ready, from the
-# declaration the release carries, so a person's settings can switch the screen (deploy/app.toml; bmo-pocket's
-# docs/api.md, 「An app on the delegation chain」).
+# The app the console screen is, published on the delegation chain once the service
+# answers ready, from the declaration the release carries.
 [[deploy.step]]
 id = "publish-app"
 phase = "after-health"

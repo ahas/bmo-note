@@ -3,7 +3,6 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 
-use crate::wire::WireError;
 
 /// Every code the service answers, each with its status and what it means.
 pub const CODES: [(&str, u16, &str); 18] = [
@@ -126,10 +125,6 @@ impl ApiError {
 impl IntoResponse for ApiError {
   fn into_response(self) -> Response {
     let status = StatusCode::from_u16(self.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-    let body = WireError {
-      code: self.code.to_owned(),
-      error: self.error,
-    };
-    (status, axum::Json(body)).into_response()
+    bmo_app_service::code_problem(status, self.code, self.error)
   }
 }

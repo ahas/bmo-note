@@ -42,7 +42,7 @@ pub async fn serve(settings: Settings) -> Result<(), String> {
   let listener = TcpListener::bind(settings.server.listen)
     .await
     .map_err(|why| format!("{} could not be listened on: {why}", settings.server.listen))?;
-  serve_on(settings, listener, stopped()).await
+  serve_on(settings, listener, bmo_app_service::shutdown_signal()).await
 }
 
 /// The service on a listener already bound, until `stop` resolves.
@@ -66,30 +66,10 @@ pub async fn serve_on(
   };
   let app = App::new(settings, store);
   let stopping = Arc::clone(&app);
-  axum::serve(listener, router(app, face))
-    .with_graceful_shutdown(async move {
-      stop.await;
-      stopping.events.stop();
-    })
-    .await
-    .map_err(|why| why.to_string())
-}
-
-/// Resolves once the process is told to stop: an interrupt, or the service manager's terminate.
-async fn stopped() {
-  let interrupt = async {
-    let _ = tokio::signal::ctrl_c().await;
-  };
-  let terminate = async {
-    match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
-      Ok(mut signal) => {
-        signal.recv().await;
-      }
-      Err(_) => std::future::pending().await,
-    }
-  };
-  tokio::select! {
-    () = interrupt => {}
-    () = terminate => {}
-  }
+  bmo_app_service::serve_until(listener, router(app, face), async move {
+    stop.await;
+    stopping.events.stop();
+  })
+  .await
+  .map_err(|why| why.to_string())
 }

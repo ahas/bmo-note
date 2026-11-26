@@ -1,9 +1,10 @@
-# The note service's user unit. A deployment runs it from its deploy tree, whose settings.local.toml links to
-# the data root's env/note.toml (docs/api.md, 「Settings」).
+# Generated from bmo-app.toml by bmo-app-sdk's bmo-app-declare.
+# The bmo-note service, run from its deploy tree.
 [Unit]
 Description=bmo-note: editable BlockSuite notes kept as binary documents, shown in the console
 After=network-online.target
-# Without its settings the service has no token, so the unit does not start where the deployment wrote none.
+# Without its deployed settings the service has no credential, so it does not
+# start where the deployment wrote none.
 ConditionPathExists=%h/.local/share/bmo/data/env/note.toml
 
 [Service]
@@ -12,8 +13,8 @@ WorkingDirectory=%h/.local/share/bmo-note/deploy
 ExecStart=%h/.local/share/bmo-note/deploy/bin/bmo-note serve
 Restart=always
 RestartSec=2
-# A stop ends the event streams and waits for the service to end on its SIGTERM, however long its requests still in
-# hand take; it is never escalated to a kill.
+# A stop waits for the service to end on its own, however long its open streams and
+# in-hand requests take; it is never escalated to a kill.
 TimeoutStopSec=infinity
 
 [Install]

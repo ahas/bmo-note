@@ -29,10 +29,11 @@
 | `src/` | サービスとそのコマンド。ルート、ノートストア、ドキュメントの読み取り、コメント、イベントリング、コンソール画面の宣言 |
 | `client/` | 独立したプロジェクトであるコンソールプラグインバンドル |
 | `deploy/` | サービスのユーザーユニットと、デプロイが公開するアプリ宣言 |
+| `scripts/` | 宣言物とともに生成される、このアプリをマシンから除く手順 |
 | `tests/` | クレートの唯一のテストハーネスと、それが使う代役 |
 | `docs/` | サービスが何であるかとその境界を定める正式な文書 |
 
-ルートには Cargo のマニフェストとロックファイル、`testbed.toml`、`rustfmt.toml`、`settings.toml`(バイナリに
+ルートには Cargo のマニフェストとロックファイル、`bmo-app.toml`(単一のマニフェスト。`testbed.toml`、`install.toml`、`deploy/` のユニットと `scripts/remove.sh` はここから生成される)、`testbed.toml`、`rustfmt.toml`、`settings.toml`(バイナリに
 組み込まれた既定値)、`CLAUDE.md`、`PERSONAL-DATA.md`、ライセンスがあります。
 
 ## コマンド

@@ -29,10 +29,12 @@ and the unit's own repository checks (`repository.rs`). The console bundle's che
 | `src/` | The service and its command: the routes, the note store, the reading of a document, the comments, the event ring, the console face's declaration |
 | `client/` | The console plugin bundle, a project of its own |
 | `deploy/` | The service's user unit, and the app declaration its deployment publishes |
+| `scripts/` | The application's removal from a machine, generated like the declarations |
 | `tests/` | The crate's one test harness and the stand-ins it runs over |
 | `docs/` | The canonical statements of what the service is and its boundary |
 
-At the root stand the Cargo manifest and lock, `testbed.toml`, `install.toml`, `rustfmt.toml`, `settings.toml` (the defaults
+At the root stand the Cargo manifest and lock, `bmo-app.toml` (the one manifest, whose generated readings are
+`testbed.toml`, `install.toml`, the unit under `deploy/` and `scripts/remove.sh`), `rustfmt.toml`, `settings.toml` (the defaults
 built into the binary), `CLAUDE.md`, `PERSONAL-DATA.md` and the licence.
 
 ## Commands
