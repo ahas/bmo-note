@@ -239,7 +239,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-console-face"
-version = "0.1.0-rev.10"
+version = "0.0.0"
 dependencies = [
  "axum",
  "headers",
@@ -252,7 +252,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-note"
-version = "0.1.0-rev.1"
+version = "0.0.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
