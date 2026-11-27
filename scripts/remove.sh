@@ -12,6 +12,7 @@ DATA_ROOT="$HOME/.local/share/bmo/data"
 DATA_FOLDER="note"
 CHECKOUT="~/repos/ahas/bmo/services/note"
 TOOL=""
+HOLDER=""
 CHECKOUTS="${BMO_DATA_DIR:-$HOME/.local/share/bmo/data}/testbed/checkouts.toml"
 
 DRY=1
@@ -82,6 +83,12 @@ fi
 # 3. The tool goes before the tree it stands placed in, where the application registered one.
 if [ -n "$TOOL" ]; then
   step "tool host" "bmo pocket take $TOOL"
+fi
+
+# The service's standing line withdrawn from every agent's brain; a machine with no brain passes.
+BRAIN="$HOME/.local/share/bmo-brain/deploy/bin/bmo-brain"
+if [ -n "$HOLDER" ] && [ -x "$BRAIN" ]; then
+  step "brain holder" "'$BRAIN' holder withdraw $HOLDER"
 fi
 
 # 4. The tree. Releases and the deploy link stand under the deploy root and nothing else;
